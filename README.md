@@ -7,7 +7,8 @@
 - Next.js 16 (App Router)
 - TypeScript
 - Tailwind CSS
-- Firebase (Firestore / Auth / Storage)
+- Firebase (Firestore / Auth / Storage / Analytics)
+- Sentry (エラー監視)
 
 ---
 
@@ -27,7 +28,7 @@ firestore-root
 │   ├── description : string           // "厚切りチャーシューがゴロゴロ"
 │   ├── price       : int              // 1100（税込・整数）
 │   ├── categoryIds : array[string]    // 複数カテゴリに所属可能
-│   ├── imageUrl    : string           // Firebase Storage or 外部URL
+│   ├── imageUrl    : string           // Firebase Storage URL
 │   ├── isAvailable : boolean          // false = 品切れ（非表示）
 │   ├── createdAt   : Timestamp
 │   └── updatedAt   : Timestamp
@@ -42,11 +43,11 @@ firestore-root
 │   ├── status        : string         // "pending" → "preparing" → "completed" → "paid"
 │   │                                  // "pending" → "cancelled"
 │   ├── tableNumber   : int            // テーブル番号
-│   ├── customerNote  : string         // 備考（アレルギー等）
+│   ├── customerNote  : string         // 備考
 │   ├── createdAt     : Timestamp
 │   └── updatedAt     : Timestamp
 │
-└── admins/{uid}                       // Firebase Auth の uid がドキュメントID
+└── admins/{uid}                       // Firebase Auth uid がドキュメントID
     ├── email     : string
     ├── role      : string             // "admin"
     └── createdAt : Timestamp
@@ -54,15 +55,10 @@ firestore-root
 
 ### 設計の要点
 
-**スナップショットパターン**
-orders.items に name と price を複製保存する。menus の価格が後から変わっても、過去の注文金額は変わらない。
-
-**物理削除しない**
-メニューは isAvailable: false で非表示にする。削除すると過去注文の menuId 参照が切れるため。
-
-**カテゴリの多対多**
-menus.categoryIds を配列にすることで、1品が「おすすめ」と「ラーメン」の両方に所属できる。
-カテゴリ名の変更は categories の1件更新で済む。
+- **スナップショットパターン**: orders.items に name と price を複製。メニュー価格変更が過去注文に影響しない
+- **物理削除しない**: メニューは isAvailable: false で非表示。過去注文の参照が切れない
+- **カテゴリの多対多**: categoryIds を配列にし、1品が複数カテゴリに所属可能
+- **支払いは管理者のみ**: Security Rules で status を "paid" に変更できるのは管理者のみ
 
 ---
 
@@ -77,12 +73,14 @@ menus.categoryIds を配列にすることで、1品が「おすすめ」と「�
 /order              注文確認・送信
 /order/[orderId]    注文ステータス（リアルタイム）
 /order/history      テーブルの注文履歴
-/bill               お会計（伝票表示 → 支払い完了）
+/bill               お会計伝票（レジに提示）
 
 管理側（PCブラウザ）
 ─────────────────────────────
 /admin/login        メール/パスワードログイン
 /admin/orders       注文管理（リアルタイム・ステータス更新・通知音）
+/admin/register     レジ（テーブル別精算・精算済み一覧）
+/admin/sales        売上分析（日別/週別/月別・ABC分析・ピーク時間帯・カテゴリ別）
 /admin/menus        メニューCRUD（画像アップロード）
 /admin/categories   カテゴリ管理
 ```
@@ -95,28 +93,21 @@ menus.categoryIds を配列にすることで、1品が「おすすめ」と「�
 
 ```
 スタッフがタブレットで /setup にアクセス
-  │
-  ├── PIN入力（1234）
-  │     → 認証OK
-  │
+  ├── PIN入力（1234）→ 認証OK
   └── テーブル番号入力（例: 3）
         → localStorage に保存
         → /menu にリダイレクト
-        → 以降、このタブレットはテーブル3として動作
+        → 以降このタブレットはテーブル3として動作
 ```
 
 ### 2. メニュー閲覧〜カート追加
 
 ```
 お客様が /menu を開く
-  │
   ├── Firestore から取得
-  │     categories: orderBy("sortOrder") で全件取得
-  │     menus: where("isAvailable", "==", true) で全件取得
-  │
+  │     categories: orderBy("sortOrder") で全件
+  │     menus: where("isAvailable", "==", true) で全件
   ├── カテゴリタブで切り替え表示
-  │     menus.categoryIds に該当カテゴリIDを含むものをフィルタ
-  │
   └── 「追加」ボタン
         → { menuId, name, price } を CartContext に追加
         → localStorage("gonmura-cart-3") に自動保存
@@ -127,23 +118,17 @@ menus.categoryIds を配列にすることで、1品が「おすすめ」と「�
 
 ```
 お客様が /cart → /order に進む
-  │
-  ├── 注文内容の確認（items, 合計金額, テーブル番号）
-  │
   └── 「注文を確定する」ボタン
-        │
         ├── Firestore に書き込み
-        │     orders/{自動生成ID} = {
-        │       items: [{ menuId, name, price, quantity }, ...],  ← スナップショット
+        │     orders/{自動ID} = {
+        │       items: [{ menuId, name, price, quantity }],  ← スナップショット
         │       status: "pending",
         │       tableNumber: 3,
         │       customerNote: "...",
-        │       createdAt: serverTimestamp(),
-        │       updatedAt: serverTimestamp()
+        │       createdAt: serverTimestamp()
         │     }
-        │
+        ├── Analytics カスタムイベント送信（purchase）
         ├── カートをクリア
-        │
         └── /order/{orderId} にリダイレクト
               → onSnapshot でステータスをリアルタイム監視
 ```
@@ -152,77 +137,67 @@ menus.categoryIds を配列にすることで、1品が「おすすめ」と「�
 
 ```
 管理画面 /admin/orders
-  │
   ├── onSnapshot で注文をリアルタイム取得
-  │     where("createdAt", ">=", 今日) + orderBy("createdAt", "desc")
-  │
   ├── 新規注文検知 → ピンポン通知音（Web Audio API）
-  │
   ├── ステータスタブ（未対応 / 調理中 / 完了）
-  │
   └── ステータス更新ボタン
-        「調理開始」: status → "preparing"
-        「提供完了」: status → "completed"
-        「キャンセル」: status → "cancelled"
-        │
-        └── updateDoc(orders/{id}, { status, updatedAt })
-              → お客様側の onSnapshot に即反映
+        「調理開始」→ "preparing"
+        「提供完了」→ "completed"
+        「キャンセル」→ "cancelled"
+        → お客様側の onSnapshot に即反映
 ```
 
-### 5. お会計
+### 5. お会計〜精算
 
 ```
-お客様が /menu の「お会計」ボタンをタップ
-  │
-  ├── /bill ページ
-  │     Firestore クエリ:
-  │       where("tableNumber", "==", 3)
-  │       where("status", "in", ["pending", "preparing", "completed"])
-  │
-  ├── 同じ品名・価格のアイテムをまとめて伝票表示
-  │     小計 / 消費税(10%) / 合計
-  │
-  ├── 「この画面をレジにてご提示ください」
-  │
-  └── 「支払い完了」ボタン
-        │
-        ├── 全注文の status → "paid" に更新
-        ├── カートをクリア（localStorage も削除）
-        ├── 完了画面表示
-        └── 3秒後に /menu へ自動遷移
-              → 次のお客様は白紙の状態から開始
+お客様がメニュー画面で「お会計」をタップ
+  └── /bill ページ
+        → テーブルの全注文をまとめて伝票表示
+        → 「この画面をレジにてご提示ください」
+
+管理側 /admin/register
+  ├── 未精算タブ: テーブル別の注文一覧 + 「精算完了」ボタン
+  └── 精算済みタブ: 日付フィルタ付き精算済み一覧
+        → 「精算完了」→ 全注文の status を "paid" に更新
 ```
 
-### 6. データの流れ全体図
+### 6. 売上分析
 
 ```
-[お客様タブレット]                    [Firestore]                    [管理PC]
-     │                                    │                              │
-     │  メニュー取得                       │                              │
-     ├──── getDocs(menus) ──────────────►│                              │
-     │◄──── メニュー一覧 ─────────────────┤                              │
-     │                                    │                              │
-     │  カート操作                         │                              │
-     ├──── localStorage のみ              │                              │
-     │     (Firestore不使用)              │                              │
-     │                                    │                              │
-     │  注文送信                           │                              │
-     ├──── setDoc(orders) ─────────────►│                              │
-     │                                    ├──── onSnapshot ─────────────►│
-     │                                    │     新規注文通知音♪            │
-     │                                    │                              │
-     │  ステータス監視                     │         ステータス更新        │
-     │◄──── onSnapshot ──────────────────┤◄──── updateDoc ──────────────┤
-     │     「調理中です」                  │     "preparing"              │
-     │     「完成しました！」              │     "completed"              │
-     │                                    │                              │
-     │  お会計                             │                              │
-     ├──── getDocs(orders) ─────────────►│                              │
-     │◄──── テーブルの全注文 ─────────────┤                              │
-     │                                    │                              │
-     │  支払い完了                         │                              │
-     ├──── updateDoc(status:"paid") ───►│                              │
-     │     カート・履歴リセット            │                              │
+管理側 /admin/sales
+  ├── サマリー（総売上・注文数・平均単価）
+  ├── 売上レポート（日別/週別/月別切替）
+  ├── メニューABC分析（A主力/B準主力/C検討）
+  ├── ピーク時間帯ヒートマップ（曜日×時間）
+  └── カテゴリ別注文率
+```
+
+### 7. データの流れ全体図
+
+```
+[お客様タブレット]                [Firestore]                [管理PC]
+     │                                │                          │
+     │  メニュー取得                    │                          │
+     ├── getDocs(menus) ────────────►│                          │
+     │◄── メニュー一覧 ────────────────┤                          │
+     │                                │                          │
+     │  カート操作                     │                          │
+     ├── localStorage のみ            │                          │
+     │                                │                          │
+     │  注文送信                       │                          │
+     ├── setDoc(orders) ─────────────►│                          │
+     │                                ├── onSnapshot ───────────►│
+     │                                │   通知音♪                 │
+     │                                │                          │
+     │  ステータス監視                 │     ステータス更新         │
+     │◄── onSnapshot ────────────────┤◄── updateDoc ────────────┤
+     │   「調理中」「完成」            │                          │
+     │                                │                          │
+     │  お会計                         │                          │
+     ├── getDocs(orders) ────────────►│                          │
+     │◄── テーブルの全注文 ────────────┤                          │
+     │                                │        レジで精算         │
+     │                                │◄── updateDoc("paid") ───┤
 ```
 
 ---
@@ -232,10 +207,9 @@ menus.categoryIds を配列にすることで、1品が「おすすめ」と「�
 ```
 categories  → 誰でも読める、管理者のみ書ける
 menus       → 誰でも読める、管理者のみ書ける
-orders      → 誰でも作成・読める
-              status を "paid" に変更 → 誰でも可
-              その他の更新 → 管理者のみ
-admins      → 自分の uid のドキュメントのみ読める
+orders      → 誰でも作成・読める、更新は管理者のみ
+admins      → 自分のuidのドキュメントのみ読める
+storage     → menus/ は誰でも読める、認証済みユーザーのみ書ける
 ```
 
 ---
@@ -243,31 +217,23 @@ admins      → 自分の uid のドキュメントのみ読める
 ## ローカルストレージ
 
 ```
-gonmura-table       : number    テーブル番号（タブレット固定）
-gonmura-cart-{N}    : CartItem[] テーブルNのカート内容
+gonmura-table       : number      テーブル番号（スタッフがPIN認証で設定）
+gonmura-cart-{N}    : CartItem[]  テーブルNのカート（精算時にクリア）
 ```
-
-テーブルごとにカートが分離されている。支払い完了時にクリアされる。
 
 ---
 
 ## セットアップ
 
 ```bash
-# 依存インストール
 npm install
-
-# 環境変数設定
-cp .env.local.example .env.local
-# Firebase の設定値を記入
-
-# 開発サーバー起動
+cp .env.local.example .env.local  # Firebase設定値を記入
 npm run dev
 ```
 
 ### Firebase で必要な設定
 
-1. Authentication → メール/パスワード を有効化
+1. Authentication → メール/パスワードを有効化
 2. Firestore Database → 作成（asia-northeast1）
 3. Storage → 作成
 4. admins コレクションに管理者の uid を登録
@@ -280,3 +246,14 @@ npm run dev
    - email: メールアドレス
    - role: "admin"
    - createdAt: 現在時刻
+
+---
+
+## デプロイ
+
+Firebase App Hosting で自動デプロイ。`main` ブランチへのpushで自動ビルド・デプロイ。
+
+```
+本番URL: https://gonmura-food-app--gonmura-food.asia-east1.hosted.app
+GitHub:  https://github.com/kitagawa-create/gonmura-food-app
+```
