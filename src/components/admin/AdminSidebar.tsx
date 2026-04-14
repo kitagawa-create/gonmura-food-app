@@ -7,6 +7,7 @@ import { logout } from "@/lib/admin-auth";
 const NAV = [
   { href: "/admin/orders", label: "注文管理" },
   { href: "/admin/register", label: "レジ" },
+  { href: "/admin/sales", label: "売上分析" },
   { href: "/admin/menus", label: "メニュー管理" },
   { href: "/admin/categories", label: "カテゴリ管理" },
 ];
