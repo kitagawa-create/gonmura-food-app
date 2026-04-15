@@ -30,7 +30,7 @@ src/
 │   │   ├── login/page.tsx       # メール/パスワードログイン
 │   │   ├── orders/page.tsx      # 注文カンバン（3カラム、通知音、経過時刻、5分超え赤ハイライト、逆行可、取消は deleteDoc）
 │   │   ├── register/page.tsx    # レジ（未精算/精算済みタブ、売上ドーナツ円グラフ、目標達成率）
-│   │   ├── sales/page.tsx       # 売上分析（owner のみ。折れ線グラフ + KPI、売上/メニュー別売数モード切替）
+│   │   ├── sales/page.tsx       # 売上分析（owner のみ。KPI + 売上推移/メニュー別売数/価格変更前後比較）
 │   │   ├── menus/page.tsx       # メニューCRUD（owner: 全機能 / staff: 公開トグルのみ）
 │   │   └── categories/page.tsx  # カテゴリ管理（owner のみ）
 │   ├── global-error.tsx         # Sentryエラーキャッチ画面
