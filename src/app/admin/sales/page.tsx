@@ -73,123 +73,20 @@ type Series = {
   formatValue: (v: number) => string;
 };
 
-function BarChart({
-  labels,
-  values,
-  color = "#f97316",
-  formatValue,
-  activeIdx,
-  onBarClick,
-  height = 260,
-}: {
-  labels: string[];
-  values: number[];
-  color?: string;
-  formatValue: (v: number) => string;
-  activeIdx?: number | null;
-  onBarClick?: (i: number) => void;
-  height?: number;
-}) {
-  const padL = 12;
-  const padR = 12;
-  const padT = 16;
-  const padB = 28;
-  const W = 800;
-  const innerW = W - padL - padR;
-  const innerH = height - padT - padB;
-  const n = values.length;
-  if (n === 0) return null;
-  const max = Math.max(...values, 1);
-  const gap = 2;
-  const bw = Math.max(1, innerW / n - gap);
-  const xTickEvery = Math.max(1, Math.ceil(n / 10));
-  return (
-    <svg
-      viewBox={`0 0 ${W} ${height}`}
-      preserveAspectRatio="none"
-      className="w-full"
-      style={{ height }}
-    >
-      {[0.25, 0.5, 0.75].map((p) => (
-        <line
-          key={p}
-          x1={padL}
-          x2={W - padR}
-          y1={padT + innerH * p}
-          y2={padT + innerH * p}
-          stroke="#262626"
-          strokeDasharray="3 3"
-        />
-      ))}
-      {values.map((v, i) => {
-        const h = (v / max) * innerH;
-        const x = padL + i * (bw + gap) + gap / 2;
-        const y = padT + innerH - h;
-        const isActive = activeIdx === i;
-        return (
-          <g
-            key={i}
-            onClick={() => onBarClick?.(i)}
-            style={{ cursor: onBarClick ? "pointer" : "default" }}
-          >
-            <rect
-              x={padL + i * (bw + gap)}
-              y={padT}
-              width={bw + gap}
-              height={innerH}
-              fill="transparent"
-            />
-            <rect
-              x={x}
-              y={y}
-              width={bw}
-              height={h}
-              fill={color}
-              opacity={activeIdx == null || isActive ? 1 : 0.45}
-              rx={2}
-            />
-            {isActive && (
-              <text
-                x={x + bw / 2}
-                y={y - 4}
-                textAnchor="middle"
-                fontSize={10}
-                fill="#fafafa"
-              >
-                {formatValue(v)}
-              </text>
-            )}
-          </g>
-        );
-      })}
-      {labels.map((l, i) =>
-        i % xTickEvery === 0 || i === n - 1 ? (
-          <text
-            key={i}
-            x={padL + i * (bw + gap) + bw / 2 + gap / 2}
-            y={height - 10}
-            textAnchor="middle"
-            fontSize={10}
-            fill="#737373"
-          >
-            {l}
-          </text>
-        ) : null
-      )}
-    </svg>
-  );
-}
-
 function LineChart({
   labels,
   series,
   height = 260,
   sharedScale = false,
+  activeIdx = null,
+  onPointClick,
 }: {
   labels: string[];
   series: Series[];
   height?: number;
   sharedScale?: boolean;
+  activeIdx?: number | null;
+  onPointClick?: (i: number) => void;
 }) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const padL = 12;
@@ -252,13 +149,16 @@ function LineChart({
             />
             {s.values.map((v, i) => {
               const y = padT + innerH - (v / maxPerSeries[idx]) * innerH;
+              const active = activeIdx === i;
               return (
                 <circle
                   key={i}
                   cx={xs(i)}
                   cy={y}
-                  r={hoverIdx === i ? 4 : 2.5}
+                  r={active ? 5 : hoverIdx === i ? 4 : 2.5}
                   fill={s.color}
+                  stroke={active ? "#fafafa" : undefined}
+                  strokeWidth={active ? 2 : 0}
                 />
               );
             })}
@@ -306,7 +206,9 @@ function LineChart({
               width={right - left}
               height={innerH}
               fill="transparent"
+              style={{ cursor: onPointClick ? "pointer" : "default" }}
               onMouseEnter={() => setHoverIdx(i)}
+              onClick={() => onPointClick?.(i)}
             />
           );
         })}
@@ -556,8 +458,8 @@ export default function AdminSalesPage() {
       : `${visible[0].label} 〜 ${visible[visible.length - 1].label}`;
 
   return (
-    <div className="w-full flex flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2 justify-between">
+    <div className="w-full flex flex-col gap-3 overflow-hidden h-[calc(100dvh-24px)] md:h-[calc(100dvh-48px)]">
+      <div className="flex flex-wrap items-center gap-2 justify-between shrink-0">
         <h1 className="text-2xl font-bold text-white">売上分析</h1>
         <div className="flex items-center gap-2">
           <select
@@ -581,15 +483,15 @@ export default function AdminSalesPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 shrink-0">
         <KpiCard label="合計売上" value={yen(kpi.revenue)} sub={rangeLabel} />
         <KpiCard label="注文数" value={`${kpi.count.toLocaleString()}件`} />
         <KpiCard label="客単価" value={yen(kpi.atv)} />
         <KpiCard label="平均品数" value={`${kpi.avgQty}点/注文`} />
       </div>
 
-      <section className="rounded-xl bg-neutral-900 border border-neutral-800 p-4">
-        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+      <section className="rounded-xl bg-neutral-900 border border-neutral-800 p-4 flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2 shrink-0">
           <h2 className="text-lg font-bold text-white">
             {analysis === "sales"
               ? "売上推移"
@@ -688,25 +590,34 @@ export default function AdminSalesPage() {
             対象メニューの販売実績がありません
           </p>
         ) : analysis === "sales" ? (
-          <>
-            <BarChart
-              labels={visible.map((b) => b.label)}
-              values={visible.map((b) => b.revenue)}
-              formatValue={yen}
-              activeIdx={
-                detailKey
-                  ? visible.findIndex((b) => b.key === detailKey)
-                  : null
-              }
-              onBarClick={(i) =>
-                setDetailKey((cur) =>
-                  cur === visible[i].key ? null : visible[i].key
-                )
-              }
-            />
-            {detail && (
-              <div className="mt-3 rounded-lg bg-neutral-800/60 border border-neutral-700 p-3">
-                <div className="flex items-center justify-between mb-2">
+          <div className="flex-1 min-h-0 flex flex-col gap-3">
+            <div className="shrink-0">
+              <LineChart
+                labels={visible.map((b) => b.label)}
+                series={[
+                  {
+                    name: "売上",
+                    color: "#f97316",
+                    values: visible.map((b) => b.revenue),
+                    formatValue: yen,
+                  },
+                ]}
+                activeIdx={
+                  detailKey
+                    ? visible.findIndex((b) => b.key === detailKey)
+                    : null
+                }
+                onPointClick={(i) =>
+                  setDetailKey((cur) =>
+                    cur === visible[i].key ? null : visible[i].key
+                  )
+                }
+                height={200}
+              />
+            </div>
+            {detail ? (
+              <div className="flex-1 min-h-0 rounded-lg bg-neutral-800/60 border border-neutral-700 p-3 flex flex-col overflow-hidden">
+                <div className="flex items-center justify-between mb-2 shrink-0">
                   <h3 className="text-sm font-bold text-white">
                     {detail.label} の詳細
                   </h3>
@@ -717,7 +628,7 @@ export default function AdminSalesPage() {
                     閉じる
                   </button>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3 text-xs">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3 text-xs shrink-0">
                   <div>
                     <p className="text-neutral-500">売上</p>
                     <p className="text-white font-bold tabular-nums">
@@ -743,8 +654,10 @@ export default function AdminSalesPage() {
                     </p>
                   </div>
                 </div>
-                <p className="text-xs text-neutral-500 mb-1">メニュー別内訳</p>
-                <div className="max-h-52 overflow-y-auto">
+                <p className="text-xs text-neutral-500 mb-1 shrink-0">
+                  メニュー別内訳
+                </p>
+                <div className="flex-1 min-h-0 overflow-y-auto">
                   <table className="w-full text-xs tabular-nums">
                     <thead className="text-neutral-600 sticky top-0 bg-neutral-800/60">
                       <tr>
@@ -773,23 +686,28 @@ export default function AdminSalesPage() {
                   </table>
                 </div>
               </div>
+            ) : (
+              <p className="text-[11px] text-neutral-600 shrink-0">
+                ポイントをタップするとその期間の詳細（注文数/客単価/メニュー別内訳）が見られます。
+              </p>
             )}
-          </>
+          </div>
         ) : (
-          <LineChart
-            labels={visible.map((b) => b.label)}
-            series={analysis === "menu" ? menuSeries : priceSeries}
-            sharedScale={analysis === "menu" || analysis === "price"}
-          />
+          <div className="flex-1 min-h-0 flex flex-col">
+            <div className="flex-1 min-h-0">
+              <LineChart
+                labels={visible.map((b) => b.label)}
+                series={analysis === "menu" ? menuSeries : priceSeries}
+                sharedScale
+              />
+            </div>
+            <p className="text-[11px] text-neutral-600 mt-2 shrink-0">
+              {analysis === "menu"
+                ? `同一スケールで比較。最大${MAX_MENU_SERIES}メニューまで重ね描き。`
+                : "価格帯ごとに線を分けて売数推移を比較。値上げ前後の販売数変化を読み取れます。"}
+            </p>
+          </div>
         )}
-        <p className="text-[11px] text-neutral-600 mt-2">
-          {analysis === "sales" &&
-            "バーをタップするとその期間の詳細（注文数/客単価/メニュー別内訳）が見られます。"}
-          {analysis === "menu" &&
-            `同一スケールで比較。最大${MAX_MENU_SERIES}メニューまで重ね描き。`}
-          {analysis === "price" &&
-            "価格帯ごとに線を分けて売数推移を比較。値上げ前後の販売数変化を読み取れます。"}
-        </p>
       </section>
     </div>
   );
