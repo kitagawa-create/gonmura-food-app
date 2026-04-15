@@ -22,6 +22,7 @@ export default function OrderPage() {
     useCart();
   const [customerNote, setCustomerNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [unavailableNames, setUnavailableNames] = useState<string[]>([]);
   const router = useRouter();
 
   if (items.length === 0) {
@@ -54,9 +55,7 @@ export default function OrderPage() {
       snap.docs.forEach((d) => available.set(d.id, d.data().isAvailable === true));
       const unavailable = items.filter((i) => available.get(i.menuId) !== true);
       if (unavailable.length > 0) {
-        alert(
-          `品切れの商品があります: ${unavailable.map((i) => i.name).join("、")}\nカートから削除しました。`
-        );
+        setUnavailableNames(unavailable.map((i) => i.name));
         for (const i of unavailable) removeItem(i.menuId);
         setSubmitting(false);
         return;
@@ -199,6 +198,37 @@ export default function OrderPage() {
           </Link>
         </div>
       </div>
+
+      {unavailableNames.length > 0 && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setUnavailableNames([])}
+        >
+          <div
+            className="w-full max-w-sm bg-neutral-900 rounded-2xl border border-neutral-800 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-bold text-white mb-2">品切れの商品があります</h2>
+            <p className="text-sm text-neutral-400 mb-3">
+              以下の商品は品切れのため、カートから削除しました。
+            </p>
+            <ul className="mb-5 space-y-1 rounded-lg bg-neutral-800/60 px-4 py-3">
+              {unavailableNames.map((n) => (
+                <li key={n} className="text-sm text-orange-300">
+                  ・{n}
+                </li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              onClick={() => setUnavailableNames([])}
+              className="w-full rounded-xl bg-orange-500 py-3 text-sm font-bold text-white hover:bg-orange-600 transition-colors"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
