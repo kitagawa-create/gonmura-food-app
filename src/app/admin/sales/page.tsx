@@ -361,11 +361,37 @@ export default function AdminSalesPage() {
     });
   }, [analysis, selectedMenuIds, orders, period, visible, visibleKeys, menuOptions]);
 
-  useEffect(() => {
-    if (analysis === "price" && !priceMenuId && menuOptions.length > 0) {
-      setPriceMenuId(menuOptions[0].menuId);
+  const priceChangedMenus = useMemo(() => {
+    const map = new Map<string, { menuId: string; name: string; qty: number; prices: Set<number> }>();
+    for (const o of orders) {
+      for (const it of o.items) {
+        const e = map.get(it.menuId) ?? {
+          menuId: it.menuId,
+          name: it.name,
+          qty: 0,
+          prices: new Set<number>(),
+        };
+        e.qty += it.quantity;
+        e.name = it.name;
+        e.prices.add(Math.trunc(it.price));
+        map.set(it.menuId, e);
+      }
     }
-  }, [analysis, priceMenuId, menuOptions]);
+    return Array.from(map.values())
+      .filter((m) => m.prices.size >= 2)
+      .sort((a, b) => b.qty - a.qty);
+  }, [orders]);
+
+  useEffect(() => {
+    if (analysis !== "price") return;
+    if (priceChangedMenus.length === 0) {
+      if (priceMenuId) setPriceMenuId("");
+      return;
+    }
+    if (!priceChangedMenus.some((m) => m.menuId === priceMenuId)) {
+      setPriceMenuId(priceChangedMenus[0].menuId);
+    }
+  }, [analysis, priceMenuId, priceChangedMenus]);
 
   const priceSeries: Series[] = useMemo(() => {
     if (analysis !== "price" || !priceMenuId) return [];
@@ -516,17 +542,17 @@ export default function AdminSalesPage() {
 
         {analysis === "price" && (
           <div className="mb-3">
-            {menuOptions.length === 0 ? (
-              <p className="text-xs text-neutral-500">注文データがありません</p>
+            {priceChangedMenus.length === 0 ? (
+              <p className="text-xs text-neutral-500">価格変更履歴のあるメニューがありません</p>
             ) : (
               <select
                 value={priceMenuId}
                 onChange={(e) => setPriceMenuId(e.target.value)}
                 className="w-full md:w-auto bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
               >
-                {menuOptions.map((m) => (
+                {priceChangedMenus.map((m) => (
                   <option key={m.menuId} value={m.menuId}>
-                    {m.name}（累計 {m.qty}個）
+                    {m.name}（{m.prices.size}価格・累計 {m.qty}個）
                   </option>
                 ))}
               </select>
