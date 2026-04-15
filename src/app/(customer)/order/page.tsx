@@ -2,7 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  documentId,
+  getDocs,
+  query,
+  serverTimestamp,
+  setDoc,
+  where,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
 import { trackEvent } from "@/lib/analytics";
@@ -32,6 +41,27 @@ export default function OrderPage() {
     setSubmitting(true);
 
     try {
+      const ids = items.map((i) => i.menuId);
+      if (ids.length > 30) {
+        alert("一度に注文できる商品数を超えています。点数を減らしてください。");
+        setSubmitting(false);
+        return;
+      }
+      const snap = await getDocs(
+        query(collection(db, "menus"), where(documentId(), "in", ids))
+      );
+      const available = new Map<string, boolean>();
+      snap.docs.forEach((d) => available.set(d.id, d.data().isAvailable === true));
+      const unavailable = items.filter((i) => available.get(i.menuId) !== true);
+      if (unavailable.length > 0) {
+        alert(
+          `品切れの商品があります: ${unavailable.map((i) => i.name).join("、")}\nカートから削除しました。`
+        );
+        for (const i of unavailable) removeItem(i.menuId);
+        setSubmitting(false);
+        return;
+      }
+
       const orderRef = doc(collection(db, "orders"));
       await setDoc(orderRef, {
         items: items.map((item) => ({

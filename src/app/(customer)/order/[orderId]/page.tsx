@@ -6,17 +6,29 @@ import { db } from "@/lib/firebase";
 import type { Order } from "@/types";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { Suspense } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 
 const statusLabels: Record<string, { label: string; color: string }> = {
   pending: { label: "受付中", color: "bg-yellow-500/20 text-yellow-400" },
   preparing: { label: "調理中", color: "bg-blue-500/20 text-blue-400" },
   completed: { label: "完成", color: "bg-green-500/20 text-green-400" },
-  cancelled: { label: "キャンセル", color: "bg-red-500/20 text-red-400" },
 };
 
 export default function OrderStatusPage() {
+  return (
+    <Suspense fallback={<FullScreenLoader />}>
+      <OrderStatusContent />
+    </Suspense>
+  );
+}
+
+function OrderStatusContent() {
   const params = useParams();
+  const search = useSearchParams();
+  const from = search?.get("from");
+  const backHref = from === "history" ? "/order/history" : "/menu";
+  const backLabel = from === "history" ? "注文履歴に戻る" : "メニューに戻る";
   const orderId = params.orderId as string;
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,8 +51,8 @@ export default function OrderStatusPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-950 px-4">
         <p className="text-neutral-500 text-lg mb-4">注文が見つかりません</p>
-        <Link href="/menu" className="text-orange-400 font-medium hover:underline">
-          メニューに戻る
+        <Link href={backHref} className="text-orange-400 font-medium hover:underline">
+          {backLabel}
         </Link>
       </div>
     );
@@ -97,10 +109,10 @@ export default function OrderStatusPage() {
         )}
 
         <Link
-          href="/menu"
+          href={backHref}
           className="block w-full text-center py-3 text-neutral-500 hover:text-neutral-300 transition-colors"
         >
-          メニューに戻る
+          {backLabel}
         </Link>
       </main>
     </div>

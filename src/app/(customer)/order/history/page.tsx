@@ -12,7 +12,6 @@ const statusLabels: Record<string, { label: string; color: string }> = {
   pending: { label: "受付中", color: "bg-yellow-500/20 text-yellow-400" },
   preparing: { label: "調理中", color: "bg-blue-500/20 text-blue-400" },
   completed: { label: "完成", color: "bg-green-500/20 text-green-400" },
-  cancelled: { label: "キャンセル", color: "bg-red-500/20 text-red-400" },
 };
 
 export default function OrderHistoryPage() {
@@ -74,7 +73,7 @@ export default function OrderHistoryPage() {
               return (
                 <Link
                   key={order.id}
-                  href={`/order/${order.id}`}
+                  href={`/order/${order.id}?from=history`}
                   className="block bg-neutral-900 rounded-xl border border-neutral-800 p-4 hover:border-neutral-600 transition-colors"
                 >
                   <div className="flex justify-between items-start mb-3">

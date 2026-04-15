@@ -6,6 +6,7 @@ import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import {
   Timestamp,
   collection,
+  deleteDoc,
   doc,
   onSnapshot,
   orderBy,
@@ -17,7 +18,7 @@ import {
 import { db } from "@/lib/firebase";
 import type { Order, OrderStatus } from "@/types";
 
-type ColumnStatus = Exclude<OrderStatus, "cancelled" | "paid">;
+type ColumnStatus = Exclude<OrderStatus, "paid">;
 
 const COLUMNS: { key: ColumnStatus; label: string; accent: string; badge: string }[] = [
   { key: "pending", label: "新規注文", accent: "border-t-orange-500", badge: "bg-orange-500" },
@@ -131,9 +132,10 @@ export default function AdminOrdersPage() {
   }, [orders]);
 
   const todayTotal = useMemo(() => {
-    return orders
-      .filter((o) => o.status !== "cancelled")
-      .reduce((sum, o) => sum + o.items.reduce((s, i) => s + i.price * i.quantity, 0), 0);
+    return orders.reduce(
+      (sum, o) => sum + o.items.reduce((s, i) => s + i.price * i.quantity, 0),
+      0
+    );
   }, [orders]);
 
   async function updateStatus(id: string, status: OrderStatus) {
@@ -142,6 +144,15 @@ export default function AdminOrdersPage() {
       await updateDoc(doc(db, "orders", id), { status, updatedAt: serverTimestamp() });
     } catch (e) {
       setError(e instanceof Error ? e.message : "更新に失敗しました。");
+    }
+  }
+
+  async function deleteOrder(id: string) {
+    setError(null);
+    try {
+      await deleteDoc(doc(db, "orders", id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "削除に失敗しました。");
     }
   }
 
@@ -207,7 +218,7 @@ export default function AdminOrdersPage() {
                   <p className="text-xs text-neutral-600 text-center py-12">注文なし</p>
                 ) : (
                   grouped[col.key].map((order) => (
-                    <OrderCard key={order.id} order={order} now={now} onUpdateStatus={updateStatus} />
+                    <OrderCard key={order.id} order={order} now={now} onUpdateStatus={updateStatus} onDelete={deleteOrder} />
                   ))
                 )}
               </div>
@@ -223,10 +234,12 @@ function OrderCard({
   order,
   now,
   onUpdateStatus,
+  onDelete,
 }: {
   order: Order;
   now: number;
   onUpdateStatus: (id: string, status: OrderStatus) => void;
+  onDelete: (id: string) => void;
 }) {
   const [showCancel, setShowCancel] = useState(false);
   const total = order.items.reduce((s, i) => s + i.price * i.quantity, 0);
@@ -313,12 +326,12 @@ function OrderCard({
 
       <ConfirmDialog
         open={showCancel}
-        title={`テーブル ${order.tableNumber} の注文をキャンセル`}
-        message={`${order.items.map((i) => i.name).join("、")}（¥${total.toLocaleString()}）をキャンセルしますか？`}
-        confirmLabel="キャンセルする"
+        title={`テーブル ${order.tableNumber} の注文を削除`}
+        message={`${order.items.map((i) => i.name).join("、")}（¥${total.toLocaleString()}）を削除しますか？この操作は取り消せません。`}
+        confirmLabel="削除する"
         confirmColor="red"
         onConfirm={() => {
-          onUpdateStatus(order.id, "cancelled");
+          onDelete(order.id);
           setShowCancel(false);
         }}
         onCancel={() => setShowCancel(false)}

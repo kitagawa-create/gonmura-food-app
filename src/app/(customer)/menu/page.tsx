@@ -17,7 +17,10 @@ export default function MenuPage() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [selectedMenu, setSelectedMenu] = useState<Menu | null>(null);
   const [selectedQuantity, setSelectedQuantity] = useState(1);
-  const { addItem, totalItems, totalAmount, tableNumber } = useCart();
+  const [showTableChange, setShowTableChange] = useState(false);
+  const [newTableInput, setNewTableInput] = useState("");
+  const [tableChangeError, setTableChangeError] = useState("");
+  const { addItem, totalItems, totalAmount, tableNumber, setTableNumber, clearCart } = useCart();
   const router = useRouter();
 
   useEffect(() => {
@@ -72,7 +75,20 @@ export default function MenuPage() {
         <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
           <div>
             <h1 className="text-lg font-bold text-white tracking-wide">Gonmura Food</h1>
-            <p className="text-xs text-neutral-500">テーブル {tableNumber}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-neutral-500">テーブル {tableNumber}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setNewTableInput("");
+                  setTableChangeError("");
+                  setShowTableChange(true);
+                }}
+                className="text-[10px] text-neutral-400 underline hover:text-white transition-colors"
+              >
+                変更
+              </button>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <Link
@@ -262,6 +278,82 @@ export default function MenuPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* テーブル番号変更モーダル */}
+      {showTableChange && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setShowTableChange(false)}
+        >
+          <div
+            className="w-full max-w-sm bg-neutral-900 rounded-2xl border border-neutral-800 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-bold text-white mb-4">テーブル番号を変更</h2>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const num = parseInt(newTableInput, 10);
+                if (isNaN(num) || num <= 0) {
+                  setTableChangeError("正しいテーブル番号を入力してください");
+                  return;
+                }
+                if (num === tableNumber) {
+                  setShowTableChange(false);
+                  return;
+                }
+                if (totalItems > 0) {
+                  const ok = window.confirm(
+                    `現在のカート (${totalItems}点) は破棄されます。よろしいですか？`
+                  );
+                  if (!ok) return;
+                }
+                clearCart();
+                setTableNumber(num);
+                setShowTableChange(false);
+              }}
+              className="space-y-4"
+            >
+              <input
+                type="number"
+                min="1"
+                required
+                autoFocus
+                value={newTableInput}
+                onChange={(e) => {
+                  setNewTableInput(e.target.value);
+                  setTableChangeError("");
+                }}
+                placeholder="新しいテーブル番号"
+                className="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3 text-center text-2xl text-white placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+              {tableChangeError && (
+                <p className="text-sm text-red-400 text-center">{tableChangeError}</p>
+              )}
+              {totalItems > 0 && (
+                <p className="text-xs text-yellow-400 text-center">
+                  現在のカート ({totalItems}点) は破棄されます
+                </p>
+              )}
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowTableChange(false)}
+                  className="flex-1 py-3 rounded-xl border border-neutral-700 text-neutral-300 font-medium hover:bg-neutral-800 transition-colors"
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 rounded-xl bg-orange-500 text-white font-bold hover:bg-orange-600 transition-colors"
+                >
+                  変更する
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
