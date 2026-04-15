@@ -9,7 +9,7 @@ import type { Order } from "@/types";
 import { useAdminRole } from "@/components/admin/AdminContext";
 
 type Period = "daily" | "weekly" | "monthly";
-type Analysis = "sales" | "menu"; // 5, 6 を追加予定
+type Analysis = "sales" | "menu" | "price" | "heatmap";
 const MAX_MENU_SERIES = 5;
 const MENU_COLORS = [
   "#f97316",
@@ -18,6 +18,16 @@ const MENU_COLORS = [
   "#f472b6",
   "#fbbf24",
 ];
+const PRICE_COLORS = [
+  "#f97316",
+  "#38bdf8",
+  "#a3e635",
+  "#f472b6",
+  "#fbbf24",
+  "#c084fc",
+  "#ef4444",
+];
+const DOW_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
 
 function formatDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -246,6 +256,10 @@ export default function AdminSalesPage() {
   const [period, setPeriod] = useState<Period>("daily");
   const [analysis, setAnalysis] = useState<Analysis>("sales");
   const [selectedMenuIds, setSelectedMenuIds] = useState<string[]>([]);
+  const [priceMenuId, setPriceMenuId] = useState<string>("");
+  const [heatmapMetric, setHeatmapMetric] = useState<"revenue" | "count">(
+    "revenue"
+  );
 
   useEffect(() => {
     if (role !== "owner") router.replace("/admin/orders");
@@ -336,6 +350,54 @@ export default function AdminSalesPage() {
     });
   }, [analysis, selectedMenuIds, orders, period, visible, visibleKeys, menuOptions]);
 
+  useEffect(() => {
+    if (analysis === "price" && !priceMenuId && menuOptions.length > 0) {
+      setPriceMenuId(menuOptions[0].menuId);
+    }
+  }, [analysis, priceMenuId, menuOptions]);
+
+  const priceSeries: Series[] = useMemo(() => {
+    if (analysis !== "price" || !priceMenuId) return [];
+    const priceBuckets = new Map<number, Map<string, number>>();
+    for (const o of orders) {
+      const date = o.createdAt?.toDate?.();
+      if (!date) continue;
+      const key = bucketKey(date, period);
+      if (!visibleKeys.has(key)) continue;
+      for (const it of o.items) {
+        if (it.menuId !== priceMenuId) continue;
+        const price = Math.trunc(it.price);
+        const b = priceBuckets.get(price) ?? new Map<string, number>();
+        b.set(key, (b.get(key) ?? 0) + it.quantity);
+        priceBuckets.set(price, b);
+      }
+    }
+    return Array.from(priceBuckets.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([price, bmap], i) => ({
+        name: `¥${price.toLocaleString()}`,
+        color: PRICE_COLORS[i % PRICE_COLORS.length],
+        values: visible.map((b) => bmap.get(b.key) ?? 0),
+        formatValue: (v: number) => `${v}個`,
+      }));
+  }, [analysis, priceMenuId, orders, period, visible, visibleKeys]);
+
+  const heatmap = useMemo(() => {
+    const grid: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0));
+    for (const o of orders) {
+      const date = o.createdAt?.toDate?.();
+      if (!date) continue;
+      const jsDay = date.getDay(); // 0=Sun..6=Sat
+      const row = (jsDay + 6) % 7; // 0=Mon..6=Sun
+      const col = date.getHours();
+      grid[row][col] +=
+        heatmapMetric === "revenue" ? orderTotal(o) : 1;
+    }
+    let max = 0;
+    for (const row of grid) for (const v of row) if (v > max) max = v;
+    return { grid, max };
+  }, [orders, heatmapMetric]);
+
   function toggleMenu(mid: string) {
     setSelectedMenuIds((prev) => {
       if (prev.includes(mid)) return prev.filter((x) => x !== mid);
@@ -400,6 +462,8 @@ export default function AdminSalesPage() {
           >
             <option value="sales">売上推移</option>
             <option value="menu">メニュー別売数</option>
+            <option value="price">価格変更前後比較</option>
+            <option value="heatmap">時間帯ヒートマップ</option>
           </select>
           <select
             value={period}
@@ -421,22 +485,79 @@ export default function AdminSalesPage() {
       </div>
 
       <section className="rounded-xl bg-neutral-900 border border-neutral-800 p-4">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <h2 className="text-lg font-bold text-white">
-            {analysis === "sales" ? "売上推移" : "メニュー別売数"}
+            {analysis === "sales"
+              ? "売上推移"
+              : analysis === "menu"
+              ? "メニュー別売数"
+              : analysis === "price"
+              ? "価格変更前後比較"
+              : "時間帯ヒートマップ"}
           </h2>
-          <div className="flex items-center gap-3 text-xs flex-wrap justify-end">
-            {(analysis === "sales" ? series : menuSeries).map((s) => (
-              <div key={s.name} className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-2 w-2 rounded-full"
-                  style={{ backgroundColor: s.color }}
-                />
-                <span className="text-neutral-400">{s.name}</span>
-              </div>
-            ))}
-          </div>
+          {analysis !== "heatmap" && (
+            <div className="flex items-center gap-3 text-xs flex-wrap justify-end">
+              {(analysis === "sales"
+                ? series
+                : analysis === "menu"
+                ? menuSeries
+                : priceSeries
+              ).map((s) => (
+                <div key={s.name} className="flex items-center gap-1.5">
+                  <span
+                    className="inline-block h-2 w-2 rounded-full"
+                    style={{ backgroundColor: s.color }}
+                  />
+                  <span className="text-neutral-400">{s.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {analysis === "heatmap" && (
+            <div className="flex items-center gap-2 text-xs">
+              <button
+                onClick={() => setHeatmapMetric("revenue")}
+                className={`rounded-full px-3 py-1 border transition-colors ${
+                  heatmapMetric === "revenue"
+                    ? "bg-orange-500/20 border-orange-500/60 text-orange-300"
+                    : "border-neutral-700 text-neutral-400 hover:bg-neutral-800"
+                }`}
+              >
+                売上
+              </button>
+              <button
+                onClick={() => setHeatmapMetric("count")}
+                className={`rounded-full px-3 py-1 border transition-colors ${
+                  heatmapMetric === "count"
+                    ? "bg-orange-500/20 border-orange-500/60 text-orange-300"
+                    : "border-neutral-700 text-neutral-400 hover:bg-neutral-800"
+                }`}
+              >
+                注文数
+              </button>
+            </div>
+          )}
         </div>
+
+        {analysis === "price" && (
+          <div className="mb-3">
+            {menuOptions.length === 0 ? (
+              <p className="text-xs text-neutral-500">注文データがありません</p>
+            ) : (
+              <select
+                value={priceMenuId}
+                onChange={(e) => setPriceMenuId(e.target.value)}
+                className="w-full md:w-auto bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+              >
+                {menuOptions.map((m) => (
+                  <option key={m.menuId} value={m.menuId}>
+                    {m.name}（累計 {m.qty}個）
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
 
         {analysis === "menu" && (
           <div className="mb-3 flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
@@ -481,7 +602,69 @@ export default function AdminSalesPage() {
           </div>
         )}
 
-        {visible.length === 0 ? (
+        {analysis === "heatmap" ? (
+          heatmap.max === 0 ? (
+            <p className="text-sm text-neutral-500 py-10 text-center">
+              データがありません
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-[10px] tabular-nums">
+                <thead>
+                  <tr>
+                    <th className="w-8" />
+                    {Array.from({ length: 24 }, (_, h) => (
+                      <th
+                        key={h}
+                        className="text-neutral-600 font-normal pb-1"
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {heatmap.grid.map((row, ri) => (
+                    <tr key={ri}>
+                      <td className="text-neutral-500 pr-1 text-right">
+                        {DOW_LABELS[ri]}
+                      </td>
+                      {row.map((v, ci) => {
+                        const intensity = v / heatmap.max;
+                        const bg =
+                          v === 0
+                            ? "#171717"
+                            : `rgba(249, 115, 22, ${0.15 +
+                                intensity * 0.75})`;
+                        const title =
+                          heatmapMetric === "revenue"
+                            ? `${DOW_LABELS[ri]} ${ci}時: ¥${v.toLocaleString()}`
+                            : `${DOW_LABELS[ri]} ${ci}時: ${v}件`;
+                        return (
+                          <td
+                            key={ci}
+                            className="border border-neutral-950 h-6"
+                            style={{ backgroundColor: bg }}
+                            title={title}
+                          />
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="mt-2 flex items-center gap-2 text-[11px] text-neutral-500">
+                <span>少</span>
+                <div className="flex-1 h-2 rounded-full bg-gradient-to-r from-neutral-900 to-orange-500" />
+                <span>
+                  多（最大 {heatmapMetric === "revenue"
+                    ? `¥${heatmap.max.toLocaleString()}`
+                    : `${heatmap.max}件`}）
+                </span>
+              </div>
+            </div>
+          )
+        ) : visible.length === 0 ? (
           <p className="text-sm text-neutral-500 py-10 text-center">
             データがありません
           </p>
@@ -489,17 +672,32 @@ export default function AdminSalesPage() {
           <p className="text-sm text-neutral-500 py-10 text-center">
             メニューを選択してください（最大 {MAX_MENU_SERIES}）
           </p>
+        ) : analysis === "price" && priceSeries.length === 0 ? (
+          <p className="text-sm text-neutral-500 py-10 text-center">
+            対象メニューの販売実績がありません
+          </p>
         ) : (
           <LineChart
             labels={visible.map((b) => b.label)}
-            series={analysis === "sales" ? series : menuSeries}
-            sharedScale={analysis === "menu"}
+            series={
+              analysis === "sales"
+                ? series
+                : analysis === "menu"
+                ? menuSeries
+                : priceSeries
+            }
+            sharedScale={analysis === "menu" || analysis === "price"}
           />
         )}
         <p className="text-[11px] text-neutral-600 mt-2">
-          {analysis === "sales"
-            ? "各系列は最大値で正規化表示。値はホバーで確認できます。"
-            : `同一スケールで比較。最大${MAX_MENU_SERIES}メニューまで重ね描き。`}
+          {analysis === "sales" &&
+            "各系列は最大値で正規化表示。値はホバーで確認できます。"}
+          {analysis === "menu" &&
+            `同一スケールで比較。最大${MAX_MENU_SERIES}メニューまで重ね描き。`}
+          {analysis === "price" &&
+            "価格帯ごとに線を分けて売数推移を比較。値上げ前後の販売数変化を読み取れます。"}
+          {analysis === "heatmap" &&
+            "全期間の paid 注文を集計。濃い色ほど繁忙。期間切替は影響しません。"}
         </p>
       </section>
     </div>
