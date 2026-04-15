@@ -9,7 +9,15 @@ import type { Order } from "@/types";
 import { useAdminRole } from "@/components/admin/AdminContext";
 
 type Period = "daily" | "weekly" | "monthly";
-type Analysis = "sales"; // 2, 5, 6 を追加予定
+type Analysis = "sales" | "menu"; // 5, 6 を追加予定
+const MAX_MENU_SERIES = 5;
+const MENU_COLORS = [
+  "#f97316",
+  "#38bdf8",
+  "#a3e635",
+  "#f472b6",
+  "#fbbf24",
+];
 
 function formatDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -61,10 +69,12 @@ function LineChart({
   labels,
   series,
   height = 260,
+  sharedScale = false,
 }: {
   labels: string[];
   series: Series[];
   height?: number;
+  sharedScale?: boolean;
 }) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const padL = 12;
@@ -80,8 +90,12 @@ function LineChart({
   const xs = (i: number) =>
     n === 1 ? padL + innerW / 2 : padL + (i * innerW) / (n - 1);
 
-  function seriesPath(values: number[]): string {
-    const max = Math.max(...values, 1);
+  const globalMax = Math.max(...series.flatMap((s) => s.values), 1);
+  const maxPerSeries = series.map((s) =>
+    sharedScale ? globalMax : Math.max(...s.values, 1)
+  );
+  function seriesPath(values: number[], idx: number): string {
+    const max = maxPerSeries[idx];
     return values
       .map((v, i) => {
         const y = padT + innerH - (v / max) * innerH;
@@ -89,7 +103,6 @@ function LineChart({
       })
       .join(" ");
   }
-  const maxPerSeries = series.map((s) => Math.max(...s.values, 1));
   const xTickEvery = Math.max(1, Math.ceil(n / 10));
 
   return (
@@ -117,7 +130,7 @@ function LineChart({
         {series.map((s, idx) => (
           <g key={s.name}>
             <path
-              d={seriesPath(s.values)}
+              d={seriesPath(s.values, idx)}
               fill="none"
               stroke={s.color}
               strokeWidth={2}
@@ -232,6 +245,7 @@ export default function AdminSalesPage() {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("daily");
   const [analysis, setAnalysis] = useState<Analysis>("sales");
+  const [selectedMenuIds, setSelectedMenuIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (role !== "owner") router.replace("/admin/orders");
@@ -272,6 +286,63 @@ export default function AdminSalesPage() {
   const limit =
     period === "daily" ? 30 : period === "weekly" ? 20 : 12;
   const visible = buckets.slice(-limit);
+
+  const menuOptions = useMemo(() => {
+    const map = new Map<string, { menuId: string; name: string; qty: number }>();
+    for (const o of orders) {
+      for (const it of o.items) {
+        const e = map.get(it.menuId) || { menuId: it.menuId, name: it.name, qty: 0 };
+        e.qty += it.quantity;
+        e.name = it.name;
+        map.set(it.menuId, e);
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => b.qty - a.qty);
+  }, [orders]);
+
+  useEffect(() => {
+    if (analysis === "menu" && selectedMenuIds.length === 0 && menuOptions.length > 0) {
+      setSelectedMenuIds(menuOptions.slice(0, 3).map((m) => m.menuId));
+    }
+  }, [analysis, selectedMenuIds.length, menuOptions]);
+
+  const visibleKeys = useMemo(() => new Set(visible.map((b) => b.key)), [visible]);
+
+  const menuSeries: Series[] = useMemo(() => {
+    if (analysis !== "menu") return [];
+    const selected = selectedMenuIds.slice(0, MAX_MENU_SERIES);
+    const perMenuBuckets = new Map<string, Map<string, number>>();
+    for (const mid of selected) perMenuBuckets.set(mid, new Map());
+    for (const o of orders) {
+      const date = o.createdAt?.toDate?.();
+      if (!date) continue;
+      const key = bucketKey(date, period);
+      if (!visibleKeys.has(key)) continue;
+      for (const it of o.items) {
+        const b = perMenuBuckets.get(it.menuId);
+        if (!b) continue;
+        b.set(key, (b.get(key) ?? 0) + it.quantity);
+      }
+    }
+    return selected.map((mid, i) => {
+      const label = menuOptions.find((m) => m.menuId === mid)?.name ?? mid;
+      const bmap = perMenuBuckets.get(mid) ?? new Map();
+      return {
+        name: label,
+        color: MENU_COLORS[i % MENU_COLORS.length],
+        values: visible.map((b) => bmap.get(b.key) ?? 0),
+        formatValue: (v: number) => `${v}個`,
+      };
+    });
+  }, [analysis, selectedMenuIds, orders, period, visible, visibleKeys, menuOptions]);
+
+  function toggleMenu(mid: string) {
+    setSelectedMenuIds((prev) => {
+      if (prev.includes(mid)) return prev.filter((x) => x !== mid);
+      if (prev.length >= MAX_MENU_SERIES) return prev;
+      return [...prev, mid];
+    });
+  }
 
   const kpi = useMemo(() => {
     const revenue = visible.reduce((s, b) => s + b.revenue, 0);
@@ -328,6 +399,7 @@ export default function AdminSalesPage() {
             className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
           >
             <option value="sales">売上推移</option>
+            <option value="menu">メニュー別売数</option>
           </select>
           <select
             value={period}
@@ -350,9 +422,11 @@ export default function AdminSalesPage() {
 
       <section className="rounded-xl bg-neutral-900 border border-neutral-800 p-4">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-bold text-white">売上推移</h2>
-          <div className="flex items-center gap-3 text-xs">
-            {series.map((s) => (
+          <h2 className="text-lg font-bold text-white">
+            {analysis === "sales" ? "売上推移" : "メニュー別売数"}
+          </h2>
+          <div className="flex items-center gap-3 text-xs flex-wrap justify-end">
+            {(analysis === "sales" ? series : menuSeries).map((s) => (
               <div key={s.name} className="flex items-center gap-1.5">
                 <span
                   className="inline-block h-2 w-2 rounded-full"
@@ -363,18 +437,69 @@ export default function AdminSalesPage() {
             ))}
           </div>
         </div>
+
+        {analysis === "menu" && (
+          <div className="mb-3 flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+            {menuOptions.length === 0 ? (
+              <p className="text-xs text-neutral-500">注文データがありません</p>
+            ) : (
+              menuOptions.map((m) => {
+                const idx = selectedMenuIds.indexOf(m.menuId);
+                const active = idx >= 0;
+                const atCap =
+                  !active && selectedMenuIds.length >= MAX_MENU_SERIES;
+                return (
+                  <button
+                    key={m.menuId}
+                    onClick={() => toggleMenu(m.menuId)}
+                    disabled={atCap}
+                    className={`rounded-full px-3 py-1 text-xs border transition-colors ${
+                      active
+                        ? "text-white border-transparent"
+                        : atCap
+                        ? "text-neutral-600 border-neutral-800 cursor-not-allowed"
+                        : "text-neutral-400 border-neutral-700 hover:bg-neutral-800"
+                    }`}
+                    style={
+                      active
+                        ? {
+                            backgroundColor:
+                              MENU_COLORS[idx % MENU_COLORS.length] + "33",
+                            color: MENU_COLORS[idx % MENU_COLORS.length],
+                            borderColor:
+                              MENU_COLORS[idx % MENU_COLORS.length] + "80",
+                          }
+                        : undefined
+                    }
+                    title={`累計 ${m.qty}個`}
+                  >
+                    {m.name}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        )}
+
         {visible.length === 0 ? (
           <p className="text-sm text-neutral-500 py-10 text-center">
             データがありません
           </p>
+        ) : analysis === "menu" && menuSeries.length === 0 ? (
+          <p className="text-sm text-neutral-500 py-10 text-center">
+            メニューを選択してください（最大 {MAX_MENU_SERIES}）
+          </p>
         ) : (
           <LineChart
             labels={visible.map((b) => b.label)}
-            series={series}
+            series={analysis === "sales" ? series : menuSeries}
+            sharedScale={analysis === "menu"}
           />
         )}
         <p className="text-[11px] text-neutral-600 mt-2">
-          各系列は最大値で正規化表示。値はホバーで確認できます。
+          {analysis === "sales"
+            ? "各系列は最大値で正規化表示。値はホバーで確認できます。"
+            : `同一スケールで比較。最大${MAX_MENU_SERIES}メニューまで重ね描き。`}
         </p>
       </section>
     </div>
