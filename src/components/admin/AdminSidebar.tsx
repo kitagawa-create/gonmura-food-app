@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { logout } from "@/lib/admin-auth";
+import { useAdminRole } from "./AdminContext";
 
 const NAV = [
   { href: "/admin/orders", label: "注文管理", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
@@ -15,6 +16,11 @@ const NAV = [
 export function AdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const role = useAdminRole();
+  const nav =
+    role === "staff"
+      ? NAV.filter((i) => i.href !== "/admin/sales" && i.href !== "/admin/categories")
+      : NAV;
 
   return (
     <aside className="flex w-14 md:w-60 shrink-0 flex-col bg-neutral-950 border-r border-neutral-800">
@@ -27,7 +33,7 @@ export function AdminSidebar() {
       </div>
       <nav className="flex-1 px-2 md:px-3">
         <ul className="space-y-1">
-          {NAV.map((item) => {
+          {nav.map((item) => {
             const active = pathname?.startsWith(item.href);
             return (
               <li key={item.href}>

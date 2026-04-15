@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAdminRole } from "@/components/admin/AdminContext";
 import {
   addDoc,
   collection,
@@ -21,6 +23,8 @@ import { PageLoader } from "@/components/ui/PageLoader";
 import type { Category } from "@/types";
 
 export default function AdminCategoriesPage() {
+  const role = useAdminRole();
+  const router = useRouter();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
@@ -34,6 +38,10 @@ export default function AdminCategoriesPage() {
   // 削除確認ダイアログ
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (role !== "owner") router.replace("/admin/orders");
+  }, [role, router]);
 
   useEffect(() => {
     const q = query(collection(db, "categories"), orderBy("sortOrder", "asc"));
@@ -150,6 +158,8 @@ export default function AdminCategoriesPage() {
     setDragOverId(null);
     persistOrder(next);
   }
+
+  if (role !== "owner") return null;
 
   return (
     <div className="w-full">

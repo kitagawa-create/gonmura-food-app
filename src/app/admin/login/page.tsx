@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { loginWithEmail, logout, isAdminUser } from "@/lib/admin-auth";
+import { loginWithEmail, logout, getAdminRole } from "@/lib/admin-auth";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -17,8 +17,8 @@ export default function AdminLoginPage() {
     setLoading(true);
     try {
       const user = await loginWithEmail(email, password);
-      const ok = await isAdminUser(user.uid);
-      if (!ok) {
+      const role = await getAdminRole(user.uid);
+      if (role === null) {
         await logout();
         setError("このアカウントは管理者として登録されていません。");
         return;

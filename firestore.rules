@@ -2,33 +2,38 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // カテゴリ: 誰でも読める、管理者のみ書ける
+    function isOwner() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == "owner";
+    }
+
+    function isStaff() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
     match /categories/{categoryId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isOwner();
     }
 
-    // メニュー: 誰でも読める、管理者のみ書ける
     match /menus/{menuId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create: if isOwner();
+      allow update: if isStaff();
+      allow delete: if isStaff();
     }
 
-    // 注文: 誰でも作成・読める、更新は管理者のみ
     match /orders/{orderId} {
       allow create: if true;
       allow read: if true;
-      allow update: if isAdmin();
+      allow update: if isStaff();
+      allow delete: if isStaff();
     }
 
-    // 管理者: 自分のドキュメントのみ読める
     match /admins/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;
-    }
-
-    function isAdmin() {
-      return request.auth != null
-        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
   }
 }

@@ -2,22 +2,32 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { subscribeAuth, isAdminUser } from "@/lib/admin-auth";
+import { subscribeAuth, getAdminRole } from "@/lib/admin-auth";
+import { AdminProvider } from "./AdminContext";
+import type { AdminRole } from "@/types";
 
 type Status = "loading" | "authorized" | "unauthorized" | "not-admin";
 
 export function AdminAuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [status, setStatus] = useState<Status>("loading");
+  const [role, setRole] = useState<AdminRole | null>(null);
 
   useEffect(() => {
     const unsub = subscribeAuth(async (user) => {
       if (!user) {
+        setRole(null);
         setStatus("unauthorized");
         return;
       }
-      const ok = await isAdminUser(user.uid);
-      setStatus(ok ? "authorized" : "not-admin");
+      const r = await getAdminRole(user.uid);
+      if (r === null) {
+        setRole(null);
+        setStatus("not-admin");
+        return;
+      }
+      setRole(r);
+      setStatus("authorized");
     });
     return unsub;
   }, []);
@@ -57,5 +67,5 @@ export function AdminAuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return <AdminProvider role={role!}>{children}</AdminProvider>;
 }

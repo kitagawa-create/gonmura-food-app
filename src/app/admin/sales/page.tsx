@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Order } from "@/types";
+import { useAdminRole } from "@/components/admin/AdminContext";
 
 type Period = "daily" | "weekly" | "monthly";
 
@@ -89,9 +91,15 @@ function periodStart(period: Period): Date {
 }
 
 export default function AdminSalesPage() {
+  const role = useAdminRole();
+  const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("daily");
+
+  useEffect(() => {
+    if (role !== "owner") router.replace("/admin/orders");
+  }, [role, router]);
 
   useEffect(() => {
     async function fetchData() {
@@ -147,6 +155,8 @@ export default function AdminSalesPage() {
     }
     return Array.from(menuMap.values()).sort((a, b) => b.qty - a.qty);
   }, [orders, period]);
+
+  if (role !== "owner") return null;
 
   if (loading) {
     return <PageLoader />;

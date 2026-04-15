@@ -20,6 +20,7 @@ import {
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import type { Category, Menu } from "@/types";
+import { useAdminRole } from "@/components/admin/AdminContext";
 
 type MenuFormData = {
   name: string;
@@ -40,6 +41,7 @@ const EMPTY_FORM: MenuFormData = {
 };
 
 export default function AdminMenusPage() {
+  const role = useAdminRole();
   const [menus, setMenus] = useState<Menu[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -259,15 +261,17 @@ export default function AdminMenusPage() {
     <div className="w-full">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-white">メニュー管理</h1>
-        <button
-          onClick={() => {
-            setEditing(null);
-            setShowForm(true);
-          }}
-          className="rounded-xl bg-orange-500 px-4 py-2 text-sm text-white font-bold hover:bg-orange-600 transition-colors"
-        >
-          新規追加
-        </button>
+        {role === "owner" && (
+          <button
+            onClick={() => {
+              setEditing(null);
+              setShowForm(true);
+            }}
+            className="rounded-xl bg-orange-500 px-4 py-2 text-sm text-white font-bold hover:bg-orange-600 transition-colors"
+          >
+            新規追加
+          </button>
+        )}
       </div>
 
       {error && (

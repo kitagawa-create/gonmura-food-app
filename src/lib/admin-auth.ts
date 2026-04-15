@@ -8,6 +8,7 @@ import {
 } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "./firebase";
+import type { AdminRole } from "@/types";
 
 export type AdminAuthState = {
   user: User | null;
@@ -24,9 +25,11 @@ export async function logout(): Promise<void> {
   await signOut(auth);
 }
 
-export async function isAdminUser(uid: string): Promise<boolean> {
+export async function getAdminRole(uid: string): Promise<AdminRole | null> {
   const snap = await getDoc(doc(db, "admins", uid));
-  return snap.exists();
+  if (!snap.exists()) return null;
+  const role = snap.data().role;
+  return role === "owner" ? "owner" : "staff";
 }
 
 export function subscribeAuth(

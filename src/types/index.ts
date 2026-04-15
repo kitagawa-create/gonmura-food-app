@@ -38,7 +38,9 @@ export type OrderItem = {
   quantity: number;
 };
 
-export type OrderStatus = "pending" | "preparing" | "completed" | "cancelled" | "paid";
+export type OrderStatus = "pending" | "preparing" | "completed" | "paid";
+
+export type AdminRole = "owner" | "staff";
 
 export type Order = {
   id: string;
@@ -54,7 +56,7 @@ export type Order = {
 export type Admin = {
   uid: string;
   email: string;
-  role: string;
+  role: AdminRole;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
