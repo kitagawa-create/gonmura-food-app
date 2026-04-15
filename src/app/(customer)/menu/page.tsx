@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import { collection, query, where, getDocs, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Menu, Category } from "@/types";
 import { useCart } from "@/lib/cart-context";
@@ -20,6 +20,7 @@ export default function MenuPage() {
   const [showTableChange, setShowTableChange] = useState(false);
   const [newTableInput, setNewTableInput] = useState("");
   const [tableChangeError, setTableChangeError] = useState("");
+  const [hasUnpaidOrders, setHasUnpaidOrders] = useState(false);
   const { addItem, totalItems, totalAmount, tableNumber, setTableNumber, clearCart } = useCart();
   const router = useRouter();
 
@@ -34,6 +35,20 @@ export default function MenuPage() {
       return () => clearTimeout(timer);
     }
   }, [tableNumber, router]);
+
+  useEffect(() => {
+    if (tableNumber === null) {
+      setHasUnpaidOrders(false);
+      return;
+    }
+    const q = query(
+      collection(db, "orders"),
+      where("tableNumber", "==", tableNumber),
+      where("status", "in", ["pending", "preparing", "completed"])
+    );
+    const unsub = onSnapshot(q, (snap) => setHasUnpaidOrders(!snap.empty));
+    return unsub;
+  }, [tableNumber]);
 
   useEffect(() => {
     async function fetchData() {
@@ -77,17 +92,19 @@ export default function MenuPage() {
             <h1 className="text-lg font-bold text-white tracking-wide">Gonmura Food</h1>
             <div className="flex items-center gap-2">
               <p className="text-xs text-neutral-500">テーブル {tableNumber}</p>
-              <button
-                type="button"
-                onClick={() => {
-                  setNewTableInput("");
-                  setTableChangeError("");
-                  setShowTableChange(true);
-                }}
-                className="text-[10px] text-neutral-400 underline hover:text-white transition-colors"
-              >
-                変更
-              </button>
+              {!hasUnpaidOrders && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewTableInput("");
+                    setTableChangeError("");
+                    setShowTableChange(true);
+                  }}
+                  className="text-[10px] text-neutral-400 underline hover:text-white transition-colors"
+                >
+                  変更
+                </button>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-3">
