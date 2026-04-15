@@ -20,9 +20,7 @@ service cloud.firestore {
 
     match /menus/{menuId} {
       allow read: if true;
-      allow create: if isOwner();
-      allow update: if isStaff();
-      allow delete: if isStaff();
+      allow write: if isOwner();
     }
 
     match /orders/{orderId} {

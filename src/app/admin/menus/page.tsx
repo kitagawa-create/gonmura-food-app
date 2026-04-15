@@ -354,7 +354,7 @@ export default function AdminMenusPage() {
                   return (
                     <div
                       key={m.id}
-                      draggable
+                      draggable={role === "owner"}
                       onDragStart={(e) => {
                         e.dataTransfer.effectAllowed = "move";
                         setDraggingMenuId(m.id);
@@ -401,31 +401,33 @@ export default function AdminMenusPage() {
                           )}
                         </div>
                       </div>
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <button
-                          onClick={() => {
-                            setEditing(m);
-                            setShowForm(true);
-                          }}
-                          className="rounded-lg border border-neutral-700 px-3 py-1 text-xs text-neutral-400 hover:bg-neutral-800 transition-colors"
-                        >
-                          編集
-                        </button>
-                        <button
-                          onClick={() => handleToggleAvailable(m)}
-                          className="rounded-lg border border-neutral-700 px-3 py-1 text-xs text-neutral-400 hover:bg-neutral-800 transition-colors"
-                        >
-                          {m.isAvailable ? "非公開にする" : "公開する"}
-                        </button>
-                        {!orderedMenuIds.has(m.id) && (
+                      {role === "owner" && (
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
                           <button
-                            onClick={() => setDeleteTarget(m)}
-                            className="rounded-lg bg-red-600 px-3 py-1 text-xs text-white hover:bg-red-700 transition-colors"
+                            onClick={() => {
+                              setEditing(m);
+                              setShowForm(true);
+                            }}
+                            className="rounded-lg border border-neutral-700 px-3 py-1 text-xs text-neutral-400 hover:bg-neutral-800 transition-colors"
                           >
-                            削除
+                            編集
                           </button>
-                        )}
-                      </div>
+                          <button
+                            onClick={() => handleToggleAvailable(m)}
+                            className="rounded-lg border border-neutral-700 px-3 py-1 text-xs text-neutral-400 hover:bg-neutral-800 transition-colors"
+                          >
+                            {m.isAvailable ? "非公開にする" : "公開する"}
+                          </button>
+                          {!orderedMenuIds.has(m.id) && (
+                            <button
+                              onClick={() => setDeleteTarget(m)}
+                              className="rounded-lg bg-red-600 px-3 py-1 text-xs text-white hover:bg-red-700 transition-colors"
+                            >
+                              削除
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
