@@ -12,7 +12,7 @@ import type { AdminRole } from "@/types";
 
 export type AdminAuthState = {
   user: User | null;
-  isAdmin: boolean;
+  role: AdminRole | null;
   loading: boolean;
 };
 

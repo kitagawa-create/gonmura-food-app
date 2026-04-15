@@ -19,8 +19,8 @@ src/
 ├── app/
 │   ├── (customer)/              # お客様側（テーブルタブレット）
 │   │   ├── layout.tsx           # CartProvider + AnalyticsProvider
-│   │   ├── setup/page.tsx       # PIN認証 → テーブル番号設定
-│   │   ├── menu/page.tsx        # メニュー一覧（カテゴリタブ、グリッド/大カード、商品モーダル、数量ステッパー）
+│   │   ├── setup/page.tsx       # テーブル番号入力
+│   │   ├── menu/page.tsx        # メニュー一覧（カテゴリタブ、商品モーダル、テーブル番号変更モーダル）
 │   │   ├── order/page.tsx       # 注文確認・数量編集・送信
 │   │   ├── order/[orderId]/     # 注文ステータス（onSnapshotリアルタイム）
 │   │   ├── order/history/       # テーブル注文履歴（paid除外）
@@ -28,18 +28,19 @@ src/
 │   ├── admin/                   # 管理側（iPad / PC）
 │   │   ├── layout.tsx           # AdminAuthGuard + AdminSidebar（loginは除外）
 │   │   ├── login/page.tsx       # メール/パスワードログイン
-│   │   ├── orders/page.tsx      # 注文カンバン（3カラム、通知音、経過時刻、5分超え赤ハイライト、逆行可）
+│   │   ├── orders/page.tsx      # 注文カンバン（3カラム、通知音、経過時刻、5分超え赤ハイライト、逆行可、取消は deleteDoc）
 │   │   ├── register/page.tsx    # レジ（未精算/精算済みタブ、売上ドーナツ円グラフ、目標達成率）
-│   │   ├── sales/page.tsx       # 売上分析（売上レポート棒グラフ + 人気メニューTop10、共通期間切替）
-│   │   ├── menus/page.tsx       # メニューCRUD（画像アップロード、DnD並び替え、カテゴリタブフィルタ）
-│   │   └── categories/page.tsx  # カテゴリ管理（DnD並び替え、参照チェック付き削除）
+│   │   ├── sales/page.tsx       # 売上分析（owner のみ。折れ線グラフ + KPI、売上/メニュー別売数モード切替）
+│   │   ├── menus/page.tsx       # メニューCRUD（owner: 全機能 / staff: 公開トグルのみ）
+│   │   └── categories/page.tsx  # カテゴリ管理（owner のみ）
 │   ├── global-error.tsx         # Sentryエラーキャッチ画面
 │   ├── layout.tsx               # ルートレイアウト（lang="ja"）
 │   └── page.tsx                 # / → /menu クライアントリダイレクト
 ├── components/
 │   ├── admin/
-│   │   ├── AdminAuthGuard.tsx   # 認証ガード（admins/{uid}存在チェック → 未認証は/admin/loginへ）
-│   │   ├── AdminSidebar.tsx     # サイドバーナビ（アイコン付き、レスポンシブ折りたたみ）
+│   │   ├── AdminAuthGuard.tsx   # 認証ガード + role 取得 → AdminProvider で配下に提供
+│   │   ├── AdminContext.tsx     # AdminProvider / useAdminRole フック
+│   │   ├── AdminSidebar.tsx     # サイドバーナビ（staff は sales/categories を非表示）
 │   │   └── ConfirmDialog.tsx    # 確認ダイアログ（画面中央モーダル、赤/緑ボタン）
 │   ├── customer/
 │   │   └── AnalyticsProvider.tsx # Firebase Analytics初期化（page_viewイベント）
@@ -51,10 +52,10 @@ src/
 ├── lib/
 │   ├── firebase.ts              # Firebase初期化（db, auth, storage export、measurementId含む）
 │   ├── cart-context.tsx          # CartProvider（localStorage永続化、テーブルごとカート分離、数量指定addItem）
-│   ├── admin-auth.ts            # loginWithEmail, logout, isAdminUser, subscribeAuth
+│   ├── admin-auth.ts            # loginWithEmail, logout, getAdminRole, subscribeAuth
 │   └── analytics.ts             # trackEvent（Firebase Analytics logEvent wrapper）
 └── types/
-    └── index.ts                 # Category, Menu, Order, OrderItem, OrderStatus, Admin, CartItem
+    └── index.ts                 # Category, Menu, Order, OrderItem, OrderStatus, AdminRole, Admin, CartItem
 ```
 
 ## 型定義 (src/types/index.ts)
@@ -85,14 +86,15 @@ paid への変更は管理者のみ（Security Rules）
 ```
 
 ## Security Rules (firestore.rules)
-- categories: 誰でも読める、管理者のみ書ける
-- menus: 誰でも読める、管理者のみ書ける
-- orders: 誰でも作成・読める、更新は管理者のみ
+- categories: 誰でも読める、owner のみ書ける
+- menus: 誰でも読める / create・delete は owner / update は owner、staff は isAvailable のみ可
+- orders: 誰でも作成・読める、更新・削除は staff 以上（owner も可）
 - admins: 自分のuidのドキュメントのみ読める
 - storage menus/: 誰でも読める、認証済みユーザーのみ書ける
+- 管理者ロールは admins/{uid}.role: "owner" | "staff"。role 未設定は staff 扱い
 
 ## localStorage キー
-- `gonmura-table` — テーブル番号（PIN認証で設定）
+- `gonmura-table` — テーブル番号（/setup で設定）
 - `gonmura-cart-{N}` — テーブルNのカート（精算時にクリア）
 - `gonmura-sales-goal` — 本日売上目標（管理画面で編集、default ¥100,000）
 

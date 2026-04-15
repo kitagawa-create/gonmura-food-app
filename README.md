@@ -53,7 +53,7 @@ firestore-root
 │
 └── admins/{uid}                       // Firebase Auth uid がドキュメントID
     ├── email     : string
-    ├── role      : string             // "admin"
+    ├── role      : string             // "owner" | "staff"（未設定は staff 扱い）
     ├── createdAt : Timestamp
     └── updatedAt : Timestamp
 ```
@@ -73,8 +73,8 @@ firestore-root
 ### お客様側（テーブルタブレット / スマホ）
 | パス | 内容 |
 |---|---|
-| `/setup` | 初期設定（PIN認証 → テーブル番号入力） |
-| `/menu` | メニュー一覧（カテゴリタブ、画像モーダルに**数量ステッパー**） |
+| `/setup` | 初期設定（テーブル番号入力） |
+| `/menu` | メニュー一覧（カテゴリタブ、画像モーダルに**数量ステッパー**、テーブル番号変更モーダル） |
 | `/order` | 注文確認・数量編集・送信（旧 `/cart` を統合） |
 | `/order/[orderId]` | 注文ステータス（リアルタイム更新） |
 | `/order/history` | テーブルの注文履歴（カードグリッド） |
@@ -84,11 +84,11 @@ firestore-root
 | パス | 内容 |
 |---|---|
 | `/admin/login` | メール/パスワードログイン |
-| `/admin/orders` | 注文カンバン（古い順、自動日付ロール、通知音、逆行可） |
+| `/admin/orders` | 注文カンバン（古い順、自動日付ロール、通知音、逆行可、取消は deleteDoc） |
 | `/admin/register` | レジ（未精算/精算済タブ + **本日売上ドーナツ円グラフ + 目標達成率**） |
-| `/admin/sales` | 売上分析（売上レポート + 人気メニューTop10、共通期間切替） |
-| `/admin/menus` | メニューCRUD（画像アップロード、**DnD並び替え**、複数カテゴリ重複表示） |
-| `/admin/categories` | カテゴリ管理（**DnD並び替え** + ▲▼ボタン） |
+| `/admin/sales` | 売上分析（owner のみ。折れ線グラフ + KPI、売上/メニュー別売数モード） |
+| `/admin/menus` | メニュー管理（owner: 全機能 / staff: 公開トグルのみ） |
+| `/admin/categories` | カテゴリ管理（owner のみ、**DnD並び替え** + ▲▼ボタン） |
 
 ---
 
@@ -97,10 +97,11 @@ firestore-root
 ### 1. テーブル初期設定
 ```
 スタッフが /setup にアクセス
-  → PIN入力（1234）
   → テーブル番号入力
   → localStorage("gonmura-table") に保存
   → /menu にリダイレクト
+
+/menu ヘッダーの「変更」ボタンで再設定可（未 paid 注文がある間は非表示）
 ```
 
 ### 2. メニュー閲覧〜カート追加
@@ -199,11 +200,13 @@ Firestore → BigQuery エクスポート拡張を前提。
 
 | コレクション | 読み | 書き |
 |---|---|---|
-| `categories` | 誰でも | 管理者のみ |
-| `menus` | 誰でも | 管理者のみ |
-| `orders` | 誰でも | 作成は誰でも / 更新は管理者のみ |
+| `categories` | 誰でも | owner のみ |
+| `menus` | 誰でも | create / delete: owner、update: owner、staff は isAvailable のみ可 |
+| `orders` | 誰でも | 作成は誰でも / 更新・削除は staff 以上 |
 | `admins` | 自分の uid のみ | — |
 | storage `menus/` | 誰でも | 認証済ユーザーのみ |
+
+管理者ロールは `admins/{uid}.role: "owner" | "staff"`。role 未設定は staff 扱い。
 
 ---
 
@@ -211,7 +214,7 @@ Firestore → BigQuery エクスポート拡張を前提。
 
 | キー | 内容 |
 |---|---|
-| `gonmura-table` | テーブル番号（PIN認証で設定） |
+| `gonmura-table` | テーブル番号（/setup で設定、/menu の変更モーダルで更新可） |
 | `gonmura-cart-{N}` | テーブルNのカート（精算時にクリア） |
 | `gonmura-sales-goal` | 本日売上目標（管理画面で編集、default ¥100,000） |
 
