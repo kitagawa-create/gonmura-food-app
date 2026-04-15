@@ -62,7 +62,8 @@ src/
 Category    { id, name, sortOrder: number, createdAt, updatedAt }
 Menu        { id, name, description, price: number, categoryIds: string[], imageUrl, isAvailable, sortOrder?: number, createdAt, updatedAt }
 OrderItem   { menuId, name, price: number, quantity: number }  ← 注文時スナップショット
-OrderStatus "pending" | "preparing" | "completed" | "paid" | "cancelled"
+OrderStatus "pending" | "preparing" | "completed" | "paid"
+AdminRole   "owner" | "staff"
 Order       { id, items: OrderItem[], status: OrderStatus, tableNumber: number, customerNote, createdAt, updatedAt }
 Admin       { uid, email, role, createdAt, updatedAt }
 CartItem    { menuId, name, price: number, quantity: number }  ← localStorage保存、Firestore不使用
@@ -77,9 +78,9 @@ CartItem    { menuId, name, price: number, quantity: number }  ← localStorage�
 ## ステータス遷移
 ```
 pending → preparing → completed → paid（正常フロー）
-pending → cancelled（キャンセル、ConfirmDialogで確認）
 preparing → pending（逆行可、誤操作対応）
 completed → preparing（逆行可）
+取消は deleteDoc でドキュメント削除（ConfirmDialogで確認）
 paid への変更は管理者のみ（Security Rules）
 ```
 

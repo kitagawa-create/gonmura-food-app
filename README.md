@@ -45,7 +45,7 @@ firestore-root
 │   │       ├── price    : int         // menus.price 複製
 │   │       └── quantity : int
 │   ├── status       : string          // "pending" → "preparing" → "completed" → "paid"
-│   │                                  // "pending" → "cancelled"
+│   │                                  // 取消は deleteDoc でドキュメント削除
 │   ├── tableNumber  : int
 │   ├── customerNote : string
 │   ├── createdAt    : Timestamp
@@ -137,7 +137,7 @@ firestore-root
        pending → preparing（調理開始）
        preparing → completed（提供完了）
        completed → preparing（戻す、誤操作対応）
-       pending → cancelled（キャンセル、ConfirmDialog確認）
+       取消は deleteDoc でドキュメント削除（ConfirmDialog確認）
 ```
 
 ### 5. お会計〜精算
