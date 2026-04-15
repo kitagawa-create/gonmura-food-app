@@ -11,6 +11,8 @@ env:
     value: "89369532003"
   - variable: NEXT_PUBLIC_FIREBASE_APP_ID
     value: 1:89369532003:web:bc59d08ea1bd33b73a8a56
+  - variable: NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+    value: G-S1SDRZHZN5
   - variable: NEXT_PUBLIC_SENTRY_DSN
     value: https://bcfb641ae2c8373ba7447efacbaf6f9e@o4511177041248256.ingest.us.sentry.io/4511177047670784
   - variable: SENTRY_ORG

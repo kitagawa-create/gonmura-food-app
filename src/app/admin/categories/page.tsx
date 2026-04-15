@@ -13,16 +13,27 @@ import {
   serverTimestamp,
   updateDoc,
   where,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
+import { PageLoader } from "@/components/ui/PageLoader";
 import type { Category } from "@/types";
 
 export default function AdminCategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
-  const [newOrder, setNewOrder] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
+
+  // ドラッグ＆ドロップ状態
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [savingOrder, setSavingOrder] = useState(false);
+
+  // 削除確認ダイアログ
+  const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const q = query(collection(db, "categories"), orderBy("sortOrder", "asc"));
@@ -40,24 +51,28 @@ export default function AdminCategoriesPage() {
     if (!newName.trim()) return;
     setError(null);
     try {
+      // 末尾追加: 既存の最大 sortOrder + 1
+      const nextOrder =
+        categories.length > 0
+          ? Math.max(...categories.map((c) => c.sortOrder)) + 1
+          : 0;
       await addDoc(collection(db, "categories"), {
         name: newName.trim(),
-        sortOrder: Math.trunc(Number(newOrder)) || 0,
+        sortOrder: nextOrder,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
       setNewName("");
-      setNewOrder(0);
     } catch (e) {
       setError(e instanceof Error ? e.message : "追加に失敗しました。");
     }
   }
 
-  async function handleUpdate(id: string, data: Partial<Category>) {
+  async function handleRename(id: string, name: string) {
     setError(null);
     try {
       await updateDoc(doc(db, "categories", id), {
-        ...data,
+        name,
         updatedAt: serverTimestamp(),
       });
     } catch (e) {
@@ -65,12 +80,11 @@ export default function AdminCategoriesPage() {
     }
   }
 
-  async function handleDelete(id: string) {
+  async function requestDelete(category: Category) {
     setError(null);
-    // 参照中のメニューがないかチェック
     const menusQ = query(
       collection(db, "menus"),
-      where("categoryIds", "array-contains", id)
+      where("categoryIds", "array-contains", category.id)
     );
     const referenced = await getDocs(menusQ);
     if (!referenced.empty) {
@@ -79,138 +93,216 @@ export default function AdminCategoriesPage() {
       );
       return;
     }
-    if (!confirm("このカテゴリを削除しますか？")) return;
+    setDeleteTarget(category);
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    setError(null);
     try {
-      await deleteDoc(doc(db, "categories", id));
+      await deleteDoc(doc(db, "categories", deleteTarget.id));
+      setDeleteTarget(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "削除に失敗しました。");
+    } finally {
+      setDeleting(false);
     }
   }
 
+  // 並び替えを Firestore へ反映 (writeBatchで原子的に)
+  async function persistOrder(ordered: Category[]) {
+    setSavingOrder(true);
+    setError(null);
+    try {
+      const batch = writeBatch(db);
+      ordered.forEach((c, i) => {
+        if (c.sortOrder !== i) {
+          batch.update(doc(db, "categories", c.id), {
+            sortOrder: i,
+            updatedAt: serverTimestamp(),
+          });
+        }
+      });
+      await batch.commit();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "並び順の保存に失敗しました。");
+    } finally {
+      setSavingOrder(false);
+    }
+  }
+
+  function handleDrop(targetId: string) {
+    if (!draggingId || draggingId === targetId) {
+      setDraggingId(null);
+      setDragOverId(null);
+      return;
+    }
+    const fromIdx = categories.findIndex((c) => c.id === draggingId);
+    const toIdx = categories.findIndex((c) => c.id === targetId);
+    if (fromIdx < 0 || toIdx < 0) return;
+
+    const next = [...categories];
+    const [moved] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, moved);
+    setCategories(next); // 楽観的更新
+    setDraggingId(null);
+    setDragOverId(null);
+    persistOrder(next);
+  }
+
   return (
-    <div className="mx-auto max-w-3xl">
-      <h1 className="mb-4 text-2xl font-bold">カテゴリ管理</h1>
+    <div className="w-full">
+      <h1 className="mb-4 text-2xl font-bold text-white">カテゴリ管理</h1>
 
       {error && (
-        <p className="mb-4 rounded bg-red-50 p-3 text-sm text-red-700">
+        <p className="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-sm text-red-400">
           {error}
         </p>
       )}
 
       <form
         onSubmit={handleAdd}
-        className="mb-6 flex flex-wrap items-end gap-2 rounded border border-gray-200 p-4"
+        className="mb-6 flex flex-wrap items-end gap-2 rounded-xl border border-neutral-800 bg-neutral-900 p-4"
       >
         <div className="flex-1 min-w-[200px]">
-          <label className="mb-1 block text-xs text-gray-600">名前</label>
+          <label className="mb-1 block text-xs text-neutral-400">名前</label>
           <input
-            className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+            className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             placeholder="例: 丼もの"
           />
         </div>
-        <div className="w-24">
-          <label className="mb-1 block text-xs text-gray-600">並び順</label>
-          <input
-            type="number"
-            step={1}
-            className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
-            value={newOrder}
-            onChange={(e) => setNewOrder(Math.trunc(Number(e.target.value)) || 0)}
-          />
-        </div>
         <button
           type="submit"
-          className="rounded bg-gray-800 px-4 py-2 text-sm text-white"
+          className="rounded-xl bg-orange-500 px-4 py-2 text-sm text-white font-bold hover:bg-orange-600 transition-colors"
         >
           追加
         </button>
       </form>
 
       {loading ? (
-        <p className="text-sm text-gray-500">読み込み中...</p>
+        <PageLoader />
       ) : categories.length === 0 ? (
-        <p className="text-sm text-gray-500">カテゴリがまだありません。</p>
+        <p className="text-sm text-neutral-500">カテゴリがまだありません。</p>
       ) : (
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 text-left">
-              <th className="p-2 w-24">並び順</th>
-              <th className="p-2">名前</th>
-              <th className="p-2 w-24">操作</th>
-            </tr>
-          </thead>
-          <tbody>
+        <>
+          <p className="mb-2 text-xs text-neutral-500">
+            ⠿ ハンドルをドラッグして並び替え{savingOrder && " (保存中...)"}
+          </p>
+          <ul className="space-y-2">
             {categories.map((c) => (
               <CategoryRow
                 key={c.id}
                 category={c}
-                onUpdate={handleUpdate}
-                onDelete={handleDelete}
+                isDragging={draggingId === c.id}
+                isDragOver={dragOverId === c.id && draggingId !== c.id}
+                onDragStart={() => setDraggingId(c.id)}
+                onDragEnter={() => setDragOverId(c.id)}
+                onDragEnd={() => {
+                  setDraggingId(null);
+                  setDragOverId(null);
+                }}
+                onDrop={() => handleDrop(c.id)}
+                onRename={(name) => handleRename(c.id, name)}
+                onDelete={() => requestDelete(c)}
               />
             ))}
-          </tbody>
-        </table>
+          </ul>
+        </>
       )}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="カテゴリの削除"
+        message={`「${deleteTarget?.name}」を削除しますか？`}
+        warning="この操作は取り消せません。"
+        confirmLabel="削除"
+        confirmColor="red"
+        onConfirm={confirmDelete}
+        onCancel={() => !deleting && setDeleteTarget(null)}
+        loading={deleting}
+      />
     </div>
   );
 }
 
 function CategoryRow({
   category,
-  onUpdate,
+  isDragging,
+  isDragOver,
+  onDragStart,
+  onDragEnter,
+  onDragEnd,
+  onDrop,
+  onRename,
   onDelete,
 }: {
   category: Category;
-  onUpdate: (id: string, data: Partial<Category>) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
+  isDragging: boolean;
+  isDragOver: boolean;
+  onDragStart: () => void;
+  onDragEnter: () => void;
+  onDragEnd: () => void;
+  onDrop: () => void;
+  onRename: (name: string) => Promise<void>;
+  onDelete: () => void;
 }) {
   const [name, setName] = useState(category.name);
-  const [sortOrder, setSortOrder] = useState(category.sortOrder);
 
   useEffect(() => {
     setName(category.name);
-    setSortOrder(category.sortOrder);
   }, [category]);
 
-  const dirty = name !== category.name || sortOrder !== category.sortOrder;
+  const dirty = name !== category.name;
 
   return (
-    <tr className="border-b border-gray-100">
-      <td className="p-2">
-        <input
-          type="number"
-          step={1}
-          className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
-          value={sortOrder}
-          onChange={(e) => setSortOrder(Math.trunc(Number(e.target.value)) || 0)}
-        />
-      </td>
-      <td className="p-2">
-        <input
-          className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-      </td>
-      <td className="p-2">
-        <div className="flex gap-1">
-          <button
-            disabled={!dirty}
-            onClick={() => onUpdate(category.id, { name, sortOrder })}
-            className="rounded bg-gray-800 px-2 py-1 text-xs text-white disabled:opacity-30"
-          >
-            保存
-          </button>
-          <button
-            onClick={() => onDelete(category.id)}
-            className="rounded bg-red-600 px-2 py-1 text-xs text-white"
-          >
-            削除
-          </button>
-        </div>
-      </td>
-    </tr>
+    <li
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = "move";
+        onDragStart();
+      }}
+      onDragEnter={onDragEnter}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => {
+        e.preventDefault();
+        onDrop();
+      }}
+      onDragEnd={onDragEnd}
+      className={`flex items-center gap-2 rounded-xl border bg-neutral-900 p-3 transition-all ${
+        isDragging ? "opacity-40" : ""
+      } ${
+        isDragOver
+          ? "border-orange-500 ring-2 ring-orange-500/30"
+          : "border-neutral-800"
+      }`}
+    >
+      <span
+        className="cursor-grab select-none px-2 text-neutral-500 active:cursor-grabbing"
+        title="ドラッグして並び替え"
+      >
+        ⠿
+      </span>
+      <input
+        className="flex-1 rounded border border-neutral-700 bg-neutral-800 px-2 py-1 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
+      <button
+        disabled={!dirty}
+        onClick={() => onRename(name)}
+        className="rounded-lg bg-orange-500 px-2 py-1 text-xs text-white disabled:opacity-30 hover:bg-orange-600 transition-colors"
+      >
+        保存
+      </button>
+      <button
+        onClick={onDelete}
+        className="rounded-lg bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700 transition-colors"
+      >
+        削除
+      </button>
+    </li>
   );
 }

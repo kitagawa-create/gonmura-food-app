@@ -1,19 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  Timestamp,
-  collection,
-  getDocs,
-  query,
-  where,
-} from "firebase/firestore";
+import { PageLoader } from "@/components/ui/PageLoader";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Order, Category, Menu } from "@/types";
+import type { Order } from "@/types";
 
 type Period = "daily" | "weekly" | "monthly";
-
-const DAY_NAMES = ["日", "月", "火", "水", "木", "金", "土"];
 
 function formatDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -35,29 +28,82 @@ function orderTotal(order: Order): number {
   return order.items.reduce((s, i) => s + i.price * i.quantity, 0);
 }
 
+type BarDatum = { label: string; value: number; sub?: string };
+
+function HorizontalBarChart({
+  data,
+  color = "#f97316",
+  formatValue,
+}: {
+  data: BarDatum[];
+  color?: string;
+  formatValue?: (v: number) => string;
+}) {
+  const ceil = Math.max(...data.map((d) => d.value), 1);
+  return (
+    <div className="space-y-2">
+      {data.map((d) => {
+        const pct = (d.value / ceil) * 100;
+        return (
+          <div
+            key={d.label}
+            className="grid grid-cols-[7rem_1fr_6rem] items-center gap-2 text-sm"
+          >
+            <div className="truncate text-neutral-300" title={d.label}>
+              {d.label}
+            </div>
+            <div className="h-5 bg-neutral-800 rounded-md overflow-hidden">
+              <div
+                className="h-full rounded-md transition-all"
+                style={{ width: `${pct}%`, backgroundColor: color }}
+              />
+            </div>
+            <div className="text-right font-medium text-neutral-200 tabular-nums text-xs">
+              {formatValue ? formatValue(d.value) : d.value}
+              {d.sub && (
+                <span className="ml-1 text-xs text-neutral-500">{d.sub}</span>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function periodStart(period: Period): Date {
+  const now = new Date();
+  if (period === "daily") {
+    now.setHours(0, 0, 0, 0);
+    return now;
+  }
+  if (period === "weekly") {
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(now);
+    monday.setDate(diff);
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+  }
+  return new Date(now.getFullYear(), now.getMonth(), 1);
+}
+
 export default function AdminSalesPage() {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [menus, setMenus] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("daily");
 
   useEffect(() => {
     async function fetchData() {
-      const [ordersSnap, catsSnap, menusSnap] = await Promise.all([
-        getDocs(query(collection(db, "orders"), where("status", "==", "paid"))),
-        getDocs(collection(db, "categories")),
-        getDocs(collection(db, "menus")),
-      ]);
-      setOrders(ordersSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Order));
-      setCategories(catsSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Category));
-      setMenus(menusSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Menu));
+      const snap = await getDocs(
+        query(collection(db, "orders"), where("status", "==", "paid"))
+      );
+      setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Order));
       setLoading(false);
     }
     fetchData();
   }, []);
 
-  // 1. 売上レポート（日別/週別/月別）
   const salesReport = useMemo(() => {
     const grouped = new Map<string, { tables: Set<string>; count: number; revenue: number }>();
 
@@ -80,18 +126,18 @@ export default function AdminSalesPage() {
     return Array.from(grouped.entries())
       .map(([key, val]) => ({
         period: key,
-        tables: val.tables.size,
         count: val.count,
         revenue: val.revenue,
-        avgPerTable: val.tables.size > 0 ? Math.round(val.revenue / val.tables.size) : 0,
       }))
       .sort((a, b) => b.period.localeCompare(a.period));
   }, [orders, period]);
 
-  // 2. メニューABC分析
-  const abcAnalysis = useMemo(() => {
+  const menuRanking = useMemo(() => {
+    const start = periodStart(period);
     const menuMap = new Map<string, { name: string; qty: number; revenue: number }>();
     for (const order of orders) {
+      const date = order.createdAt?.toDate?.();
+      if (!date || date < start) continue;
       for (const item of order.items) {
         const entry = menuMap.get(item.name) || { name: item.name, qty: 0, revenue: 0 };
         entry.qty += item.quantity;
@@ -99,273 +145,106 @@ export default function AdminSalesPage() {
         menuMap.set(item.name, entry);
       }
     }
-
-    const sorted = Array.from(menuMap.values()).sort((a, b) => b.revenue - a.revenue);
-    const totalRevenue = sorted.reduce((s, m) => s + m.revenue, 0);
-
-    let cumulative = 0;
-    return sorted.map((m) => {
-      cumulative += m.revenue;
-      const ratio = totalRevenue > 0 ? cumulative / totalRevenue : 0;
-      const rank = ratio <= 0.7 ? "A" : ratio <= 0.9 ? "B" : "C";
-      return {
-        ...m,
-        percent: totalRevenue > 0 ? Math.round((m.revenue / totalRevenue) * 1000) / 10 : 0,
-        rank,
-      };
-    });
-  }, [orders]);
-
-  // 3. ピーク時間帯分析
-  const peakAnalysis = useMemo(() => {
-    const grid = new Map<string, number>();
-    for (const order of orders) {
-      const date = order.createdAt?.toDate?.();
-      if (!date) continue;
-      const dayName = DAY_NAMES[date.getDay()];
-      const hour = date.getHours();
-      const key = `${dayName}-${hour}`;
-      grid.set(key, (grid.get(key) || 0) + 1);
-    }
-
-    const hours = Array.from({ length: 24 }, (_, i) => i).filter((h) => h >= 10 && h <= 22);
-    return { grid, hours };
-  }, [orders]);
-
-  // 4. カテゴリ別注文率
-  const categoryAnalysis = useMemo(() => {
-    const totalOrders = orders.length;
-    const menuCategoryMap = new Map<string, string[]>();
-    for (const menu of menus) {
-      menuCategoryMap.set(menu.id, menu.categoryIds);
-    }
-
-    const catStats = new Map<string, { orderIds: Set<string>; qty: number; revenue: number }>();
-    for (const order of orders) {
-      for (const item of order.items) {
-        const catIds = menuCategoryMap.get(item.menuId) || [];
-        for (const catId of catIds) {
-          const entry = catStats.get(catId) || { orderIds: new Set(), qty: 0, revenue: 0 };
-          entry.orderIds.add(order.id);
-          entry.qty += item.quantity;
-          entry.revenue += item.price * item.quantity;
-          catStats.set(catId, entry);
-        }
-      }
-    }
-
-    return categories
-      .map((cat) => {
-        const stats = catStats.get(cat.id);
-        return {
-          name: cat.name,
-          qty: stats?.qty || 0,
-          revenue: stats?.revenue || 0,
-          orderRate: totalOrders > 0 && stats ? Math.round((stats.orderIds.size / totalOrders) * 1000) / 10 : 0,
-        };
-      })
-      .sort((a, b) => b.revenue - a.revenue);
-  }, [orders, categories, menus]);
+    return Array.from(menuMap.values()).sort((a, b) => b.qty - a.qty);
+  }, [orders, period]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <p className="text-sm text-gray-500">読み込み中...</p>
-      </div>
-    );
+    return <PageLoader />;
   }
 
-  const totalRevenue = orders.reduce((s, o) => s + orderTotal(o), 0);
+  // 表示件数: 日別=30, 週別=20, 月別=無制限
+  const REPORT_LIMIT =
+    period === "daily" ? 30 : period === "weekly" ? 20 : Infinity;
+  const limitedReport =
+    REPORT_LIMIT === Infinity ? salesReport : salesReport.slice(0, REPORT_LIMIT);
+
+  const salesChartData: BarDatum[] = [...limitedReport]
+    .reverse()
+    .map((row) => ({
+      label: row.period,
+      value: row.revenue,
+      sub: `(${row.count})`,
+    }));
+
+  const menuChartData: BarDatum[] = menuRanking.slice(0, 10).map((m) => ({
+    label: m.name,
+    value: m.qty,
+    sub: `¥${m.revenue.toLocaleString()}`,
+  }));
+
+  const rankingPeriodLabel =
+    period === "daily" ? "今日" : period === "weekly" ? "今週" : "今月";
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8">
-      <h1 className="text-2xl font-bold">売上分析</h1>
-
-      {/* サマリー */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="rounded border border-gray-200 p-4 text-center">
-          <p className="text-xs text-gray-500">総売上</p>
-          <p className="text-2xl font-bold">¥{totalRevenue.toLocaleString()}</p>
-        </div>
-        <div className="rounded border border-gray-200 p-4 text-center">
-          <p className="text-xs text-gray-500">精算済み注文数</p>
-          <p className="text-2xl font-bold">{orders.length}</p>
-        </div>
-        <div className="rounded border border-gray-200 p-4 text-center">
-          <p className="text-xs text-gray-500">平均注文単価</p>
-          <p className="text-2xl font-bold">
-            ¥{orders.length > 0 ? Math.round(totalRevenue / orders.length).toLocaleString() : 0}
-          </p>
-        </div>
+    <div className="w-full flex flex-col overflow-hidden h-[calc(100dvh-24px)] md:h-[calc(100dvh-48px)]">
+      <div className="mb-3 flex items-center justify-between shrink-0">
+        <h1 className="text-2xl font-bold text-white">売上分析</h1>
+        {/* 共通の期間切替 (日別 / 週別 / 月別) */}
+        <select
+          value={period}
+          onChange={(e) => setPeriod(e.target.value as Period)}
+          className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+          aria-label="表示期間を切り替え"
+        >
+          <option value="daily">日別</option>
+          <option value="weekly">週別</option>
+          <option value="monthly">月別</option>
+        </select>
       </div>
 
-      {/* 1. 売上レポート */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-bold">売上レポート</h2>
-          <div className="flex gap-1">
-            {(["daily", "weekly", "monthly"] as Period[]).map((p) => (
-              <button
-                key={p}
-                onClick={() => setPeriod(p)}
-                className={`px-3 py-1 text-xs rounded ${
-                  period === p ? "bg-gray-800 text-white" : "bg-gray-100 text-gray-600"
-                }`}
-              >
-                {p === "daily" ? "日別" : p === "weekly" ? "週別" : "月別"}
-              </button>
-            ))}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0">
+        {/* 売上レポート */}
+        <section className="rounded-xl bg-neutral-900 border border-neutral-800 p-4 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex items-center justify-between mb-3 shrink-0">
+            <h2 className="text-lg font-bold text-white">売上レポート</h2>
           </div>
-        </div>
-        {salesReport.length === 0 ? (
-          <p className="text-sm text-gray-500">データがありません</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="border-b border-gray-200 text-left">
-                  <th className="p-2">{period === "daily" ? "日付" : period === "weekly" ? "週（月曜始まり）" : "月"}</th>
-                  <th className="p-2 text-right">テーブル数</th>
-                  <th className="p-2 text-right">注文件数</th>
-                  <th className="p-2 text-right">売上</th>
-                  <th className="p-2 text-right">テーブル単価</th>
-                </tr>
-              </thead>
-              <tbody>
-                {salesReport.map((row) => (
-                  <tr key={row.period} className="border-b border-gray-100">
-                    <td className="p-2">{row.period}</td>
-                    <td className="p-2 text-right">{row.tables}</td>
-                    <td className="p-2 text-right">{row.count}</td>
-                    <td className="p-2 text-right font-medium">¥{row.revenue.toLocaleString()}</td>
-                    <td className="p-2 text-right">¥{row.avgPerTable.toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {/* 2. メニューABC分析 */}
-      <section>
-        <h2 className="text-lg font-bold mb-3">メニューABC分析</h2>
-        {abcAnalysis.length === 0 ? (
-          <p className="text-sm text-gray-500">データがありません</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="border-b border-gray-200 text-left">
-                  <th className="p-2">ランク</th>
-                  <th className="p-2">メニュー</th>
-                  <th className="p-2 text-right">注文数</th>
-                  <th className="p-2 text-right">売上</th>
-                  <th className="p-2 text-right">構成比</th>
-                </tr>
-              </thead>
-              <tbody>
-                {abcAnalysis.map((m) => (
-                  <tr key={m.name} className="border-b border-gray-100">
-                    <td className="p-2">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${
-                          m.rank === "A"
-                            ? "bg-green-100 text-green-800"
-                            : m.rank === "B"
-                              ? "bg-yellow-100 text-yellow-800"
-                              : "bg-red-100 text-red-800"
-                        }`}
-                      >
-                        {m.rank}
-                      </span>
-                    </td>
-                    <td className="p-2">{m.name}</td>
-                    <td className="p-2 text-right">{m.qty}</td>
-                    <td className="p-2 text-right font-medium">¥{m.revenue.toLocaleString()}</td>
-                    <td className="p-2 text-right">{m.percent}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {/* 3. ピーク時間帯分析 */}
-      <section>
-        <h2 className="text-lg font-bold mb-3">ピーク時間帯（曜日 x 時間）</h2>
-        <div className="overflow-x-auto">
-          <table className="text-xs border-collapse">
-            <thead>
-              <tr>
-                <th className="p-1 border border-gray-200"></th>
-                {peakAnalysis.hours.map((h) => (
-                  <th key={h} className="p-1 border border-gray-200 text-center w-10">
-                    {h}時
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {DAY_NAMES.map((day) => (
-                <tr key={day}>
-                  <td className="p-1 border border-gray-200 font-medium text-center">{day}</td>
-                  {peakAnalysis.hours.map((h) => {
-                    const count = peakAnalysis.grid.get(`${day}-${h}`) || 0;
-                    const intensity = Math.min(count / 5, 1);
-                    return (
-                      <td
-                        key={h}
-                        className="p-1 border border-gray-200 text-center"
-                        style={{
-                          backgroundColor: count > 0 ? `rgba(249, 115, 22, ${0.15 + intensity * 0.7})` : "transparent",
-                          color: intensity > 0.5 ? "white" : undefined,
-                        }}
-                      >
-                        {count || ""}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p className="text-xs text-gray-400 mt-2">数字は注文件数。色が濃いほど注文が多い時間帯</p>
-      </section>
-
-      {/* 4. カテゴリ別注文率 */}
-      <section>
-        <h2 className="text-lg font-bold mb-3">カテゴリ別注文率</h2>
-        {categoryAnalysis.length === 0 ? (
-          <p className="text-sm text-gray-500">データがありません</p>
-        ) : (
-          <div className="space-y-3">
-            {categoryAnalysis.map((cat) => (
-              <div key={cat.name} className="rounded border border-gray-200 p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-medium">{cat.name}</h3>
-                  <span className="text-sm font-bold">¥{cat.revenue.toLocaleString()}</span>
-                </div>
-                <div className="flex items-center gap-4 text-xs text-gray-500">
-                  <span>注文数量: {cat.qty}</span>
-                  <span>注文率: {cat.orderRate}%</span>
-                </div>
-                <div className="mt-2 h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-orange-500 rounded-full"
-                    style={{ width: `${Math.min(cat.orderRate, 100)}%` }}
-                  />
-                </div>
+          {salesReport.length === 0 ? (
+            <p className="text-sm text-neutral-500">データがありません</p>
+          ) : (
+            <div className="flex-1 min-h-0 flex flex-col">
+              <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                <HorizontalBarChart
+                  data={salesChartData}
+                  color="#f97316"
+                  formatValue={(v) => `¥${v.toLocaleString()}`}
+                />
               </div>
-            ))}
+              <p className="text-xs text-neutral-600 mt-2 shrink-0">
+                右の()内は注文件数{REPORT_LIMIT === Infinity
+                  ? " / 全期間"
+                  : ` / 直近${REPORT_LIMIT}${period === "daily" ? "日" : "週"}`}
+              </p>
+            </div>
+          )}
+        </section>
+
+        {/* 人気メニューランキング */}
+        <section className="rounded-xl bg-neutral-900 border border-neutral-800 p-4 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex items-center justify-between mb-3 shrink-0">
+            <h2 className="text-lg font-bold text-white">
+              人気メニュー <span className="text-xs text-neutral-500 font-normal">({rankingPeriodLabel} Top 10)</span>
+            </h2>
           </div>
-        )}
-        <p className="text-xs text-gray-400 mt-2">
-          注文率 = そのカテゴリが含まれる注文の割合（例: トッピング40% → 10件中4件がトッピングを追加）
-        </p>
-      </section>
+          {menuRanking.length === 0 ? (
+            <p className="text-sm text-neutral-500">
+              {rankingPeriodLabel}のデータがありません
+            </p>
+          ) : (
+            <div className="flex-1 min-h-0 flex flex-col">
+              <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+                <HorizontalBarChart
+                  data={menuChartData}
+                  color="#fbbf24"
+                  formatValue={(v) => `${v}個`}
+                />
+              </div>
+              <p className="text-xs text-neutral-600 mt-2 shrink-0">
+                バーは注文数量、右の金額は売上額
+              </p>
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

@@ -1,27 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-} from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
 import type { Order } from "@/types";
+import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import Link from "next/link";
 
 export default function BillPage() {
   const { tableNumber } = useCart();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
+  // tableNumber が最初から無いなら fetch しないので loading=false で開始
+  const [loading, setLoading] = useState(() => tableNumber !== null);
 
   useEffect(() => {
-    if (!tableNumber) {
-      setLoading(false);
-      return;
-    }
+    if (!tableNumber) return;
 
     async function fetchOrders() {
       const q = query(
@@ -41,30 +35,22 @@ export default function BillPage() {
 
   if (!tableNumber) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
-        <p className="text-gray-500 text-lg mb-4">テーブル番号が設定されていません</p>
-        <Link href="/menu" className="text-orange-500 font-medium hover:underline">
-          メニューに戻る
-        </Link>
+      <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center px-4">
+        <p className="text-neutral-500 text-lg mb-4">テーブル番号が設定されていません</p>
+        <Link href="/menu" className="text-orange-400 font-medium hover:underline">メニューに戻る</Link>
       </div>
     );
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-gray-500">読み込み中...</p>
-      </div>
-    );
+    return <FullScreenLoader />;
   }
 
   if (orders.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
-        <p className="text-gray-500 text-lg mb-4">未精算の注文はありません</p>
-        <Link href="/menu" className="text-orange-500 font-medium hover:underline">
-          メニューに戻る
-        </Link>
+      <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center px-4">
+        <p className="text-neutral-500 text-lg mb-4">未精算の注文はありません</p>
+        <Link href="/menu" className="text-orange-400 font-medium hover:underline">メニューに戻る</Link>
       </div>
     );
   }
@@ -72,48 +58,40 @@ export default function BillPage() {
   const allItems: { name: string; price: number; quantity: number }[] = [];
   for (const order of orders) {
     for (const item of order.items) {
-      const existing = allItems.find(
-        (a) => a.name === item.name && a.price === item.price
-      );
-      if (existing) {
-        existing.quantity += item.quantity;
-      } else {
-        allItems.push({ name: item.name, price: item.price, quantity: item.quantity });
-      }
+      const existing = allItems.find((a) => a.name === item.name && a.price === item.price);
+      if (existing) existing.quantity += item.quantity;
+      else allItems.push({ name: item.name, price: item.price, quantity: item.quantity });
     }
   }
 
-  const totalAmount = allItems.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  );
+  const totalAmount = allItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const tax = Math.floor((totalAmount * 10) / 110);
   const subtotal = totalAmount - tax;
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm bg-white shadow-lg rounded-lg">
+    <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4">
+      <div className="w-full max-w-sm md:max-w-md lg:max-w-lg bg-neutral-900 rounded-2xl border border-neutral-800">
         <div className="p-6 space-y-4">
-          <div className="text-center border-b-2 border-dashed border-gray-300 pb-4">
-            <h1 className="text-2xl font-bold">Gonmura Food</h1>
-            <p className="text-sm text-gray-500 mt-1">お会計</p>
+          <div className="text-center border-b border-dashed border-neutral-700 pb-4">
+            <h1 className="text-2xl font-bold text-white">Gonmura Food</h1>
+            <p className="text-sm text-neutral-500 mt-1">お会計</p>
           </div>
 
-          <div className="text-sm text-gray-600 border-b border-dashed border-gray-300 pb-3">
+          <div className="text-sm text-neutral-400 border-b border-dashed border-neutral-700 pb-3">
             <div className="flex justify-between">
               <span>テーブル</span>
-              <span>{tableNumber}番</span>
+              <span className="text-white">{tableNumber}番</span>
             </div>
             <div className="flex justify-between mt-1">
               <span>注文数</span>
-              <span>{orders.length}件</span>
+              <span className="text-white">{orders.length}件</span>
             </div>
           </div>
 
-          <div className="border-b border-dashed border-gray-300 pb-3">
+          <div className="border-b border-dashed border-neutral-700 pb-3">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-gray-500">
+                <tr className="text-neutral-500">
                   <th className="text-left font-normal pb-2">品名</th>
                   <th className="text-center font-normal pb-2 w-10">数</th>
                   <th className="text-right font-normal pb-2 w-20">金額</th>
@@ -122,11 +100,9 @@ export default function BillPage() {
               <tbody>
                 {allItems.map((item, i) => (
                   <tr key={i}>
-                    <td className="py-1 text-gray-800">{item.name}</td>
-                    <td className="py-1 text-center text-gray-600">
-                      {item.quantity}
-                    </td>
-                    <td className="py-1 text-right text-gray-800">
+                    <td className="py-1 text-neutral-200">{item.name}</td>
+                    <td className="py-1 text-center text-neutral-400">{item.quantity}</td>
+                    <td className="py-1 text-right text-neutral-200">
                       ¥{(item.price * item.quantity).toLocaleString()}
                     </td>
                   </tr>
@@ -136,23 +112,23 @@ export default function BillPage() {
           </div>
 
           <div className="space-y-1 text-sm">
-            <div className="flex justify-between text-gray-600">
+            <div className="flex justify-between text-neutral-400">
               <span>小計</span>
               <span>¥{subtotal.toLocaleString()}</span>
             </div>
-            <div className="flex justify-between text-gray-600">
+            <div className="flex justify-between text-neutral-400">
               <span>消費税(10%)</span>
               <span>¥{tax.toLocaleString()}</span>
             </div>
-            <div className="flex justify-between text-xl font-bold pt-2 border-t border-gray-300">
-              <span>合計</span>
-              <span>¥{totalAmount.toLocaleString()}</span>
+            <div className="flex justify-between text-xl font-bold pt-3 border-t border-neutral-700">
+              <span className="text-white">合計</span>
+              <span className="text-orange-400">¥{totalAmount.toLocaleString()}</span>
             </div>
           </div>
         </div>
 
-        <div className="p-4 border-t-2 border-dashed border-gray-300 text-center">
-          <p className="text-sm font-medium text-gray-700">
+        <div className="p-4 border-t border-dashed border-neutral-700 text-center">
+          <p className="text-sm font-medium text-neutral-400">
             この画面をレジにてご提示ください
           </p>
         </div>
@@ -160,7 +136,7 @@ export default function BillPage() {
         <div className="p-4">
           <Link
             href="/menu"
-            className="block w-full text-center py-3 text-gray-500 text-sm hover:underline"
+            className="block w-full text-center py-3 text-neutral-500 text-sm hover:text-neutral-300 transition-colors"
           >
             メニューに戻る
           </Link>

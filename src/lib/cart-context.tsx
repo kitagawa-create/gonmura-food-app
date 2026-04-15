@@ -11,7 +11,7 @@ function cartKey(table: number | null): string {
 
 type CartContextType = {
   items: CartItem[];
-  addItem: (item: Omit<CartItem, "quantity">) => void;
+  addItem: (item: Omit<CartItem, "quantity">, quantity?: number) => void;
   removeItem: (menuId: string) => void;
   updateQuantity: (menuId: string, quantity: number) => void;
   clearCart: () => void;
@@ -34,10 +34,15 @@ function loadFromStorage<T>(key: string, fallback: T): T {
 }
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>([]);
-  const [tableNumber, setTableNumberState] = useState<number | null>(null);
-  const [loaded, setLoaded] = useState(false);
-  const currentTableRef = useRef<number | null>(null);
+  // 初回レンダリング時に localStorage から同期的に復元 (SSRでは fallback を返す)
+  const [tableNumber, setTableNumberState] = useState<number | null>(() =>
+    loadFromStorage<number | null>(TABLE_KEY, null)
+  );
+  const [items, setItems] = useState<CartItem[]>(() => {
+    const t = loadFromStorage<number | null>(TABLE_KEY, null);
+    return loadFromStorage<CartItem[]>(cartKey(t), []);
+  });
+  const currentTableRef = useRef<number | null>(tableNumber);
 
   // テーブル番号を設定（カートも切り替え）
   const setTableNumber = useCallback((n: number | null) => {
@@ -51,30 +56,22 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // 初回マウント時にlocalStorageから復元
+  // items が変わるたびに現在のテーブルのカートとして保存 (外部システム同期なので useEffect でOK)
   useEffect(() => {
-    const savedTable = loadFromStorage<number | null>(TABLE_KEY, null);
-    currentTableRef.current = savedTable;
-    setTableNumberState(savedTable);
-    setItems(loadFromStorage<CartItem[]>(cartKey(savedTable), []));
-    setLoaded(true);
-  }, []);
-
-  // items が変わるたびに現在のテーブルのカートとして保存
-  useEffect(() => {
-    if (!loaded) return;
+    if (typeof window === "undefined") return;
     localStorage.setItem(cartKey(currentTableRef.current), JSON.stringify(items));
-  }, [items, loaded]);
+  }, [items]);
 
-  const addItem = useCallback((item: Omit<CartItem, "quantity">) => {
+  const addItem = useCallback((item: Omit<CartItem, "quantity">, quantity: number = 1) => {
+    const qty = Math.max(1, Math.trunc(quantity));
     setItems((prev) => {
       const existing = prev.find((i) => i.menuId === item.menuId);
       if (existing) {
         return prev.map((i) =>
-          i.menuId === item.menuId ? { ...i, quantity: i.quantity + 1 } : i
+          i.menuId === item.menuId ? { ...i, quantity: i.quantity + qty } : i
         );
       }
-      return [...prev, { ...item, quantity: 1 }];
+      return [...prev, { ...item, quantity: qty }];
     });
   }, []);
 

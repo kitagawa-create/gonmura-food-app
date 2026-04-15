@@ -23,6 +23,8 @@ export type Menu = {
   categoryIds: string[];
   imageUrl: string;
   isAvailable: boolean;
+  /** 表示順（整数、小さいほど上）。未設定のメニューは最後尾に配置 */
+  sortOrder?: number;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };

@@ -4,14 +4,15 @@ import { useEffect, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Order } from "@/types";
+import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
 const statusLabels: Record<string, { label: string; color: string }> = {
-  pending: { label: "受付中", color: "bg-yellow-100 text-yellow-800" },
-  preparing: { label: "調理中", color: "bg-blue-100 text-blue-800" },
-  completed: { label: "完成", color: "bg-green-100 text-green-800" },
-  cancelled: { label: "キャンセル", color: "bg-red-100 text-red-800" },
+  pending: { label: "受付中", color: "bg-yellow-500/20 text-yellow-400" },
+  preparing: { label: "調理中", color: "bg-blue-500/20 text-blue-400" },
+  completed: { label: "完成", color: "bg-green-500/20 text-green-400" },
+  cancelled: { label: "キャンセル", color: "bg-red-500/20 text-red-400" },
 };
 
 export default function OrderStatusPage() {
@@ -31,21 +32,14 @@ export default function OrderStatusPage() {
   }, [orderId]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-gray-500">読み込み中...</p>
-      </div>
-    );
+    return <FullScreenLoader />;
   }
 
   if (!order) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen px-4">
-        <p className="text-gray-500 text-lg mb-4">注文が見つかりません</p>
-        <Link
-          href="/menu"
-          className="text-orange-500 font-medium hover:underline"
-        >
+      <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-950 px-4">
+        <p className="text-neutral-500 text-lg mb-4">注文が見つかりません</p>
+        <Link href="/menu" className="text-orange-400 font-medium hover:underline">
           メニューに戻る
         </Link>
       </div>
@@ -54,7 +48,7 @@ export default function OrderStatusPage() {
 
   const status = statusLabels[order.status] ?? {
     label: order.status,
-    color: "bg-gray-100 text-gray-800",
+    color: "bg-neutral-800 text-neutral-400",
   };
 
   const totalAmount = order.items.reduce(
@@ -63,61 +57,48 @@ export default function OrderStatusPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-8">
-      <header className="bg-white shadow-sm">
-        <div className="max-w-lg mx-auto px-4 py-4">
-          <h1 className="text-xl font-bold text-center">注文状況</h1>
+    <div className="min-h-screen bg-neutral-950 pb-8">
+      <header className="bg-neutral-900 border-b border-neutral-800">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          <h1 className="text-lg font-bold text-white text-center">注文状況</h1>
         </div>
       </header>
 
-      <main className="max-w-lg mx-auto px-4 py-6 space-y-4">
-        <div className="bg-white rounded-lg shadow-sm p-6 text-center">
-          <p className="text-sm text-gray-500 mb-2">テーブル {order.tableNumber}</p>
-          <span
-            className={`inline-block px-4 py-2 rounded-full text-lg font-bold ${status.color}`}
-          >
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
+        <div className="bg-neutral-900 rounded-xl border border-neutral-800 p-6 text-center">
+          <p className="text-sm text-neutral-500 mb-3">テーブル {order.tableNumber}</p>
+          <span className={`inline-block px-5 py-2.5 rounded-full text-lg font-bold ${status.color}`}>
             {status.label}
           </span>
           {order.status === "completed" && (
-            <p className="mt-3 text-green-600 font-medium">
-              お料理ができました！
-            </p>
+            <p className="mt-4 text-green-400 font-medium">お料理ができました！</p>
           )}
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <h2 className="font-bold text-gray-800 mb-3">注文内容</h2>
+        <div className="bg-neutral-900 rounded-xl border border-neutral-800 p-4">
+          <h2 className="font-bold text-white mb-3">注文内容</h2>
           {order.items.map((item, i) => (
-            <div
-              key={i}
-              className="flex justify-between py-2 border-b border-gray-100 last:border-0"
-            >
-              <span className="text-gray-700">
-                {item.name} x {item.quantity}
-              </span>
-              <span className="text-gray-700">
-                {(item.price * item.quantity).toLocaleString()}円
-              </span>
+            <div key={i} className="flex justify-between py-2 border-b border-neutral-800 last:border-0">
+              <span className="text-neutral-300">{item.name} x {item.quantity}</span>
+              <span className="text-neutral-300">{(item.price * item.quantity).toLocaleString()}円</span>
             </div>
           ))}
-          <div className="flex justify-between pt-3 mt-2 border-t border-gray-200">
-            <span className="font-bold">合計</span>
-            <span className="font-bold text-orange-600">
-              {totalAmount.toLocaleString()}円
-            </span>
+          <div className="flex justify-between pt-3 mt-2 border-t border-neutral-700">
+            <span className="font-bold text-white">合計</span>
+            <span className="font-bold text-orange-400">{totalAmount.toLocaleString()}円</span>
           </div>
         </div>
 
         {order.customerNote && (
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <h2 className="font-bold text-gray-800 mb-2">備考</h2>
-            <p className="text-gray-600">{order.customerNote}</p>
+          <div className="bg-neutral-900 rounded-xl border border-neutral-800 p-4">
+            <h2 className="font-bold text-white mb-2">備考</h2>
+            <p className="text-neutral-400">{order.customerNote}</p>
           </div>
         )}
 
         <Link
           href="/menu"
-          className="block w-full text-center py-3 text-orange-500 font-medium hover:underline"
+          className="block w-full text-center py-3 text-neutral-500 hover:text-neutral-300 transition-colors"
         >
           メニューに戻る
         </Link>

@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
+import { PageLoader } from "@/components/ui/PageLoader";
 import {
   Timestamp,
   collection,
@@ -70,14 +72,100 @@ function mergeItems(orders: Order[]): { name: string; price: number; quantity: n
   return allItems;
 }
 
+const GOAL_STORAGE_KEY = "gonmura-sales-goal";
+const DEFAULT_GOAL = 100000;
+
+function DonutChart({ percent }: { percent: number }) {
+  const clamped = Math.min(Math.max(percent, 0), 100);
+  const radius = 54;
+  const circumference = 2 * Math.PI * radius;
+  const dash = (clamped / 100) * circumference;
+  const achieved = percent >= 100;
+  return (
+    <svg width="140" height="140" viewBox="0 0 140 140">
+      <g transform="rotate(-90 70 70)">
+        <circle cx="70" cy="70" r={radius} stroke="#262626" strokeWidth="14" fill="none" />
+        <circle
+          cx="70"
+          cy="70"
+          r={radius}
+          stroke={achieved ? "#22c55e" : "#fb923c"}
+          strokeWidth="14"
+          fill="none"
+          strokeDasharray={`${dash} ${circumference}`}
+          strokeLinecap="round"
+          style={{ transition: "stroke-dasharray 0.6s ease" }}
+        />
+      </g>
+      <text
+        x="70"
+        y="70"
+        textAnchor="middle"
+        dominantBaseline="central"
+        fill="#fff"
+        fontSize="22"
+        fontWeight="700"
+      >
+        {Math.round(percent)}%
+      </text>
+    </svg>
+  );
+}
+
 export default function AdminRegisterPage() {
   const [unpaidOrders, setUnpaidOrders] = useState<Order[]>([]);
   const [paidOrders, setPaidOrders] = useState<Order[]>([]);
+  const [todayPaidOrders, setTodayPaidOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [todayPaidLoaded, setTodayPaidLoaded] = useState(false);
   const [processing, setProcessing] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("unpaid");
   const [dateFilter, setDateFilter] = useState<string>(todayISO());
+  const [payTarget, setPayTarget] = useState<TableBill | null>(null);
+  const [goal, setGoal] = useState<number>(DEFAULT_GOAL);
+  const [goalInput, setGoalInput] = useState<string>("");
+  const [editingGoal, setEditingGoal] = useState<boolean>(false);
+
+  // 目標金額の読み込み
+  useEffect(() => {
+    const stored = localStorage.getItem(GOAL_STORAGE_KEY);
+    if (stored) {
+      const n = parseInt(stored, 10);
+      if (!isNaN(n) && n > 0) setGoal(n);
+    }
+  }, []);
+
+  // 本日の精算済み（リアルタイム・常時監視）
+  useEffect(() => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+
+    const q = query(
+      collection(db, "orders"),
+      where("status", "==", "paid"),
+      where("createdAt", ">=", Timestamp.fromDate(start)),
+      where("createdAt", "<", Timestamp.fromDate(end)),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setTodayPaidOrders(
+          snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Order)
+        );
+        setTodayPaidLoaded(true);
+      },
+      (err) => {
+        console.error("本日の売上取得エラー:", err);
+        setTodayPaidLoaded(true); // エラー時もローダーは解除
+      }
+    );
+
+    return unsub;
+  }, []);
 
   // 未精算（リアルタイム）
   useEffect(() => {
@@ -121,80 +209,170 @@ export default function AdminRegisterPage() {
   const unpaidTables = useMemo(() => groupByTable(unpaidOrders), [unpaidOrders]);
   const paidTables = useMemo(() => groupByTable(paidOrders), [paidOrders]);
 
-  async function handlePay(table: TableBill) {
-    if (processing !== null) return;
-    if (!confirm(`テーブル ${table.tableNumber} の精算（¥${table.totalAmount.toLocaleString()}）を完了しますか？`)) return;
+  const todaySales = useMemo(
+    () =>
+      todayPaidOrders.reduce(
+        (sum, o) => sum + o.items.reduce((s, i) => s + i.price * i.quantity, 0),
+        0
+      ),
+    [todayPaidOrders]
+  );
+  const achievementPercent = goal > 0 ? (todaySales / goal) * 100 : 0;
+  const remaining = Math.max(goal - todaySales, 0);
 
-    setProcessing(table.tableNumber);
+  const saveGoal = useCallback(() => {
+    const n = parseInt(goalInput, 10);
+    if (isNaN(n) || n <= 0) {
+      setEditingGoal(false);
+      return;
+    }
+    setGoal(n);
+    localStorage.setItem(GOAL_STORAGE_KEY, String(n));
+    setEditingGoal(false);
+  }, [goalInput]);
+
+  const confirmPay = useCallback(async () => {
+    if (!payTarget || processing !== null) return;
+    setProcessing(payTarget.tableNumber);
     setError(null);
 
     try {
-      for (const order of table.orders) {
+      for (const order of payTarget.orders) {
         await updateDoc(doc(db, "orders", order.id), {
           status: "paid",
           updatedAt: serverTimestamp(),
         });
       }
+      setPayTarget(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "精算に失敗しました。");
     } finally {
       setProcessing(null);
     }
-  }
+  }, [payTarget, processing]);
 
   const currentTables = tab === "unpaid" ? unpaidTables : paidTables;
 
+  // 本日売上カード・未精算ともに初回データ未着ならページ全体をローダーに（チラつき防止）
+  if (loading || !todayPaidLoaded) {
+    return <PageLoader />;
+  }
+
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="w-full">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold">レジ</h1>
+        <h1 className="text-2xl font-bold text-white">レジ</h1>
         {tab === "paid" && (
-          <label className="text-sm">
-            日付：
-            <input
-              type="date"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              className="ml-2 rounded border border-gray-300 px-2 py-1 text-sm"
-            />
-          </label>
+          <input
+            type="date"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+          />
         )}
       </div>
 
+      {/* 本日の売上カード */}
+      <div className="mb-5 rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-neutral-300">本日の売上</h2>
+          <span className="text-xs text-neutral-500">
+            {todayPaidOrders.length}件 精算済み
+          </span>
+        </div>
+        <div className="flex items-center gap-5">
+          <DonutChart percent={achievementPercent} />
+          <div className="flex-1 space-y-2">
+            <div>
+              <p className="text-xs text-neutral-500">売上</p>
+              <p className="text-2xl font-bold text-orange-400">
+                ¥{todaySales.toLocaleString()}
+              </p>
+            </div>
+            <div>
+              <div className="flex items-baseline justify-between">
+                <p className="text-xs text-neutral-500">目標</p>
+                {!editingGoal && (
+                  <button
+                    onClick={() => {
+                      setGoalInput(String(goal));
+                      setEditingGoal(true);
+                    }}
+                    className="text-xs text-neutral-400 hover:text-orange-400 underline"
+                  >
+                    変更
+                  </button>
+                )}
+              </div>
+              {editingGoal ? (
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="number"
+                    value={goalInput}
+                    onChange={(e) => setGoalInput(e.target.value)}
+                    className="w-28 bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    min={1}
+                    autoFocus
+                  />
+                  <button
+                    onClick={saveGoal}
+                    className="text-xs bg-orange-500 hover:bg-orange-600 text-white px-2 py-1 rounded"
+                  >
+                    保存
+                  </button>
+                  <button
+                    onClick={() => setEditingGoal(false)}
+                    className="text-xs text-neutral-400 hover:text-white"
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              ) : (
+                <p className="text-lg font-semibold text-white">
+                  ¥{goal.toLocaleString()}
+                </p>
+              )}
+            </div>
+            <p className="text-xs text-neutral-500">
+              {achievementPercent >= 100
+                ? "🎉 目標達成！"
+                : `あと ¥${remaining.toLocaleString()}`}
+            </p>
+          </div>
+        </div>
+      </div>
+
       {error && (
-        <p className="mb-4 rounded bg-red-50 p-3 text-sm text-red-700">{error}</p>
+        <p className="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-sm text-red-400">{error}</p>
       )}
 
-      {/* タブ */}
-      <div className="mb-4 flex gap-1 border-b border-gray-200">
+      <div className="mb-4 flex gap-1 border-b border-neutral-800">
         <button
           onClick={() => setTab("unpaid")}
           className={`border-b-2 px-4 py-2 text-sm ${
             tab === "unpaid"
-              ? "border-gray-800 font-semibold text-gray-900"
-              : "border-transparent text-gray-500"
+              ? "border-orange-400 font-semibold text-orange-400"
+              : "border-transparent text-neutral-500"
           }`}
         >
           未精算
-          <span className="ml-2 text-xs text-gray-500">({unpaidTables.length})</span>
+          <span className="ml-2 text-xs">({unpaidTables.length})</span>
         </button>
         <button
           onClick={() => setTab("paid")}
           className={`border-b-2 px-4 py-2 text-sm ${
             tab === "paid"
-              ? "border-gray-800 font-semibold text-gray-900"
-              : "border-transparent text-gray-500"
+              ? "border-orange-400 font-semibold text-orange-400"
+              : "border-transparent text-neutral-500"
           }`}
         >
           精算済み
-          <span className="ml-2 text-xs text-gray-500">({paidTables.length})</span>
+          <span className="ml-2 text-xs">({paidTables.length})</span>
         </button>
       </div>
 
-      {loading ? (
-        <p className="text-sm text-gray-500">読み込み中...</p>
-      ) : currentTables.length === 0 ? (
-        <p className="text-sm text-gray-500">
+      {currentTables.length === 0 ? (
+        <p className="text-sm text-neutral-500 text-center py-12">
           {tab === "unpaid" ? "未精算のテーブルはありません。" : "精算済みの注文はありません。"}
         </p>
       ) : (
@@ -207,30 +385,30 @@ export default function AdminRegisterPage() {
             return (
               <div
                 key={table.tableNumber}
-                className={`rounded border p-4 ${
-                  tab === "paid" ? "border-gray-200 bg-gray-50" : "border-gray-200"
+                className={`rounded-xl border p-4 ${
+                  tab === "paid" ? "border-neutral-800 bg-neutral-800/50" : "border-neutral-800 bg-neutral-900"
                 }`}
               >
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <h2 className="text-lg font-bold">テーブル {table.tableNumber}</h2>
-                    <p className="text-xs text-gray-500">{table.orders.length}件の注文</p>
+                    <h2 className="text-lg font-bold text-white">テーブル {table.tableNumber}</h2>
+                    <p className="text-xs text-neutral-500">{table.orders.length}件の注文</p>
                   </div>
-                  <p className="text-xl font-bold">¥{table.totalAmount.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-orange-400">¥{table.totalAmount.toLocaleString()}</p>
                 </div>
 
-                <ul className="mb-3 space-y-1 text-sm border-t border-gray-100 pt-3">
+                <ul className="mb-3 space-y-1 text-sm border-t border-neutral-800 pt-3">
                   {allItems.map((item, i) => (
                     <li key={i} className="flex justify-between">
-                      <span>{item.name} x {item.quantity}</span>
-                      <span className="text-gray-600">
+                      <span className="text-neutral-300">{item.name} x {item.quantity}</span>
+                      <span className="text-neutral-400">
                         ¥{(item.price * item.quantity).toLocaleString()}
                       </span>
                     </li>
                   ))}
                 </ul>
 
-                <div className="text-xs text-gray-500 mb-3 border-t border-gray-100 pt-2 space-y-1">
+                <div className="text-xs text-neutral-500 mb-3 border-t border-neutral-800 pt-2 space-y-1">
                   <div className="flex justify-between">
                     <span>小計</span>
                     <span>¥{subtotal.toLocaleString()}</span>
@@ -243,22 +421,33 @@ export default function AdminRegisterPage() {
 
                 {tab === "unpaid" && (
                   <button
-                    onClick={() => handlePay(table)}
+                    onClick={() => setPayTarget(table)}
                     disabled={processing !== null}
-                    className="w-full rounded bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50"
+                    className="w-full rounded-xl bg-green-600 px-4 py-2.5 text-sm text-white font-bold hover:bg-green-700 disabled:opacity-50 transition-colors"
                   >
                     {processing === table.tableNumber ? "処理中..." : "精算完了"}
                   </button>
                 )}
 
                 {tab === "paid" && (
-                  <p className="text-center text-xs text-green-600 font-medium">精算済み</p>
+                  <p className="text-center text-xs text-green-400 font-medium">精算済み</p>
                 )}
               </div>
             );
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={payTarget !== null}
+        title={`テーブル ${payTarget?.tableNumber} の精算`}
+        message={`合計 ¥${payTarget?.totalAmount.toLocaleString()} の精算を完了しますか？`}
+        confirmLabel="精算完了"
+        confirmColor="green"
+        onConfirm={confirmPay}
+        onCancel={() => setPayTarget(null)}
+        loading={processing !== null}
+      />
     </div>
   );
 }

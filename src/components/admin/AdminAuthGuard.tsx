@@ -30,21 +30,21 @@ export function AdminAuthGuard({ children }: { children: React.ReactNode }) {
 
   if (status === "loading" || status === "unauthorized") {
     return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-gray-500">
-        読み込み中...
+      <div className="flex min-h-screen items-center justify-center bg-neutral-950">
+        <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   if (status === "not-admin") {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
-        <h1 className="text-xl font-bold">アクセス拒否</h1>
-        <p className="text-sm text-gray-600">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-8 bg-neutral-950">
+        <h1 className="text-xl font-bold text-white">アクセス拒否</h1>
+        <p className="text-sm text-neutral-400">
           このアカウントは管理者として登録されていません。
         </p>
         <button
-          className="rounded bg-gray-800 px-4 py-2 text-sm text-white"
+          className="rounded-xl bg-orange-500 px-5 py-2.5 text-sm text-white font-bold hover:bg-orange-600 transition-colors"
           onClick={async () => {
             const { logout } = await import("@/lib/admin-auth");
             await logout();

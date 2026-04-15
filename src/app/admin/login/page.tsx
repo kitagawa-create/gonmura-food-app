@@ -2,11 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  loginWithEmail,
-  logout,
-  isAdminUser,
-} from "@/lib/admin-auth";
+import { loginWithEmail, logout, isAdminUser } from "@/lib/admin-auth";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -36,43 +32,44 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
+    <div className="flex min-h-screen items-center justify-center bg-neutral-950 p-4">
       <form
         onSubmit={handleLogin}
-        className="w-full max-w-sm rounded-lg bg-white p-8 shadow"
+        className="w-full max-w-sm rounded-2xl bg-neutral-900 border border-neutral-800 p-8"
       >
-        <h1 className="mb-6 text-center text-xl font-bold">管理者ログイン</h1>
+        <h1 className="text-xl font-bold text-white text-center mb-1">Gonmura Food</h1>
+        <p className="text-sm text-neutral-500 text-center mb-8">管理画面ログイン</p>
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm text-gray-600">メールアドレス</label>
+            <label className="mb-1 block text-sm text-neutral-400">メールアドレス</label>
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-800"
+              className="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm text-gray-600">パスワード</label>
+            <label className="mb-1 block text-sm text-neutral-400">パスワード</label>
             <input
               type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-800"
+              className="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded bg-gray-800 px-4 py-3 text-sm text-white disabled:opacity-50"
+            className="w-full bg-orange-500 text-white py-3 rounded-xl text-sm font-bold hover:bg-orange-600 transition-colors disabled:opacity-50"
           >
             {loading ? "ログイン中..." : "ログイン"}
           </button>
         </div>
         {error && (
-          <p className="mt-4 rounded bg-red-50 p-3 text-sm text-red-700">
+          <p className="mt-4 rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-sm text-red-400">
             {error}
           </p>
         )}

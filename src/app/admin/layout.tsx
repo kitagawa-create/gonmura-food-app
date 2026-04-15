@@ -11,16 +11,15 @@ export default function AdminLayout({
 }) {
   const pathname = usePathname();
 
-  // ログインページは認証ガード・サイドバーの外側でレンダリング
   if (pathname === "/admin/login") {
     return <>{children}</>;
   }
 
   return (
     <AdminAuthGuard>
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen bg-neutral-900">
         <AdminSidebar />
-        <main className="flex-1 overflow-auto bg-white p-6">{children}</main>
+        <main className="flex-1 overflow-auto p-3 md:p-6">{children}</main>
       </div>
     </AdminAuthGuard>
   );
