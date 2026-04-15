@@ -20,7 +20,11 @@ service cloud.firestore {
 
     match /menus/{menuId} {
       allow read: if true;
-      allow write: if isOwner();
+      allow create, delete: if isOwner();
+      allow update: if isOwner()
+        || (isStaff()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(["isAvailable", "updatedAt"]));
     }
 
     match /orders/{orderId} {

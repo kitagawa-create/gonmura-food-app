@@ -401,8 +401,8 @@ export default function AdminMenusPage() {
                           )}
                         </div>
                       </div>
-                      {role === "owner" && (
-                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {role === "owner" && (
                           <button
                             onClick={() => {
                               setEditing(m);
@@ -412,22 +412,22 @@ export default function AdminMenusPage() {
                           >
                             編集
                           </button>
+                        )}
+                        <button
+                          onClick={() => handleToggleAvailable(m)}
+                          className="rounded-lg border border-neutral-700 px-3 py-1 text-xs text-neutral-400 hover:bg-neutral-800 transition-colors"
+                        >
+                          {m.isAvailable ? "非公開にする" : "公開する"}
+                        </button>
+                        {role === "owner" && !orderedMenuIds.has(m.id) && (
                           <button
-                            onClick={() => handleToggleAvailable(m)}
-                            className="rounded-lg border border-neutral-700 px-3 py-1 text-xs text-neutral-400 hover:bg-neutral-800 transition-colors"
+                            onClick={() => setDeleteTarget(m)}
+                            className="rounded-lg bg-red-600 px-3 py-1 text-xs text-white hover:bg-red-700 transition-colors"
                           >
-                            {m.isAvailable ? "非公開にする" : "公開する"}
+                            削除
                           </button>
-                          {!orderedMenuIds.has(m.id) && (
-                            <button
-                              onClick={() => setDeleteTarget(m)}
-                              className="rounded-lg bg-red-600 px-3 py-1 text-xs text-white hover:bg-red-700 transition-colors"
-                            >
-                              削除
-                            </button>
-                          )}
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   );
                 })}
