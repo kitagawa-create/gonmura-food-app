@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { collection, getDocs, query, where } from "firebase/firestore";
@@ -9,7 +9,7 @@ import type { Order } from "@/types";
 import { useAdminRole } from "@/components/admin/AdminContext";
 
 type Period = "daily" | "weekly" | "monthly";
-type Analysis = "sales" | "menu" | "price" | "heatmap";
+type Analysis = "sales" | "menu" | "price";
 const MAX_MENU_SERIES = 5;
 const MENU_COLORS = [
   "#f97316",
@@ -27,8 +27,6 @@ const PRICE_COLORS = [
   "#c084fc",
   "#ef4444",
 ];
-const DOW_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
-
 function formatDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -74,6 +72,113 @@ type Series = {
   values: number[];
   formatValue: (v: number) => string;
 };
+
+function BarChart({
+  labels,
+  values,
+  color = "#f97316",
+  formatValue,
+  activeIdx,
+  onBarClick,
+  height = 260,
+}: {
+  labels: string[];
+  values: number[];
+  color?: string;
+  formatValue: (v: number) => string;
+  activeIdx?: number | null;
+  onBarClick?: (i: number) => void;
+  height?: number;
+}) {
+  const padL = 12;
+  const padR = 12;
+  const padT = 16;
+  const padB = 28;
+  const W = 800;
+  const innerW = W - padL - padR;
+  const innerH = height - padT - padB;
+  const n = values.length;
+  if (n === 0) return null;
+  const max = Math.max(...values, 1);
+  const gap = 2;
+  const bw = Math.max(1, innerW / n - gap);
+  const xTickEvery = Math.max(1, Math.ceil(n / 10));
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${height}`}
+      preserveAspectRatio="none"
+      className="w-full"
+      style={{ height }}
+    >
+      {[0.25, 0.5, 0.75].map((p) => (
+        <line
+          key={p}
+          x1={padL}
+          x2={W - padR}
+          y1={padT + innerH * p}
+          y2={padT + innerH * p}
+          stroke="#262626"
+          strokeDasharray="3 3"
+        />
+      ))}
+      {values.map((v, i) => {
+        const h = (v / max) * innerH;
+        const x = padL + i * (bw + gap) + gap / 2;
+        const y = padT + innerH - h;
+        const isActive = activeIdx === i;
+        return (
+          <g
+            key={i}
+            onClick={() => onBarClick?.(i)}
+            style={{ cursor: onBarClick ? "pointer" : "default" }}
+          >
+            <rect
+              x={padL + i * (bw + gap)}
+              y={padT}
+              width={bw + gap}
+              height={innerH}
+              fill="transparent"
+            />
+            <rect
+              x={x}
+              y={y}
+              width={bw}
+              height={h}
+              fill={color}
+              opacity={activeIdx == null || isActive ? 1 : 0.45}
+              rx={2}
+            />
+            {isActive && (
+              <text
+                x={x + bw / 2}
+                y={y - 4}
+                textAnchor="middle"
+                fontSize={10}
+                fill="#fafafa"
+              >
+                {formatValue(v)}
+              </text>
+            )}
+          </g>
+        );
+      })}
+      {labels.map((l, i) =>
+        i % xTickEvery === 0 || i === n - 1 ? (
+          <text
+            key={i}
+            x={padL + i * (bw + gap) + bw / 2 + gap / 2}
+            y={height - 10}
+            textAnchor="middle"
+            fontSize={10}
+            fill="#737373"
+          >
+            {l}
+          </text>
+        ) : null
+      )}
+    </svg>
+  );
+}
 
 function LineChart({
   labels,
@@ -260,6 +365,11 @@ export default function AdminSalesPage() {
   const [heatmapMetric, setHeatmapMetric] = useState<"revenue" | "count">(
     "revenue"
   );
+  const [detailKey, setDetailKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDetailKey(null);
+  }, [period, analysis]);
 
   useEffect(() => {
     if (role !== "owner") router.replace("/admin/orders");
@@ -314,11 +424,13 @@ export default function AdminSalesPage() {
     return Array.from(map.values()).sort((a, b) => b.qty - a.qty);
   }, [orders]);
 
+  const menuInitRef = useRef(false);
   useEffect(() => {
-    if (analysis === "menu" && selectedMenuIds.length === 0 && menuOptions.length > 0) {
-      setSelectedMenuIds(menuOptions.slice(0, 3).map((m) => m.menuId));
-    }
-  }, [analysis, selectedMenuIds.length, menuOptions]);
+    if (analysis !== "menu" || menuInitRef.current) return;
+    if (menuOptions.length === 0) return;
+    menuInitRef.current = true;
+    setSelectedMenuIds(menuOptions.slice(0, 3).map((m) => m.menuId));
+  }, [analysis, menuOptions]);
 
   const visibleKeys = useMemo(() => new Set(visible.map((b) => b.key)), [visible]);
 
@@ -398,6 +510,40 @@ export default function AdminSalesPage() {
     return { grid, max };
   }, [orders, heatmapMetric]);
 
+  const detail = useMemo(() => {
+    if (!detailKey) return null;
+    const filtered = orders.filter((o) => {
+      const d = o.createdAt?.toDate?.();
+      return !!d && bucketKey(d, period) === detailKey;
+    });
+    if (filtered.length === 0) return null;
+    const count = filtered.length;
+    const revenue = filtered.reduce((s, o) => s + orderTotal(o), 0);
+    const qty = filtered.reduce((s, o) => s + orderQty(o), 0);
+    const atv = count === 0 ? 0 : Math.round(revenue / count);
+    const menuMap = new Map<
+      string,
+      { name: string; qty: number; revenue: number }
+    >();
+    for (const o of filtered) {
+      for (const it of o.items) {
+        const e = menuMap.get(it.menuId) ?? {
+          name: it.name,
+          qty: 0,
+          revenue: 0,
+        };
+        e.qty += it.quantity;
+        e.revenue += it.price * it.quantity;
+        menuMap.set(it.menuId, e);
+      }
+    }
+    const breakdown = Array.from(menuMap.values()).sort(
+      (a, b) => b.revenue - a.revenue
+    );
+    const label = visible.find((b) => b.key === detailKey)?.label ?? detailKey;
+    return { key: detailKey, label, count, revenue, qty, atv, breakdown };
+  }, [detailKey, orders, period, visible]);
+
   function toggleMenu(mid: string) {
     setSelectedMenuIds((prev) => {
       if (prev.includes(mid)) return prev.filter((x) => x !== mid);
@@ -422,28 +568,6 @@ export default function AdminSalesPage() {
   if (loading) return <PageLoader />;
 
   const yen = (v: number) => `¥${v.toLocaleString()}`;
-  const plain = (v: number) => v.toLocaleString();
-
-  const series: Series[] = [
-    {
-      name: "売上",
-      color: "#f97316",
-      values: visible.map((b) => b.revenue),
-      formatValue: yen,
-    },
-    {
-      name: "注文数",
-      color: "#38bdf8",
-      values: visible.map((b) => b.count),
-      formatValue: plain,
-    },
-    {
-      name: "客単価",
-      color: "#a3e635",
-      values: visible.map((b) => (b.count === 0 ? 0 : Math.round(b.revenue / b.count))),
-      formatValue: yen,
-    },
-  ];
 
   const rangeLabel =
     visible.length === 0
@@ -495,14 +619,9 @@ export default function AdminSalesPage() {
               ? "価格変更前後比較"
               : "時間帯ヒートマップ"}
           </h2>
-          {analysis !== "heatmap" && (
+          {analysis !== "heatmap" && analysis !== "sales" && (
             <div className="flex items-center gap-3 text-xs flex-wrap justify-end">
-              {(analysis === "sales"
-                ? series
-                : analysis === "menu"
-                ? menuSeries
-                : priceSeries
-              ).map((s) => (
+              {(analysis === "menu" ? menuSeries : priceSeries).map((s) => (
                 <div key={s.name} className="flex items-center gap-1.5">
                   <span
                     className="inline-block h-2 w-2 rounded-full"
@@ -676,22 +795,104 @@ export default function AdminSalesPage() {
           <p className="text-sm text-neutral-500 py-10 text-center">
             対象メニューの販売実績がありません
           </p>
+        ) : analysis === "sales" ? (
+          <>
+            <BarChart
+              labels={visible.map((b) => b.label)}
+              values={visible.map((b) => b.revenue)}
+              formatValue={yen}
+              activeIdx={
+                detailKey
+                  ? visible.findIndex((b) => b.key === detailKey)
+                  : null
+              }
+              onBarClick={(i) =>
+                setDetailKey((cur) =>
+                  cur === visible[i].key ? null : visible[i].key
+                )
+              }
+            />
+            {detail && (
+              <div className="mt-3 rounded-lg bg-neutral-800/60 border border-neutral-700 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-bold text-white">
+                    {detail.label} の詳細
+                  </h3>
+                  <button
+                    onClick={() => setDetailKey(null)}
+                    className="text-xs text-neutral-500 hover:text-neutral-300"
+                  >
+                    閉じる
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3 text-xs">
+                  <div>
+                    <p className="text-neutral-500">売上</p>
+                    <p className="text-white font-bold tabular-nums">
+                      {yen(detail.revenue)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-neutral-500">注文数</p>
+                    <p className="text-white font-bold tabular-nums">
+                      {detail.count}件
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-neutral-500">客単価</p>
+                    <p className="text-white font-bold tabular-nums">
+                      {yen(detail.atv)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-neutral-500">総品数</p>
+                    <p className="text-white font-bold tabular-nums">
+                      {detail.qty}点
+                    </p>
+                  </div>
+                </div>
+                <p className="text-xs text-neutral-500 mb-1">メニュー別内訳</p>
+                <div className="max-h-52 overflow-y-auto">
+                  <table className="w-full text-xs tabular-nums">
+                    <thead className="text-neutral-600 sticky top-0 bg-neutral-800/60">
+                      <tr>
+                        <th className="text-left font-normal py-1">メニュー</th>
+                        <th className="text-right font-normal py-1 w-16">数量</th>
+                        <th className="text-right font-normal py-1 w-24">
+                          売上
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detail.breakdown.map((m) => (
+                        <tr key={m.name} className="border-t border-neutral-800">
+                          <td className="py-1 text-neutral-300 truncate pr-2">
+                            {m.name}
+                          </td>
+                          <td className="py-1 text-right text-neutral-200">
+                            {m.qty}個
+                          </td>
+                          <td className="py-1 text-right text-neutral-200">
+                            {yen(m.revenue)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </>
         ) : (
           <LineChart
             labels={visible.map((b) => b.label)}
-            series={
-              analysis === "sales"
-                ? series
-                : analysis === "menu"
-                ? menuSeries
-                : priceSeries
-            }
+            series={analysis === "menu" ? menuSeries : priceSeries}
             sharedScale={analysis === "menu" || analysis === "price"}
           />
         )}
         <p className="text-[11px] text-neutral-600 mt-2">
           {analysis === "sales" &&
-            "各系列は最大値で正規化表示。値はホバーで確認できます。"}
+            "バーをタップするとその期間の詳細（注文数/客単価/メニュー別内訳）が見られます。"}
           {analysis === "menu" &&
             `同一スケールで比較。最大${MAX_MENU_SERIES}メニューまで重ね描き。`}
           {analysis === "price" &&
