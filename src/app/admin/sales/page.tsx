@@ -362,9 +362,6 @@ export default function AdminSalesPage() {
   const [analysis, setAnalysis] = useState<Analysis>("sales");
   const [selectedMenuIds, setSelectedMenuIds] = useState<string[]>([]);
   const [priceMenuId, setPriceMenuId] = useState<string>("");
-  const [heatmapMetric, setHeatmapMetric] = useState<"revenue" | "count">(
-    "revenue"
-  );
   const [detailKey, setDetailKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -494,22 +491,6 @@ export default function AdminSalesPage() {
       }));
   }, [analysis, priceMenuId, orders, period, visible, visibleKeys]);
 
-  const heatmap = useMemo(() => {
-    const grid: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0));
-    for (const o of orders) {
-      const date = o.createdAt?.toDate?.();
-      if (!date) continue;
-      const jsDay = date.getDay(); // 0=Sun..6=Sat
-      const row = (jsDay + 6) % 7; // 0=Mon..6=Sun
-      const col = date.getHours();
-      grid[row][col] +=
-        heatmapMetric === "revenue" ? orderTotal(o) : 1;
-    }
-    let max = 0;
-    for (const row of grid) for (const v of row) if (v > max) max = v;
-    return { grid, max };
-  }, [orders, heatmapMetric]);
-
   const detail = useMemo(() => {
     if (!detailKey) return null;
     const filtered = orders.filter((o) => {
@@ -587,7 +568,6 @@ export default function AdminSalesPage() {
             <option value="sales">売上推移</option>
             <option value="menu">メニュー別売数</option>
             <option value="price">価格変更前後比較</option>
-            <option value="heatmap">時間帯ヒートマップ</option>
           </select>
           <select
             value={period}
@@ -615,11 +595,9 @@ export default function AdminSalesPage() {
               ? "売上推移"
               : analysis === "menu"
               ? "メニュー別売数"
-              : analysis === "price"
-              ? "価格変更前後比較"
-              : "時間帯ヒートマップ"}
+              : "価格変更前後比較"}
           </h2>
-          {analysis !== "heatmap" && analysis !== "sales" && (
+          {analysis !== "sales" && (
             <div className="flex items-center gap-3 text-xs flex-wrap justify-end">
               {(analysis === "menu" ? menuSeries : priceSeries).map((s) => (
                 <div key={s.name} className="flex items-center gap-1.5">
@@ -630,30 +608,6 @@ export default function AdminSalesPage() {
                   <span className="text-neutral-400">{s.name}</span>
                 </div>
               ))}
-            </div>
-          )}
-          {analysis === "heatmap" && (
-            <div className="flex items-center gap-2 text-xs">
-              <button
-                onClick={() => setHeatmapMetric("revenue")}
-                className={`rounded-full px-3 py-1 border transition-colors ${
-                  heatmapMetric === "revenue"
-                    ? "bg-orange-500/20 border-orange-500/60 text-orange-300"
-                    : "border-neutral-700 text-neutral-400 hover:bg-neutral-800"
-                }`}
-              >
-                売上
-              </button>
-              <button
-                onClick={() => setHeatmapMetric("count")}
-                className={`rounded-full px-3 py-1 border transition-colors ${
-                  heatmapMetric === "count"
-                    ? "bg-orange-500/20 border-orange-500/60 text-orange-300"
-                    : "border-neutral-700 text-neutral-400 hover:bg-neutral-800"
-                }`}
-              >
-                注文数
-              </button>
             </div>
           )}
         </div>
@@ -721,69 +675,7 @@ export default function AdminSalesPage() {
           </div>
         )}
 
-        {analysis === "heatmap" ? (
-          heatmap.max === 0 ? (
-            <p className="text-sm text-neutral-500 py-10 text-center">
-              データがありません
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-[10px] tabular-nums">
-                <thead>
-                  <tr>
-                    <th className="w-8" />
-                    {Array.from({ length: 24 }, (_, h) => (
-                      <th
-                        key={h}
-                        className="text-neutral-600 font-normal pb-1"
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {heatmap.grid.map((row, ri) => (
-                    <tr key={ri}>
-                      <td className="text-neutral-500 pr-1 text-right">
-                        {DOW_LABELS[ri]}
-                      </td>
-                      {row.map((v, ci) => {
-                        const intensity = v / heatmap.max;
-                        const bg =
-                          v === 0
-                            ? "#171717"
-                            : `rgba(249, 115, 22, ${0.15 +
-                                intensity * 0.75})`;
-                        const title =
-                          heatmapMetric === "revenue"
-                            ? `${DOW_LABELS[ri]} ${ci}時: ¥${v.toLocaleString()}`
-                            : `${DOW_LABELS[ri]} ${ci}時: ${v}件`;
-                        return (
-                          <td
-                            key={ci}
-                            className="border border-neutral-950 h-6"
-                            style={{ backgroundColor: bg }}
-                            title={title}
-                          />
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="mt-2 flex items-center gap-2 text-[11px] text-neutral-500">
-                <span>少</span>
-                <div className="flex-1 h-2 rounded-full bg-gradient-to-r from-neutral-900 to-orange-500" />
-                <span>
-                  多（最大 {heatmapMetric === "revenue"
-                    ? `¥${heatmap.max.toLocaleString()}`
-                    : `${heatmap.max}件`}）
-                </span>
-              </div>
-            </div>
-          )
-        ) : visible.length === 0 ? (
+        {visible.length === 0 ? (
           <p className="text-sm text-neutral-500 py-10 text-center">
             データがありません
           </p>
@@ -897,8 +789,6 @@ export default function AdminSalesPage() {
             `同一スケールで比較。最大${MAX_MENU_SERIES}メニューまで重ね描き。`}
           {analysis === "price" &&
             "価格帯ごとに線を分けて売数推移を比較。値上げ前後の販売数変化を読み取れます。"}
-          {analysis === "heatmap" &&
-            "全期間の paid 注文を集計。濃い色ほど繁忙。期間切替は影響しません。"}
         </p>
       </section>
     </div>
