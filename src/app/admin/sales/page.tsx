@@ -9,6 +9,7 @@ import type { Order } from "@/types";
 import { useAdminRole } from "@/components/admin/AdminContext";
 
 type Period = "daily" | "weekly" | "monthly";
+type Analysis = "sales" | "popularity";
 
 function formatDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -96,6 +97,7 @@ export default function AdminSalesPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("daily");
+  const [analysis, setAnalysis] = useState<Analysis>("sales");
 
   useEffect(() => {
     if (role !== "owner") router.replace("/admin/orders");
@@ -185,76 +187,73 @@ export default function AdminSalesPage() {
   const rankingPeriodLabel =
     period === "daily" ? "今日" : period === "weekly" ? "今週" : "今月";
 
+  const isSales = analysis === "sales";
+  const chartData = isSales ? salesChartData : menuChartData;
+  const chartColor = isSales ? "#f97316" : "#fbbf24";
+  const formatValue = isSales
+    ? (v: number) => `¥${v.toLocaleString()}`
+    : (v: number) => `${v}個`;
+  const sectionTitle = isSales
+    ? "売上レポート"
+    : `人気メニュー (${rankingPeriodLabel} Top 10)`;
+  const emptyMessage = isSales
+    ? "データがありません"
+    : `${rankingPeriodLabel}のデータがありません`;
+  const hasData = isSales ? salesReport.length > 0 : menuRanking.length > 0;
+  const footNote = isSales
+    ? `右の()内は注文件数${
+        REPORT_LIMIT === Infinity
+          ? " / 全期間"
+          : ` / 直近${REPORT_LIMIT}${period === "daily" ? "日" : "週"}`
+      }`
+    : "バーは注文数量、右の金額は売上額";
+
   return (
     <div className="w-full flex flex-col overflow-hidden h-[calc(100dvh-24px)] md:h-[calc(100dvh-48px)]">
-      <div className="mb-3 flex items-center justify-between shrink-0">
+      <div className="mb-3 flex flex-wrap items-center gap-2 justify-between shrink-0">
         <h1 className="text-2xl font-bold text-white">売上分析</h1>
-        {/* 共通の期間切替 (日別 / 週別 / 月別) */}
-        <select
-          value={period}
-          onChange={(e) => setPeriod(e.target.value as Period)}
-          className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
-          aria-label="表示期間を切り替え"
-        >
-          <option value="daily">日別</option>
-          <option value="weekly">週別</option>
-          <option value="monthly">月別</option>
-        </select>
+        <div className="flex items-center gap-2">
+          <select
+            value={analysis}
+            onChange={(e) => setAnalysis(e.target.value as Analysis)}
+            className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+            aria-label="分析項目を切り替え"
+          >
+            <option value="sales">売上レポート</option>
+            <option value="popularity">人気メニュー</option>
+          </select>
+          <select
+            value={period}
+            onChange={(e) => setPeriod(e.target.value as Period)}
+            className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+            aria-label="表示期間を切り替え"
+          >
+            <option value="daily">日別</option>
+            <option value="weekly">週別</option>
+            <option value="monthly">月別</option>
+          </select>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0">
-        {/* 売上レポート */}
-        <section className="rounded-xl bg-neutral-900 border border-neutral-800 p-4 flex flex-col min-h-0 overflow-hidden">
-          <div className="flex items-center justify-between mb-3 shrink-0">
-            <h2 className="text-lg font-bold text-white">売上レポート</h2>
-          </div>
-          {salesReport.length === 0 ? (
-            <p className="text-sm text-neutral-500">データがありません</p>
-          ) : (
-            <div className="flex-1 min-h-0 flex flex-col">
-              <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-                <HorizontalBarChart
-                  data={salesChartData}
-                  color="#f97316"
-                  formatValue={(v) => `¥${v.toLocaleString()}`}
-                />
-              </div>
-              <p className="text-xs text-neutral-600 mt-2 shrink-0">
-                右の()内は注文件数{REPORT_LIMIT === Infinity
-                  ? " / 全期間"
-                  : ` / 直近${REPORT_LIMIT}${period === "daily" ? "日" : "週"}`}
-              </p>
+      <section className="rounded-xl bg-neutral-900 border border-neutral-800 p-4 flex flex-col min-h-0 overflow-hidden flex-1">
+        <div className="flex items-center justify-between mb-3 shrink-0">
+          <h2 className="text-lg font-bold text-white">{sectionTitle}</h2>
+        </div>
+        {!hasData ? (
+          <p className="text-sm text-neutral-500">{emptyMessage}</p>
+        ) : (
+          <div className="flex-1 min-h-0 flex flex-col">
+            <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+              <HorizontalBarChart
+                data={chartData}
+                color={chartColor}
+                formatValue={formatValue}
+              />
             </div>
-          )}
-        </section>
-
-        {/* 人気メニューランキング */}
-        <section className="rounded-xl bg-neutral-900 border border-neutral-800 p-4 flex flex-col min-h-0 overflow-hidden">
-          <div className="flex items-center justify-between mb-3 shrink-0">
-            <h2 className="text-lg font-bold text-white">
-              人気メニュー <span className="text-xs text-neutral-500 font-normal">({rankingPeriodLabel} Top 10)</span>
-            </h2>
+            <p className="text-xs text-neutral-600 mt-2 shrink-0">{footNote}</p>
           </div>
-          {menuRanking.length === 0 ? (
-            <p className="text-sm text-neutral-500">
-              {rankingPeriodLabel}のデータがありません
-            </p>
-          ) : (
-            <div className="flex-1 min-h-0 flex flex-col">
-              <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-                <HorizontalBarChart
-                  data={menuChartData}
-                  color="#fbbf24"
-                  formatValue={(v) => `${v}個`}
-                />
-              </div>
-              <p className="text-xs text-neutral-600 mt-2 shrink-0">
-                バーは注文数量、右の金額は売上額
-              </p>
-            </div>
-          )}
-        </section>
-      </div>
+        )}
+      </section>
     </div>
   );
 }
