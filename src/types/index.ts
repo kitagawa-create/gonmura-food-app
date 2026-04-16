@@ -14,15 +14,6 @@ export type Category = {
   updatedAt: Timestamp;
 };
 
-/**
- * メニュー区分。
- * - ramen: タップでトッピング/サイド誘導モーダルを開く（メイン商品）
- * - topping: 単独追加可能だが、ラーメン選択時の追加候補にも出る
- * - side / drink: サイド系。ラーメン選択時の「こちらもいかがですか」推薦に出る
- * undefined は 'side' フォールバック扱い。
- */
-export type MenuKind = "ramen" | "topping" | "side" | "drink";
-
 export type Menu = {
   id: string;
   name: string;
@@ -41,8 +32,6 @@ export type Menu = {
   isSoldOut?: boolean;
   /** 表示順（整数、小さいほど上）。未設定のメニューは最後尾に配置 */
   sortOrder?: number;
-  /** 表示フロー切替用。未設定は 'side' フォールバック */
-  kind?: MenuKind;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
@@ -67,7 +56,7 @@ export type Order = {
   /** 整数。1以上 */
   tableNumber: number;
   customerNote: string;
-  /** チェック済み商品のインデックス (0-based)。全 items をカバーすると completed に自動遷移 */
+  /** チェック済み商品のインデックス (0-based)。全チェック後「提供完了」ボタンで completed に遷移 */
   checkedItems?: number[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
