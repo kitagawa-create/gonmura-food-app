@@ -25,39 +25,24 @@ export function BackButton({
       ? "bg-[color:var(--color-bg-elevated)] text-[color:var(--color-text-on-dark)] hover:opacity-90 focus-visible:ring-[color:var(--color-accent-char)] focus-visible:ring-offset-[color:var(--color-bg-elevated)]"
       : "bg-[color:var(--color-bg-card)] text-[color:var(--color-text-primary)] border border-[color:var(--color-border)] hover:bg-[color:var(--color-bg-subtle)] focus-visible:ring-[color:var(--color-accent-soy)] focus-visible:ring-offset-[color:var(--color-bg-base)]";
 
-  const labelColor =
-    variant === "dark"
-      ? "text-[color:var(--color-text-on-dark)]"
-      : "text-[color:var(--color-text-primary)]";
-
-  const labelSize = size === "sm" ? "text-xs" : "text-sm";
-
   return (
-    <div className={`inline-flex items-center gap-2 ${className}`}>
-      <Link
-        href={href}
-        aria-label={label}
-        className={`${iconButton} ${palette}`}
-      >
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 20 20"
-          className={size === "sm" ? "w-4 h-4" : "w-5 h-5"}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M12.5 4.5L6 11l6.5 6.5" />
-        </svg>
-      </Link>
-      <span
+    <Link
+      href={href}
+      aria-label={label}
+      className={`${iconButton} ${palette} ${className}`}
+    >
+      <svg
         aria-hidden="true"
-        className={`hidden sm:inline font-medium ${labelSize} ${labelColor}`}
+        viewBox="0 0 20 20"
+        className={size === "sm" ? "w-4 h-4" : "w-5 h-5"}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       >
-        {label}
-      </span>
-    </div>
+        <path d="M12.5 4.5L6 11l6.5 6.5" />
+      </svg>
+    </Link>
   );
 }

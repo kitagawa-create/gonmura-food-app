@@ -379,12 +379,33 @@ function ActiveOrderCard({
 }) {
   const [showCancel, setShowCancel] = useState(false);
   const [cancelItemIdx, setCancelItemIdx] = useState<number | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [autoCompleteCountdown, setAutoCompleteCountdown] = useState<number | null>(null);
   const total = order.items.reduce((s, i) => s + comboLineTotal(i), 0);
   const created = order.createdAt?.toDate?.();
   const elapsed = created ? timeAgo(created) : "";
   const checked = new Set(order.checkedItems ?? []);
   const allDone = checked.size >= order.items.length;
   const progress = `${checked.size}/${order.items.length}`;
+
+  // 全チェック時に5秒後自動で提供完了。編集中(取消操作の途中)は停止。
+  useEffect(() => {
+    if (!allDone || editMode) {
+      setAutoCompleteCountdown(null);
+      return;
+    }
+    setAutoCompleteCountdown(5);
+    const interval = setInterval(() => {
+      setAutoCompleteCountdown((c) => (c === null || c <= 1 ? 0 : c - 1));
+    }, 1000);
+    const timer = setTimeout(() => {
+      onComplete(order);
+    }, 5000);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timer);
+    };
+  }, [allDone, editMode, order, onComplete]);
 
   // 10分以上経過した pending 注文は赤枠 + 赤バッジで強調。
   const isUrgent =
@@ -403,7 +424,7 @@ function ActiveOrderCard({
           : "bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] shadow-sm"
       }`}
     >
-      {/* テーブル番号 + 経過 + 進捗 */}
+      {/* テーブル番号 + 経過 + 進捗 + 編集 */}
       <div className="flex items-center justify-between gap-2 mb-3">
         <span className="inline-flex items-center justify-center min-w-[56px] h-12 px-3 rounded-lg bg-[color:var(--color-accent-char)] text-white text-2xl font-black leading-none">
           T{order.tableNumber}
@@ -419,6 +440,19 @@ function ActiveOrderCard({
           >
             {elapsed}
           </span>
+          <button
+            type="button"
+            onClick={() => setEditMode((m) => !m)}
+            aria-label={editMode ? "編集終了" : "編集"}
+            aria-pressed={editMode}
+            className={`inline-flex items-center justify-center rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+              editMode
+                ? "bg-[color:var(--color-accent-char)] text-white"
+                : "border border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)]"
+            }`}
+          >
+            {editMode ? "完了" : "編集"}
+          </button>
         </div>
       </div>
 
@@ -526,14 +560,16 @@ function ActiveOrderCard({
                   </ul>
                 )}
               </button>
-              <button
-                type="button"
-                onClick={() => setCancelItemIdx(idx)}
-                aria-label={`${item.name} をキャンセル`}
-                className="shrink-0 w-9 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] text-lg text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-accent-warn)]/10 hover:text-[color:var(--color-accent-warn)] transition-colors"
-              >
-                ×
-              </button>
+              {editMode && (
+                <button
+                  type="button"
+                  onClick={() => setCancelItemIdx(idx)}
+                  aria-label={`${item.name} をキャンセル`}
+                  className="shrink-0 w-9 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] text-lg text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-accent-warn)]/10 hover:text-[color:var(--color-accent-warn)] transition-colors"
+                >
+                  ×
+                </button>
+              )}
             </li>
           );
         })}
@@ -547,6 +583,7 @@ function ActiveOrderCard({
           className="w-full min-h-[44px] rounded-lg bg-[color:var(--color-accent-negi)] px-3 text-sm text-white font-bold hover:opacity-90 transition-opacity"
         >
           提供完了
+          {autoCompleteCountdown !== null && ` (${autoCompleteCountdown})`}
         </button>
       ) : (
         <div className="flex items-center justify-between">
@@ -793,18 +830,18 @@ function HistoryOrderCard({
         </p>
       )}
 
-      {/* 新規に戻す (paid は register ドーナツ集計が壊れるため無効) */}
-      <div className="mt-3 flex justify-end">
-        <button
-          type="button"
-          disabled={isPaid}
-          onClick={() => setShowRevert(true)}
-          title={isPaid ? "精算済みの注文は戻せません" : undefined}
-          className="rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-        >
-          新規に戻す
-        </button>
-      </div>
+      {/* 新規に戻す (paid は register ドーナツ集計が壊れるため非表示) */}
+      {!isPaid && (
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setShowRevert(true)}
+            className="rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+          >
+            新規に戻す
+          </button>
+        </div>
+      )}
 
       <ConfirmDialog
         open={showRevert}
