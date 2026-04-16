@@ -62,14 +62,16 @@ src/
 
 ## 型定義 (src/types/index.ts)
 ```
-Category    { id, name, sortOrder: number, createdAt, updatedAt }
-Menu        { id, name, description, price: number, categoryIds: string[], imageUrl, isAvailable, isSoldOut?: boolean, sortOrder?: number, createdAt, updatedAt }
-OrderItem   { menuId, name, price: number, quantity: number }  ← 注文時スナップショット
-OrderStatus "pending" | "completed" | "paid"
-AdminRole   "owner" | "staff"
-Order       { id, items: OrderItem[], status: OrderStatus, tableNumber: number, customerNote, checkedItems?: number[], createdAt, updatedAt }
-Admin       { uid, email, role, createdAt, updatedAt }
-CartItem    { menuId, name, price: number, quantity: number }  ← localStorage保存、Firestore不使用
+Category          { id, name, sortOrder: number, createdAt, updatedAt }
+Menu              { id, name, description, price: number, categoryIds: string[], imageUrl, isAvailable, isSoldOut?: boolean, sortOrder?: number, createdAt, updatedAt }
+OrderItemTopping  { menuId, name, price: number, quantity: number }  ← quantity は「1杯あたり」
+OrderItem         { menuId, name, price: number, quantity: number, toppings?: OrderItemTopping[] }  ← 注文時スナップショット。price は単品価格（トッピング分は含まない）、quantity はコンボなら「杯数」
+OrderStatus       "pending" | "completed" | "paid"
+AdminRole         "owner" | "staff"
+Order             { id, items: OrderItem[], status: OrderStatus, tableNumber: number, customerNote, checkedItems?: number[], createdAt, updatedAt }
+Admin             { uid, email, role, createdAt, updatedAt }
+CartItemTopping   { menuId, name, price: number, quantity: number }  ← quantity は「1杯あたり」
+CartItem          { lineId, menuId, name, price: number, quantity: number, toppings?: CartItemTopping[] }  ← localStorage保存、Firestore不使用。lineId でコンボを識別（同 menuId でも構成が違えば別 line）
 ```
 
 ## Firestore コレクション

@@ -27,6 +27,8 @@ export default function MenuPage() {
   const [menus, setMenus] = useState<Menu[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [menusLoaded, setMenusLoaded] = useState(false);
+  const [imagesReady, setImagesReady] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [selectedMenu, setSelectedMenu] = useState<Menu | null>(null);
   const [selectedQuantity, setSelectedQuantity] = useState(1);
@@ -75,10 +77,39 @@ export default function MenuPage() {
       query(collection(db, "menus"), where("isAvailable", "==", true)),
       (snap) => {
         setMenus(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Menu));
+        setMenusLoaded(true);
       }
     );
     return unsub;
   }, []);
+
+  // 初回のメニュー取得時に全画像をプリロード。
+  // 完了するまでカードを描画しないことで、スケルトン→画像のチラつきを防ぐ。
+  useEffect(() => {
+    if (!menusLoaded || imagesReady) return;
+    const urls = menus.map((m) => m.imageUrl).filter((u): u is string => !!u);
+    if (urls.length === 0) {
+      setImagesReady(true);
+      return;
+    }
+    let cancelled = false;
+    Promise.all(
+      urls.map(
+        (url) =>
+          new Promise<void>((resolve) => {
+            const img = new window.Image();
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+            img.src = url;
+          })
+      )
+    ).then(() => {
+      if (!cancelled) setImagesReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [menusLoaded, menus, imagesReady]);
 
   // カテゴリは変更頻度低 - 一度だけ
   useEffect(() => {
@@ -197,7 +228,7 @@ export default function MenuPage() {
     [swipeToCategory]
   );
 
-  if (loading || tableNumber === null) {
+  if (loading || tableNumber === null || !menusLoaded || !imagesReady) {
     return <FullScreenLoader />;
   }
 
@@ -273,7 +304,7 @@ export default function MenuPage() {
             このカテゴリにはメニューがありません
           </p>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 auto-rows-fr gap-4">
             {filteredMenus.map((menu) => {
               const sold = menu.isSoldOut === true;
               return (
@@ -296,7 +327,7 @@ export default function MenuPage() {
                   }`}
                 >
                   {menu.imageUrl ? (
-                    <div className={`w-full aspect-[4/3] ${sold ? "opacity-40 grayscale" : ""}`}>
+                    <div className={`w-full aspect-[4/3] shrink-0 ${sold ? "opacity-40 grayscale" : ""}`}>
                       <FadeImage
                         src={menu.imageUrl}
                         alt={menu.name}
@@ -305,7 +336,7 @@ export default function MenuPage() {
                     </div>
                   ) : (
                     <div
-                      className={`w-full aspect-[4/3] flex items-center justify-center bg-[color:var(--color-bg-subtle)] text-xs text-[color:var(--color-text-muted)] ${
+                      className={`w-full aspect-[4/3] shrink-0 flex items-center justify-center bg-[color:var(--color-bg-subtle)] text-xs text-[color:var(--color-text-muted)] ${
                         sold ? "opacity-40 grayscale" : ""
                       }`}
                       aria-hidden

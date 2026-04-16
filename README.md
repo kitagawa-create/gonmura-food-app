@@ -33,21 +33,25 @@ firestore-root
 │   ├── categoryIds : array[string]    // 複数カテゴリに所属可能
 │   ├── imageUrl    : string           // Firebase Storage URL
 │   ├── isAvailable : boolean          // false = 非表示（物理削除しない）
-│   ├── sortOrder?  : int              // 表示順（DnDで変更、未設定は末尾）
+│   ├── isSoldOut?  : boolean          // true = 売り切れ（顧客側で薄表示+「売り切れ」オーバーレイ）
+│   ├── sortOrder?  : int              // 表示順（長押し→タップで変更、未設定は末尾）
 │   ├── createdAt   : Timestamp
 │   └── updatedAt   : Timestamp
 │
 ├── orders/{orderId}
-│   ├── items       : array[map]       // 注文時のスナップショット
+│   ├── items       : array[map]       // 注文時のスナップショット（コンボ単位）
 │   │   └── [0..n]
 │   │       ├── menuId   : string
 │   │       ├── name     : string      // menus.name 複製
-│   │       ├── price    : int         // menus.price 複製
-│   │       └── quantity : int
-│   ├── status       : string          // "pending" → "preparing" → "completed" → "paid"
+│   │       ├── price    : int         // menus.price 複製（単品価格、トッピング分は含まない）
+│   │       ├── quantity : int         // コンボなら「杯数」
+│   │       └── toppings?: array[map]  // ラーメンコンボのみ。{ menuId, name, price, quantity }
+│   │                                  //   quantity は「1杯あたり」の個数
+│   ├── status       : string          // "pending" → "completed" → "paid"
 │   │                                  // 取消は deleteDoc でドキュメント削除
 │   ├── tableNumber  : int
 │   ├── customerNote : string
+│   ├── checkedItems?: array[int]      // チェック済み商品のインデックス（0-based）
 │   ├── createdAt    : Timestamp
 │   └── updatedAt    : Timestamp
 │
@@ -64,7 +68,8 @@ firestore-root
 - **物理削除しない**: メニューは `isAvailable: false` で非表示。過去注文の参照が切れない
 - **カテゴリ多対多**: `categoryIds` を配列にし、1メニューが複数カテゴリ所属可
 - **支払いは管理者のみ**: Security Rules で status を "paid" に変更できるのは管理者のみ
-- **表示順はDnDで制御**: `sortOrder` フィールドを `writeBatch` で原子的に更新
+- **表示順は長押し→タップ並替えで制御**: `sortOrder` フィールドを `writeBatch` で原子的に更新
+- **コンボ（ラーメン+トッピング）モデル**: `items[i].toppings` にトッピングをネスト。ラーメンは 1コンボ=1杯 固定、トッピング `quantity` は「1杯あたり」の個数（実消費 = コンボ quantity × topping.quantity）
 
 ---
 
@@ -73,10 +78,8 @@ firestore-root
 ### お客様側（テーブルタブレット / スマホ）
 | パス | 内容 |
 |---|---|
-| `/setup` | 初期設定（テーブル番号入力） |
-| `/menu` | メニュー一覧（カテゴリタブ、画像モーダルに**数量ステッパー**、テーブル番号変更モーダル） |
-| `/order` | 注文確認・数量編集・送信（旧 `/cart` を統合） |
-| `/order/[orderId]` | 注文ステータス（リアルタイム更新） |
+| `/setup` | 初期設定（テーブル番号 + テーブル変更用PIN） |
+| `/menu` | メニュー一覧（2カラム: カテゴリタブ+商品グリッド / サイドカート）。ラーメンはトッピング選択モーダル、サイドカートで**そのまま注文確定**（完了ダイアログ3秒オートクローズ） |
 | `/order/history` | テーブルの注文履歴（カードグリッド） |
 | `/bill` | お会計伝票（レシート風、レジに提示） |
 
@@ -84,11 +87,12 @@ firestore-root
 | パス | 内容 |
 |---|---|
 | `/admin/login` | メール/パスワードログイン |
-| `/admin/orders` | 注文カンバン（古い順、自動日付ロール、通知音、逆行可、取消は deleteDoc） |
+| `/admin/orders` | 注文管理（商品チェックリスト方式、全チェック→「提供完了」ボタンで completed へ、履歴ビュー+日付検索） |
 | `/admin/register` | レジ（未精算/精算済タブ + **本日売上ドーナツ円グラフ + 目標達成率**） |
-| `/admin/sales` | 売上分析（owner のみ。KPIカード + 売上推移/メニュー別売数/価格変更前後比較を切替） |
-| `/admin/menus` | メニュー管理（owner: 全機能 / staff: 公開トグルのみ） |
-| `/admin/categories` | カテゴリ管理（owner のみ、**DnD並び替え** + ▲▼ボタン） |
+| `/admin/sales` | 売上分析（owner のみ。KPIカード + 売上推移/メニュー別売数/価格変更前後比較を切替、コンボ集計は flattenForReceipt で分解） |
+| `/admin/menus` | メニュー管理（owner: 全機能 / staff: 公開+売り切れトグル、長押し→タップ並替え） |
+| `/admin/categories` | カテゴリ管理（owner のみ、長押し→タップ並替え） |
+| `/admin/tables` | テーブル番号+PIN設定（サイドバー非表示、URL直打ち用） |
 
 ---
 
@@ -108,37 +112,42 @@ firestore-root
 ```
 客が /menu を開く
   → getDocs(menus where isAvailable==true) + getDocs(categories orderBy sortOrder)
-  → カテゴリタブで filter
+  → カテゴリタブ（スワイプ/ドラッグ切替）で filter
   → メニュータップで詳細モーダル
-  → 数量ステッパー（±ボタン、1〜99）
-  → 「カートに追加 ¥合計」ボタン
-  → CartContext に追加、localStorage("gonmura-cart-{N}") に自動保存
+     ├── ラーメン: トッピング選択（1杯あたりの個数を ± で調整）、数量ステッパーなし = 1コンボ固定
+     └── その他（単品メニュー）: 数量ステッパー
+  → 「カートに追加」
+  → CartContext.addItem → comboLineHash(menuId, toppings) で同構成コンボへ merge、
+     新規なら lineId を発行して追加、localStorage("gonmura-cart-{N}") に自動保存
 ```
 
-### 3. 注文送信
+### 3. 注文送信（`/menu` サイドカート内で完結）
 ```
-客が /order に進む
-  → カート内容を表示、数量編集可能
-  → 備考入力（任意）
-  → 「注文を確定する」
-     ├── setDoc(orders/{自動ID}, { items, status:"pending", tableNumber, customerNote, serverTimestamp() })
-     ├── trackEvent("purchase", { table_number, items_count, total_amount })
-     ├── clearCart()
-     └── /order/{orderId} にリダイレクト → onSnapshot でリアルタイム監視
+客がサイドカート（CartPanel）で「注文を確定する」
+  → 在庫検証: コンボ本体+全トッピングの menuId を documentId() in chunks(max30) で取得
+     いずれかが isAvailable=false または isSoldOut=true →
+       該当コンボを removeItem(lineId)、品切れ通知ダイアログ表示
+  → setDoc(orders/{自動ID}, {
+       items,        // OrderItem[]（コンボ単位、toppings ネスト）
+       status: "pending",
+       tableNumber,
+       customerNote,
+       createdAt/updatedAt: serverTimestamp()
+     })
+  → trackEvent("purchase", { table_number, items_count, total_amount })
+  → clearCart() → 完了ダイアログ（3秒オートクローズ、画面遷移なし）
 ```
 
 ### 4. 管理側：注文受付〜提供
 ```
 /admin/orders
   ├── onSnapshot で orders を購読（createdAt asc = 古い順）
-  ├── 新規注文検知 → Web Audio API で通知音（2音）
-  ├── 日付自動ロールオーバー（30秒おき、autoFollowTodayフラグ）
-  ├── 5分以上未対応 pending は赤ハイライト
-  └── ステータス遷移ボタン
-       pending → preparing（調理開始）
-       preparing → completed（提供完了）
-       completed → preparing（戻す、誤操作対応）
-       取消は deleteDoc でドキュメント削除（ConfirmDialog確認）
+  ├── 新規注文検知 → Web Audio API で通知音
+  ├── 日付自動ロールオーバー（autoFollowToday フラグ）
+  ├── 商品チェックリスト方式
+  │    各 item を 1つずつタップしてチェック → checkedItems 配列に index 追加
+  └── 全チェック後「提供完了」ボタン → status を "completed" に更新
+       （取消は deleteDoc + ConfirmDialog 確認。履歴ビューから日付検索可）
 ```
 
 ### 5. お会計〜精算
@@ -204,8 +213,8 @@ Firestore → BigQuery エクスポート拡張を前提。
 | コレクション | 読み | 書き |
 |---|---|---|
 | `categories` | 誰でも | owner のみ |
-| `menus` | 誰でも | create / delete: owner、update: owner、staff は isAvailable のみ可 |
-| `orders` | 誰でも | 作成は誰でも / 更新・削除は staff 以上 |
+| `menus` | 誰でも | create / delete: owner、update: owner、staff は `isAvailable` + `isSoldOut` + `updatedAt` のみ可 |
+| `orders` | 誰でも | 作成は誰でも（tableNumber 1-30 バリデーション）/ 更新・削除は staff 以上 |
 | `admins` | 自分の uid のみ | — |
 | storage `menus/` | 誰でも | 認証済ユーザーのみ |
 
@@ -218,7 +227,8 @@ Firestore → BigQuery エクスポート拡張を前提。
 | キー | 内容 |
 |---|---|
 | `gonmura-table` | テーブル番号（/setup で設定、/menu の変更モーダルで更新可） |
-| `gonmura-cart-{N}` | テーブルNのカート（精算時にクリア） |
+| `gonmura-table-pin` | テーブル変更用PIN（4桁、デフォルト "1234"） |
+| `gonmura-cart-{N}` | テーブルNのカート（精算時にクリア、lineId 付きコンボ単位で保存） |
 | `gonmura-sales-goal` | 本日売上目標（管理画面で編集、default ¥100,000） |
 
 ---
@@ -253,7 +263,7 @@ SENTRY_DSN=...
 1. Firebase コンソール > Authentication > ユーザーを追加
 2. Firestore > `admins` コレクション > ドキュメント追加
    - ドキュメントID: ユーザーの uid
-   - `email`, `role: "admin"`, `createdAt: serverTimestamp()`
+   - `email`, `role: "owner"` または `"staff"`, `createdAt: serverTimestamp()`, `updatedAt: serverTimestamp()`
 
 ---
 
