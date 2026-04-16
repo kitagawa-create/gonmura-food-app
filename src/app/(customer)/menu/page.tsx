@@ -8,6 +8,7 @@ import type { Menu, Category, CartItem } from "@/types";
 import { useCart } from "@/lib/cart-context";
 import { FadeImage } from "@/components/ui/FadeImage";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
+import { CartPanel } from "@/components/customer/CartPanel";
 import Link from "next/link";
 
 const TABLE_KEY = "gonmura-table";
@@ -38,7 +39,8 @@ export default function MenuPage() {
   const [newTableInput, setNewTableInput] = useState("");
   const [tableChangeError, setTableChangeError] = useState("");
   const [hasUnpaidOrders, setHasUnpaidOrders] = useState(false);
-  const { addItem, totalItems, totalAmount, tableNumber, setTableNumber, clearCart } = useCart();
+  const { addItem, totalItems, tableNumber, setTableNumber, clearCart } =
+    useCart();
   const router = useRouter();
 
   useEffect(() => {
@@ -199,7 +201,9 @@ export default function MenuPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[color:var(--color-bg-base)] pb-28">
+    <div className="h-[100dvh] bg-[color:var(--color-bg-base)] flex flex-col sm:grid sm:grid-cols-[1fr_240px] md:grid-cols-[1fr_280px] lg:grid-cols-[1fr_360px]">
+      {/* メインカラム (メニュー側) */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       {/* ヘッダー */}
       <header className="sticky top-0 z-10 bg-[color:var(--color-bg-card)] border-b border-[color:var(--color-border)]">
         <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
@@ -284,28 +288,43 @@ export default function MenuPage() {
                     setSelectedQuantity(1);
                     setExtraQty({});
                   }}
-                  className={`relative w-full text-left rounded-xl overflow-hidden bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] transition-colors ${
+                  className={`relative flex h-full w-full flex-col text-left rounded-xl overflow-hidden bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] transition-colors ${
                     sold
                       ? "cursor-not-allowed"
                       : "hover:border-[color:var(--color-accent-soy)]"
                   }`}
                 >
-                  {menu.imageUrl && (
-                    <div className={sold ? "opacity-40 grayscale" : ""}>
+                  {menu.imageUrl ? (
+                    <div className={`w-full aspect-[4/3] ${sold ? "opacity-40 grayscale" : ""}`}>
                       <FadeImage
                         src={menu.imageUrl}
                         alt={menu.name}
-                        className="w-full h-40 sm:h-48 md:h-44 lg:h-48"
+                        className="w-full h-full"
                       />
                     </div>
+                  ) : (
+                    <div
+                      className={`w-full aspect-[4/3] flex items-center justify-center bg-[color:var(--color-bg-subtle)] text-xs text-[color:var(--color-text-muted)] ${
+                        sold ? "opacity-40 grayscale" : ""
+                      }`}
+                      aria-hidden
+                    >
+                      画像なし
+                    </div>
                   )}
-                  <div className={`p-4 ${sold ? "opacity-60" : ""}`}>
-                    <h3 className="text-base lg:text-lg font-bold text-[color:var(--color-text-primary)]">
-                      {menu.name}
-                    </h3>
-                    <p className="text-sm text-[color:var(--color-text-muted)] mt-1 line-clamp-2">
-                      {menu.description}
-                    </p>
+                  <div
+                    className={`flex flex-1 flex-col justify-between p-4 ${sold ? "opacity-60" : ""}`}
+                  >
+                    <div>
+                      <h3 className="text-base lg:text-lg font-bold text-[color:var(--color-text-primary)] line-clamp-2 min-h-[3rem]">
+                        {menu.name}
+                      </h3>
+                      {menu.description && (
+                        <p className="text-sm text-[color:var(--color-text-muted)] mt-1 line-clamp-2">
+                          {menu.description}
+                        </p>
+                      )}
+                    </div>
                     <p className="text-lg lg:text-xl font-bold text-[color:var(--color-accent-char)] mt-2">
                       {menu.price.toLocaleString()}円
                     </p>
@@ -338,23 +357,34 @@ export default function MenuPage() {
                     setSelectedQuantity(1);
                     setExtraQty({});
                   }}
-                  className={`relative text-left rounded-xl overflow-hidden bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] transition-colors ${
+                  className={`relative flex h-full w-full flex-col text-left rounded-xl overflow-hidden bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] transition-colors ${
                     sold
                       ? "cursor-not-allowed"
                       : "hover:border-[color:var(--color-accent-soy)]"
                   }`}
                 >
-                  {menu.imageUrl && (
-                    <div className={sold ? "opacity-40 grayscale" : ""}>
+                  {menu.imageUrl ? (
+                    <div className={`w-full aspect-[4/3] ${sold ? "opacity-40 grayscale" : ""}`}>
                       <FadeImage
                         src={menu.imageUrl}
                         alt={menu.name}
-                        className="w-full h-28 sm:h-32 md:h-36 lg:h-40"
+                        className="w-full h-full"
                       />
                     </div>
+                  ) : (
+                    <div
+                      className={`w-full aspect-[4/3] flex items-center justify-center bg-[color:var(--color-bg-subtle)] text-xs text-[color:var(--color-text-muted)] ${
+                        sold ? "opacity-40 grayscale" : ""
+                      }`}
+                      aria-hidden
+                    >
+                      画像なし
+                    </div>
                   )}
-                  <div className={`p-3 lg:p-4 ${sold ? "opacity-60" : ""}`}>
-                    <h3 className="text-sm lg:text-base font-semibold text-[color:var(--color-text-primary)] leading-tight line-clamp-2">
+                  <div
+                    className={`flex flex-1 flex-col justify-between p-3 lg:p-4 ${sold ? "opacity-60" : ""}`}
+                  >
+                    <h3 className="text-sm lg:text-base font-semibold text-[color:var(--color-text-primary)] leading-tight line-clamp-2 min-h-[3rem]">
                       {menu.name}
                     </h3>
                     <p className="text-sm lg:text-base font-bold text-[color:var(--color-accent-char)] mt-1">
@@ -374,23 +404,11 @@ export default function MenuPage() {
           </div>
         )}
       </main>
-
-      {/* フローティングカートボタン */}
-      <Link
-        href="/order"
-        className="fixed bottom-6 right-6 z-20 bg-[color:var(--color-accent-char)] text-white rounded-full shadow-lg px-5 py-3 flex items-center gap-2 hover:opacity-90 transition-opacity"
-      >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z"
-          />
-        </svg>
-        <span className="font-bold">{totalItems}点</span>
-        <span className="opacity-80">¥{totalAmount.toLocaleString()}</span>
-      </Link>
+      </div>
+      {/* カート (sm+ は右カラム 100dvh / sm 未満は下段 max 45dvh) */}
+      <aside className="shrink-0 max-h-[45dvh] overflow-hidden border-t border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] sm:max-h-none sm:border-t-0 sm:border-l">
+        <CartPanel />
+      </aside>
 
       {/* 商品詳細モーダル */}
       {selectedMenu && (

@@ -16,6 +16,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Order } from "@/types";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 type TableBill = {
   tableNumber: number;
@@ -261,21 +262,23 @@ export default function AdminRegisterPage() {
 
   return (
     <div className="w-full">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold text-[color:var(--color-text-primary)]">レジ</h1>
-        {tab === "paid" && (
-          <input
-            type="date"
-            value={dateFilter}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (/^\d{4}-\d{2}-\d{2}$/.test(v)) setDateFilter(v);
-            }}
-            onKeyDown={(e) => e.preventDefault()}
-            className="bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
-          />
-        )}
-      </div>
+      <AdminPageHeader
+        title="レジ"
+        rightSlot={
+          tab === "paid" ? (
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (/^\d{4}-\d{2}-\d{2}$/.test(v)) setDateFilter(v);
+              }}
+              onKeyDown={(e) => e.preventDefault()}
+              className="bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
+            />
+          ) : undefined
+        }
+      />
 
       {/* 本日の売上カード */}
       <div className="mb-5 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-4 shadow-sm">

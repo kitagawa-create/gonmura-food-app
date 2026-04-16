@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 const TABLE_KEY = "gonmura-table";
 const PIN_KEY = "gonmura-table-pin";
@@ -69,12 +70,11 @@ export default function AdminTablesPage() {
 
   return (
     <div className="w-full max-w-2xl">
-      <h1 className="mb-1 text-2xl font-bold text-[color:var(--color-text-primary)]">
-        テーブル設定
-      </h1>
-      <p className="mb-6 text-xs text-[color:var(--color-text-muted)]">
-        この端末に割り当てるテーブル番号と、変更用PINを設定します。
-      </p>
+      <AdminPageHeader
+        title="テーブル設定"
+        subtitle="この端末に割り当てるテーブル番号と、変更用PINを設定します。"
+        className="mb-6"
+      />
 
       {error && (
         <p className="mb-4 rounded-lg bg-[color:var(--color-accent-warn)]/10 border border-[color:var(--color-accent-warn)]/30 p-3 text-sm text-[color:var(--color-accent-warn)]">

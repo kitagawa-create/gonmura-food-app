@@ -8,6 +8,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -16,7 +17,13 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Order } from "@/types";
+import type { Category, Menu, Order } from "@/types";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+
+const TIME_FORMATTER = new Intl.DateTimeFormat("ja-JP", {
+  hour: "2-digit",
+  minute: "2-digit",
+});
 
 // ---------- helpers ----------
 
@@ -33,7 +40,7 @@ function timeAgo(date: Date): string {
 }
 
 function timeStr(date: Date): string {
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  return TIME_FORMATTER.format(date);
 }
 
 function playNotificationSound() {
@@ -71,37 +78,39 @@ function playNotificationSound() {
 export default function AdminOrdersPage() {
   const [view, setView] = useState<"orders" | "history">("orders");
   const [error, setError] = useState<string | null>(null);
+  const toppingMenuIds = useToppingMenuIds();
 
   return (
     <div className="h-full flex flex-col">
-      {/* タブ切替 */}
-      <div className="mb-4 flex items-center gap-4">
-        <h1 className="text-2xl font-bold text-[color:var(--color-text-primary)]">注文管理</h1>
-        <div className="flex rounded-lg border border-[color:var(--color-border)] overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setView("orders")}
-            className={`px-4 py-1.5 text-sm font-semibold transition-colors ${
-              view === "orders"
-                ? "bg-[color:var(--color-accent-char)] text-white"
-                : "bg-[color:var(--color-bg-card)] text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)]"
-            }`}
-          >
-            新規注文
-          </button>
-          <button
-            type="button"
-            onClick={() => setView("history")}
-            className={`px-4 py-1.5 text-sm font-semibold transition-colors ${
-              view === "history"
-                ? "bg-[color:var(--color-accent-char)] text-white"
-                : "bg-[color:var(--color-bg-card)] text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)]"
-            }`}
-          >
-            履歴
-          </button>
-        </div>
-      </div>
+      <AdminPageHeader
+        title="注文管理"
+        rightSlot={
+          <div className="flex rounded-lg border border-[color:var(--color-border)] overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setView("orders")}
+              className={`px-4 py-1.5 text-sm font-semibold transition-colors ${
+                view === "orders"
+                  ? "bg-[color:var(--color-accent-char)] text-white"
+                  : "bg-[color:var(--color-bg-card)] text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)]"
+              }`}
+            >
+              新規注文
+            </button>
+            <button
+              type="button"
+              onClick={() => setView("history")}
+              className={`px-4 py-1.5 text-sm font-semibold transition-colors ${
+                view === "history"
+                  ? "bg-[color:var(--color-accent-char)] text-white"
+                  : "bg-[color:var(--color-bg-card)] text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)]"
+              }`}
+            >
+              履歴
+            </button>
+          </div>
+        }
+      />
 
       {error && (
         <p className="mb-4 rounded-lg bg-[color:var(--color-accent-warn)]/10 border border-[color:var(--color-accent-warn)]/30 p-3 text-sm text-[color:var(--color-accent-warn)]">
@@ -110,17 +119,63 @@ export default function AdminOrdersPage() {
       )}
 
       {view === "orders" ? (
-        <NewOrdersView onError={setError} />
+        <NewOrdersView onError={setError} toppingMenuIds={toppingMenuIds} />
       ) : (
-        <HistoryView onError={setError} />
+        <HistoryView onError={setError} toppingMenuIds={toppingMenuIds} />
       )}
     </div>
   );
 }
 
+// menus + categories から「トッピング」カテゴリに属する menuId の Set を取得。
+// 描画毎ではなく一度だけ fetch し useMemo で Set 化する (パフォーマンス要件)。
+function useToppingMenuIds(): Set<string> {
+  const [menus, setMenus] = useState<Menu[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [menusSnap, catsSnap] = await Promise.all([
+          getDocs(collection(db, "menus")),
+          getDocs(collection(db, "categories")),
+        ]);
+        if (cancelled) return;
+        setMenus(menusSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Menu, "id">) })));
+        setCategories(
+          catsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Category, "id">) }))
+        );
+      } catch {
+        /* 失敗時は空のまま (グルーピングなしで表示継続) */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return useMemo(() => {
+    const toppingCatIds = new Set(
+      categories.filter((c) => c.name === "トッピング").map((c) => c.id)
+    );
+    const ids = new Set<string>();
+    for (const m of menus) {
+      if (m.categoryIds?.some((cid) => toppingCatIds.has(cid))) ids.add(m.id);
+    }
+    return ids;
+  }, [menus, categories]);
+}
+
 // ========== 新規注文ビュー ==========
 
-function NewOrdersView({ onError }: { onError: (msg: string | null) => void }) {
+function NewOrdersView({
+  onError,
+  toppingMenuIds,
+}: {
+  onError: (msg: string | null) => void;
+  toppingMenuIds: Set<string>;
+}) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateFilter, setDateFilter] = useState<string>(todayISO());
@@ -239,6 +294,36 @@ function NewOrdersView({ onError }: { onError: (msg: string | null) => void }) {
     [onError]
   );
 
+  // items[idx] を削除。最後の1件だった場合は注文自体を deleteDoc。
+  // checkedItems は idx を除外 + idx より後ろのインデックスを 1 つ詰める。
+  const cancelItem = useCallback(
+    async (order: Order, idx: number) => {
+      onError(null);
+      const newItems = order.items.filter((_, i) => i !== idx);
+      if (newItems.length === 0) {
+        try {
+          await deleteDoc(doc(db, "orders", order.id));
+        } catch (e) {
+          onError(e instanceof Error ? e.message : "削除に失敗しました。");
+        }
+        return;
+      }
+      const newChecked = (order.checkedItems ?? [])
+        .filter((i) => i !== idx)
+        .map((i) => (i > idx ? i - 1 : i));
+      try {
+        await updateDoc(doc(db, "orders", order.id), {
+          items: newItems,
+          checkedItems: newChecked,
+          updatedAt: serverTimestamp(),
+        });
+      } catch (e) {
+        onError(e instanceof Error ? e.message : "更新に失敗しました。");
+      }
+    },
+    [onError]
+  );
+
   if (loading) return <PageLoader />;
 
   if (orders.length === 0) {
@@ -260,9 +345,11 @@ function NewOrdersView({ onError }: { onError: (msg: string | null) => void }) {
             key={order.id}
             order={order}
             now={now}
+            toppingMenuIds={toppingMenuIds}
             onToggle={toggleCheck}
             onComplete={completeOrder}
             onDelete={deleteOrder}
+            onCancelItem={cancelItem}
           />
         ))}
       </div>
@@ -275,17 +362,22 @@ function NewOrdersView({ onError }: { onError: (msg: string | null) => void }) {
 function ActiveOrderCard({
   order,
   now,
+  toppingMenuIds,
   onToggle,
   onComplete,
   onDelete,
+  onCancelItem,
 }: {
   order: Order;
   now: number;
+  toppingMenuIds: Set<string>;
   onToggle: (order: Order, idx: number) => void;
   onComplete: (order: Order) => void;
   onDelete: (id: string) => void;
+  onCancelItem: (order: Order, idx: number) => void;
 }) {
   const [showCancel, setShowCancel] = useState(false);
+  const [cancelItemIdx, setCancelItemIdx] = useState<number | null>(null);
   const total = order.items.reduce((s, i) => s + i.price * i.quantity, 0);
   const created = order.createdAt?.toDate?.();
   const elapsed = created ? timeAgo(created) : "";
@@ -293,10 +385,14 @@ function ActiveOrderCard({
   const allDone = checked.size >= order.items.length;
   const progress = `${checked.size}/${order.items.length}`;
 
+  // 10分以上経過した pending 注文は赤枠 + 赤バッジで強調。
   const isUrgent =
     order.status === "pending" &&
-    created &&
-    now - created.getTime() > 5 * 60 * 1000;
+    !!created &&
+    now - created.getTime() > 10 * 60 * 1000;
+
+  const cancelTarget = cancelItemIdx !== null ? order.items[cancelItemIdx] : null;
+  const isLastItem = order.items.length === 1;
 
   return (
     <div
@@ -341,12 +437,13 @@ function ActiveOrderCard({
       <ul className="mb-3 space-y-1">
         {order.items.map((item, idx) => {
           const done = checked.has(idx);
+          const isTopping = toppingMenuIds.has(item.menuId);
           return (
-            <li key={`${item.menuId}-${idx}`}>
+            <li key={`${item.menuId}-${idx}`} className="flex items-stretch gap-1">
               <button
                 type="button"
                 onClick={() => onToggle(order, idx)}
-                className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${
+                className={`flex-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${
                   done
                     ? "bg-[color:var(--color-accent-negi)]/10"
                     : "bg-[color:var(--color-bg-subtle)] hover:bg-[color:var(--color-bg-subtle)]/80"
@@ -378,11 +475,16 @@ function ActiveOrderCard({
                 </span>
                 <span
                   className={`flex-1 text-lg leading-tight ${
+                    isTopping ? "pl-5" : ""
+                  } ${
                     done
                       ? "line-through text-[color:var(--color-text-muted)]"
                       : "text-[color:var(--color-text-primary)]"
                   }`}
                 >
+                  {isTopping && (
+                    <span className="mr-1 text-[color:var(--color-text-muted)]">＋</span>
+                  )}
                   {item.name}
                 </span>
                 <span
@@ -394,6 +496,14 @@ function ActiveOrderCard({
                 >
                   ×{item.quantity}
                 </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCancelItemIdx(idx)}
+                aria-label={`${item.name} をキャンセル`}
+                className="shrink-0 w-9 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] text-lg text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-accent-warn)]/10 hover:text-[color:var(--color-accent-warn)] transition-colors"
+              >
+                ×
               </button>
             </li>
           );
@@ -436,16 +546,57 @@ function ActiveOrderCard({
         }}
         onCancel={() => setShowCancel(false)}
       />
+
+      <ConfirmDialog
+        open={cancelItemIdx !== null}
+        title={`商品をキャンセル`}
+        message={
+          cancelTarget
+            ? `${cancelTarget.name} ×${cancelTarget.quantity}（¥${(cancelTarget.price * cancelTarget.quantity).toLocaleString()}）をキャンセルしますか？${isLastItem ? "これが最後の商品のため注文自体が削除されます。" : ""}`
+            : ""
+        }
+        confirmLabel={isLastItem ? "注文を削除" : "キャンセルする"}
+        confirmColor="red"
+        onConfirm={() => {
+          if (cancelItemIdx !== null) onCancelItem(order, cancelItemIdx);
+          setCancelItemIdx(null);
+        }}
+        onCancel={() => setCancelItemIdx(null)}
+      />
     </div>
   );
 }
 
 // ========== 履歴ビュー ==========
 
-function HistoryView({ onError }: { onError: (msg: string | null) => void }) {
+function HistoryView({
+  onError,
+  toppingMenuIds,
+}: {
+  onError: (msg: string | null) => void;
+  toppingMenuIds: Set<string>;
+}) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateSearch, setDateSearch] = useState<string>(todayISO());
+
+  // completed → pending に戻す。paid は register のドーナツ集計が壊れるため不可。
+  const revertOrder = useCallback(
+    async (order: Order) => {
+      onError(null);
+      if (order.status === "paid") return;
+      try {
+        await updateDoc(doc(db, "orders", order.id), {
+          status: "pending",
+          checkedItems: [],
+          updatedAt: serverTimestamp(),
+        });
+      } catch (e) {
+        onError(e instanceof Error ? e.message : "更新に失敗しました。");
+      }
+    },
+    [onError]
+  );
 
   useEffect(() => {
     setLoading(true);
@@ -517,7 +668,12 @@ function HistoryView({ onError }: { onError: (msg: string | null) => void }) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {orders.map((order) => (
-            <HistoryOrderCard key={order.id} order={order} />
+            <HistoryOrderCard
+              key={order.id}
+              order={order}
+              toppingMenuIds={toppingMenuIds}
+              onRevert={revertOrder}
+            />
           ))}
         </div>
       )}
@@ -527,9 +683,19 @@ function HistoryView({ onError }: { onError: (msg: string | null) => void }) {
 
 // ---------- 履歴カード ----------
 
-function HistoryOrderCard({ order }: { order: Order }) {
+function HistoryOrderCard({
+  order,
+  toppingMenuIds,
+  onRevert,
+}: {
+  order: Order;
+  toppingMenuIds: Set<string>;
+  onRevert: (order: Order) => void;
+}) {
+  const [showRevert, setShowRevert] = useState(false);
   const total = order.items.reduce((s, i) => s + i.price * i.quantity, 0);
   const created = order.createdAt?.toDate?.();
+  const isPaid = order.status === "paid";
 
   return (
     <div className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-4 shadow-sm">
@@ -540,12 +706,12 @@ function HistoryOrderCard({ order }: { order: Order }) {
           </span>
           <span
             className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-              order.status === "paid"
+              isPaid
                 ? "bg-[color:var(--color-accent-negi)]/15 text-[color:var(--color-accent-negi)]"
                 : "bg-[color:var(--color-bg-subtle)] text-[color:var(--color-text-muted)]"
             }`}
           >
-            {order.status === "paid" ? "精算済" : "提供済"}
+            {isPaid ? "精算済" : "提供済"}
           </span>
         </div>
         <div className="text-right">
@@ -558,18 +724,52 @@ function HistoryOrderCard({ order }: { order: Order }) {
         </div>
       </div>
       <ul className="text-sm text-[color:var(--color-text-primary)] space-y-0.5">
-        {order.items.map((item, i) => (
-          <li key={i} className="flex justify-between">
-            <span>{item.name}</span>
-            <span className="text-[color:var(--color-text-muted)]">×{item.quantity}</span>
-          </li>
-        ))}
+        {order.items.map((item, i) => {
+          const isTopping = toppingMenuIds.has(item.menuId);
+          return (
+            <li key={i} className={`flex justify-between ${isTopping ? "pl-4" : ""}`}>
+              <span>
+                {isTopping && (
+                  <span className="mr-1 text-[color:var(--color-text-muted)]">＋</span>
+                )}
+                {item.name}
+              </span>
+              <span className="text-[color:var(--color-text-muted)]">×{item.quantity}</span>
+            </li>
+          );
+        })}
       </ul>
       {order.customerNote && (
         <p className="mt-2 text-xs text-[color:var(--color-text-muted)] border-t border-[color:var(--color-border)] pt-2">
           備考: {order.customerNote}
         </p>
       )}
+
+      {/* 新規に戻す (paid は register ドーナツ集計が壊れるため無効) */}
+      <div className="mt-3 flex justify-end">
+        <button
+          type="button"
+          disabled={isPaid}
+          onClick={() => setShowRevert(true)}
+          title={isPaid ? "精算済みの注文は戻せません" : undefined}
+          className="rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+        >
+          新規に戻す
+        </button>
+      </div>
+
+      <ConfirmDialog
+        open={showRevert}
+        title={`テーブル ${order.tableNumber} の注文を新規に戻す`}
+        message="この注文を提供前(新規)に戻します。チェック状態はすべてリセットされます。"
+        confirmLabel="戻す"
+        confirmColor="green"
+        onConfirm={() => {
+          onRevert(order);
+          setShowRevert(false);
+        }}
+        onCancel={() => setShowRevert(false)}
+      />
     </div>
   );
 }

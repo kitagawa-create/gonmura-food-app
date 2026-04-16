@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { FadeImage } from "@/components/ui/FadeImage";
 import { PageLoader } from "@/components/ui/PageLoader";
@@ -21,6 +21,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import type { Category, Menu } from "@/types";
 import { useAdminRole } from "@/components/admin/AdminContext";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { useToast } from "@/components/ui/Snackbar";
 
 type MenuFormData = {
@@ -62,6 +63,12 @@ export default function AdminMenusPage() {
   const [draggingMenuId, setDraggingMenuId] = useState<string | null>(null);
   const [dragOverMenuId, setDragOverMenuId] = useState<string | null>(null);
   const [savingMenuOrder, setSavingMenuOrder] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+
+  const handleTabChange = useCallback((tabId: string) => {
+    setActiveTab(tabId);
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
 
   // 注文に含まれたことのあるメニューIDを取得（削除ボタン可否判定に使用）
   useEffect(() => {
@@ -320,26 +327,29 @@ export default function AdminMenusPage() {
     <div className="w-full h-full flex flex-col -m-3 md:-m-6">
       {/* 固定ヘッダー (スクロールしない) */}
       <div className="shrink-0 px-3 md:px-6 pt-3 md:pt-6 pb-2 bg-[color:var(--color-bg-base)] border-b border-[color:var(--color-border)]">
-        <div className="mb-3 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-[color:var(--color-text-primary)]">メニュー管理</h1>
-          {role === "owner" && (
-            <button
-              onClick={() => {
-                setEditing(null);
-                setShowForm(true);
-              }}
-              className="rounded-xl bg-[color:var(--color-accent-char)] px-4 py-2 text-sm text-white font-bold hover:bg-[color:var(--color-accent-char-hover)] transition-colors"
-            >
-              新規追加
-            </button>
-          )}
-        </div>
+        <AdminPageHeader
+          title="メニュー管理"
+          className="mb-3"
+          rightSlot={
+            role === "owner" ? (
+              <button
+                onClick={() => {
+                  setEditing(null);
+                  setShowForm(true);
+                }}
+                className="rounded-xl bg-[color:var(--color-accent-char)] px-4 py-2 text-sm text-white font-bold hover:bg-[color:var(--color-accent-char-hover)] transition-colors"
+              >
+                新規追加
+              </button>
+            ) : undefined
+          }
+        />
 
         {/* カテゴリタブ */}
         {!loading && categories.length > 0 && (
           <div className="flex gap-1 overflow-x-auto no-scrollbar">
             <button
-              onClick={() => setActiveTab("all")}
+              onClick={() => handleTabChange("all")}
               className={`shrink-0 border-b-2 px-4 py-2 text-sm transition-colors ${
                 activeTab === "all"
                   ? "border-[color:var(--color-accent-char)] font-semibold text-[color:var(--color-accent-char)]"
@@ -354,7 +364,7 @@ export default function AdminMenusPage() {
               return (
                 <button
                   key={cat.id}
-                  onClick={() => setActiveTab(cat.id)}
+                  onClick={() => handleTabChange(cat.id)}
                   className={`shrink-0 border-b-2 px-4 py-2 text-sm transition-colors ${
                     activeTab === cat.id
                       ? "border-[color:var(--color-accent-char)] font-semibold text-[color:var(--color-accent-char)]"
@@ -371,7 +381,7 @@ export default function AdminMenusPage() {
       </div>
 
       {/* スクロール領域 */}
-      <div className="flex-1 overflow-y-auto px-3 md:px-6 py-3">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-3 md:px-6 py-3">
 
       {error && (
         <p className="mb-4 rounded-lg bg-[color:var(--color-accent-warn)]/10 border border-[color:var(--color-accent-warn)]/30 p-3 text-sm text-[color:var(--color-accent-warn)]">
@@ -627,35 +637,29 @@ function MenuFormModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <form
         onSubmit={handleSubmit}
-        className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] shadow-xl"
+        className="relative flex max-h-[90dvh] w-full max-w-lg flex-col rounded-2xl bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] shadow-xl"
       >
-        {/* ヘッダー: タイトル左 + 閉じる・保存を右上 */}
-        <div className="flex items-center justify-between gap-3 border-b border-[color:var(--color-border)] px-6 py-4">
+        {/* 閉じる: 右上固定 */}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="閉じる"
+          className="absolute top-4 right-4 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+        >
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        {/* ヘッダー (固定) */}
+        <div className="shrink-0 border-b border-[color:var(--color-border)] px-6 py-4 pr-16">
           <h2 className="text-lg font-bold text-[color:var(--color-text-primary)]">
             {menu ? "メニュー編集" : "メニュー追加"}
           </h2>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="閉じる"
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-xl bg-[color:var(--color-accent-char)] px-4 py-2 text-sm text-white font-bold hover:bg-[color:var(--color-accent-char-hover)] transition-colors disabled:opacity-50"
-            >
-              {saving ? "保存中..." : "保存"}
-            </button>
-          </div>
         </div>
 
-        <div className="overflow-y-auto px-6 py-4">
+        {/* ボディ (スクロール) */}
+        <div className="flex-1 overflow-y-auto px-6 py-4">
 
         <div className="space-y-3">
           <Field label="名前">
@@ -757,6 +761,17 @@ function MenuFormModal({
           </label>
         </div>
 
+        </div>
+
+        {/* フッター (sticky 下部固定) */}
+        <div className="sticky bottom-0 shrink-0 flex justify-end border-t border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] px-6 py-4 rounded-b-2xl">
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded-xl bg-[color:var(--color-accent-char)] px-6 py-2 text-sm text-white font-bold hover:bg-[color:var(--color-accent-char-hover)] transition-colors disabled:opacity-50"
+          >
+            {saving ? "保存中..." : "保存"}
+          </button>
         </div>
       </form>
     </div>

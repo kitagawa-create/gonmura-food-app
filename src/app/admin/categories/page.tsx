@@ -18,6 +18,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { useToast } from "@/components/ui/Snackbar";
@@ -206,7 +207,7 @@ export default function AdminCategoriesPage() {
 
   return (
     <div className="w-full">
-      <h1 className="mb-4 text-2xl font-bold text-[color:var(--color-text-primary)]">カテゴリ管理</h1>
+      <AdminPageHeader title="カテゴリ管理" />
 
       {error && (
         <p className="mb-4 rounded-lg bg-[color:var(--color-accent-warn)]/10 border border-[color:var(--color-accent-warn)]/30 p-3 text-sm text-[color:var(--color-accent-warn)]">
@@ -254,9 +255,10 @@ export default function AdminCategoriesPage() {
             {movingId ? "移動先をタップしてください" : "長押しで並び替え"}{savingOrder && " (保存中...)"}
           </p>
           <ul className="space-y-2">
-            {categories.map((c) => (
+            {categories.map((c, i) => (
               <CategoryRow
                 key={c.id}
+                index={i}
                 category={c}
                 isDragging={draggingId === c.id}
                 isDragOver={dragOverId === c.id && draggingId !== c.id}
@@ -296,6 +298,7 @@ export default function AdminCategoriesPage() {
 }
 
 function CategoryRow({
+  index,
   category,
   isDragging,
   isDragOver,
@@ -311,6 +314,7 @@ function CategoryRow({
   onDelete,
   findDuplicate,
 }: {
+  index: number;
   category: Category;
   isDragging: boolean;
   isDragOver: boolean;
@@ -406,6 +410,9 @@ function CategoryRow({
           title="長押しで並び替え"
         >
           ⠿
+        </span>
+        <span className="w-8 shrink-0 text-right text-sm tabular-nums text-[color:var(--color-text-muted)]">
+          {index + 1}.
         </span>
         {editing ? (
           <input

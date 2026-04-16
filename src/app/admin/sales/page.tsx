@@ -14,6 +14,7 @@ import {
 import { db } from "@/lib/firebase";
 import type { Category, Menu, Order } from "@/types";
 import { useAdminRole } from "@/components/admin/AdminContext";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 type Period = "daily" | "weekly" | "monthly";
 type Analysis = "sales" | "menu" | "price";
@@ -523,29 +524,32 @@ export default function AdminSalesPage() {
 
   return (
     <div className="w-full flex flex-col gap-3 h-[calc(100dvh-24px)] md:h-[calc(100dvh-48px)]">
-      <div className="relative z-30 flex flex-wrap items-center gap-2 justify-between shrink-0">
-        <h1 className="text-2xl font-bold text-[color:var(--color-text-primary)]">売上分析</h1>
-        <div className="flex items-center gap-2">
-          <select
-            value={analysis}
-            onChange={(e) => setAnalysis(e.target.value as Analysis)}
-            className="bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
-          >
-            <option value="sales">売上推移</option>
-            <option value="menu">メニュー別売数</option>
-            <option value="price">価格変更前後比較</option>
-          </select>
-          <select
-            value={period}
-            onChange={(e) => setPeriod(e.target.value as Period)}
-            className="bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
-          >
-            <option value="daily">日別</option>
-            <option value="weekly">週別</option>
-            <option value="monthly">月別</option>
-          </select>
-        </div>
-      </div>
+      <AdminPageHeader
+        title="売上分析"
+        className="relative z-30 shrink-0"
+        rightSlot={
+          <>
+            <select
+              value={analysis}
+              onChange={(e) => setAnalysis(e.target.value as Analysis)}
+              className="bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
+            >
+              <option value="sales">売上推移</option>
+              <option value="menu">メニュー別売数</option>
+              <option value="price">価格変更前後比較</option>
+            </select>
+            <select
+              value={period}
+              onChange={(e) => setPeriod(e.target.value as Period)}
+              className="bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
+            >
+              <option value="daily">日別</option>
+              <option value="weekly">週別</option>
+              <option value="monthly">月別</option>
+            </select>
+          </>
+        }
+      />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 shrink-0">
         <KpiCard label="合計売上" value={yen(kpi.revenue)} sub={rangeLabel} />
