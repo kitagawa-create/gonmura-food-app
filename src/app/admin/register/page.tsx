@@ -172,7 +172,7 @@ export default function AdminRegisterPage() {
   useEffect(() => {
     const q = query(
       collection(db, "orders"),
-      where("status", "in", ["pending", "preparing", "completed"])
+      where("status", "in", ["pending", "completed"])
     );
 
     const unsub = onSnapshot(q, (snap) => {

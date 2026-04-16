@@ -23,7 +23,6 @@ src/
 │   │   ├── setup/page.tsx       # テーブル番号 + PIN 初期設定
 │   │   ├── menu/page.tsx        # メニュー一覧（カテゴリタブ+スワイプ切替、商品モーダル、ラーメン→トッピング追加、売り切れオーバーレイ、PIN認証テーブル変更）
 │   │   ├── order/page.tsx       # 注文確認・数量編集・送信 → 完了ダイアログ → 3秒後メニュー自動遷移
-│   │   ├── order/[orderId]/     # 注文ステータス（onSnapshotリアルタイム）
 │   │   ├── order/history/       # テーブル注文履歴
 │   │   └── bill/page.tsx        # お会計伝票（未精算注文をまとめ表示）
 │   ├── admin/                   # 管理側（iPad / PC）
@@ -66,7 +65,7 @@ src/
 Category    { id, name, sortOrder: number, createdAt, updatedAt }
 Menu        { id, name, description, price: number, categoryIds: string[], imageUrl, isAvailable, isSoldOut?: boolean, sortOrder?: number, createdAt, updatedAt }
 OrderItem   { menuId, name, price: number, quantity: number }  ← 注文時スナップショット
-OrderStatus "pending" | "preparing" | "completed" | "paid"  ← preparing は旧データ互換用、新規注文では使わない
+OrderStatus "pending" | "completed" | "paid"
 AdminRole   "owner" | "staff"
 Order       { id, items: OrderItem[], status: OrderStatus, tableNumber: number, customerNote, checkedItems?: number[], createdAt, updatedAt }
 Admin       { uid, email, role, createdAt, updatedAt }
@@ -85,7 +84,6 @@ pending → completed → paid（正常フロー）
 注文管理画面で商品を1つずつチェック → 全チェック後「提供完了」ボタンで completed に遷移
 取消は deleteDoc でドキュメント削除（ConfirmDialogで確認）
 paid への変更は管理者のみ（レジ画面から）
-※ preparing は旧データ互換のためクエリに含むが、新規注文では設定されない
 ```
 
 ## Security Rules (firestore.rules)

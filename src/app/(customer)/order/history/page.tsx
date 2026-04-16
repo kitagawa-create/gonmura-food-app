@@ -7,9 +7,6 @@ import { useCart } from "@/lib/cart-context";
 import type { Order } from "@/types";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import { BackButton } from "@/components/ui/BackButton";
-import Link from "next/link";
-
-
 export default function OrderHistoryPage() {
   const { tableNumber } = useCart();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -21,7 +18,7 @@ export default function OrderHistoryPage() {
     const q = query(
       collection(db, "orders"),
       where("tableNumber", "==", tableNumber),
-      where("status", "in", ["pending", "preparing", "completed"])
+      where("status", "in", ["pending", "completed"])
     );
 
     const unsub = onSnapshot(q, (snap) => {
@@ -40,12 +37,12 @@ export default function OrderHistoryPage() {
         <p className="text-[color:var(--color-text-muted)] text-lg mb-4">
           テーブル番号が設定されていません
         </p>
-        <Link
+        <a
           href="/menu"
           className="text-[color:var(--color-accent-char)] font-medium hover:underline"
         >
           メニューに戻る
-        </Link>
+        </a>
       </div>
     );
   }
@@ -76,10 +73,9 @@ export default function OrderHistoryPage() {
               const time = order.createdAt?.toDate?.();
 
               return (
-                <Link
+                <div
                   key={order.id}
-                  href={`/order/${order.id}?from=history`}
-                  className="block bg-[color:var(--color-bg-card)] rounded-xl border border-[color:var(--color-border)] p-4 hover:border-[color:var(--color-accent-soy)] transition-colors"
+                  className="bg-[color:var(--color-bg-card)] rounded-xl border border-[color:var(--color-border)] p-4"
                 >
                   <div className="flex justify-between items-start mb-3">
                     <div>
@@ -98,7 +94,7 @@ export default function OrderHistoryPage() {
                       </li>
                     ))}
                   </ul>
-                </Link>
+                </div>
               );
             })}
           </div>

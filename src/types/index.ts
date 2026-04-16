@@ -45,7 +45,7 @@ export type OrderItem = {
   quantity: number;
 };
 
-export type OrderStatus = "pending" | "preparing" | "completed" | "paid";
+export type OrderStatus = "pending" | "completed" | "paid";
 
 export type AdminRole = "owner" | "staff";
 

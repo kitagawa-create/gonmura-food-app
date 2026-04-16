@@ -22,7 +22,7 @@ export default function BillPage() {
       const q = query(
         collection(db, "orders"),
         where("tableNumber", "==", tableNumber),
-        where("status", "in", ["pending", "preparing", "completed"])
+        where("status", "in", ["pending", "completed"])
       );
       const snap = await getDocs(q);
       const data = snap.docs

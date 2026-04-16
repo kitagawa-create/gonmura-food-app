@@ -155,9 +155,9 @@ function NewOrdersView({ onError }: { onError: (msg: string | null) => void }) {
         const all = snap.docs.map(
           (d) => ({ id: d.id, ...(d.data() as Omit<Order, "id">) })
         );
-        // 新規注文ビューには pending / preparing のみ表示
+        // 新規注文ビューには pending のみ表示
         const active = all.filter(
-          (o) => o.status === "pending" || o.status === "preparing"
+          (o) => o.status === "pending"
         );
 
         if (

@@ -61,7 +61,7 @@ export default function MenuPage() {
     const q = query(
       collection(db, "orders"),
       where("tableNumber", "==", tableNumber),
-      where("status", "in", ["pending", "preparing", "completed"])
+      where("status", "in", ["pending", "completed"])
     );
     const unsub = onSnapshot(q, (snap) => setHasUnpaidOrders(!snap.empty));
     return unsub;
