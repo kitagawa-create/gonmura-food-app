@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { collection, query, where, getDocs, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Menu, Category, CartItem } from "@/types";
+import type { Menu, Category, CartItemTopping } from "@/types";
 import { useCart } from "@/lib/cart-context";
 import { FadeImage } from "@/components/ui/FadeImage";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
@@ -138,9 +138,11 @@ export default function MenuPage() {
         .filter((x): x is SelectionLine => x !== null)
     : [];
 
-  const ramenSubtotal = selectedMenu ? selectedMenu.price * selectedQuantity : 0;
+  // ラーメンコンボは 1 杯 = 1 コンボ固定。非ラーメンのみ selectedQuantity を使う。
+  const effectiveQty = isRamenFlow ? 1 : selectedQuantity;
+  const baseSubtotal = selectedMenu ? selectedMenu.price * effectiveQty : 0;
   const extrasSubtotal = extraLines.reduce((s, l) => s + l.menu.price * l.quantity, 0);
-  const modalTotal = ramenSubtotal + extrasSubtotal;
+  const modalTotal = baseSubtotal + extrasSubtotal;
 
   // --- スワイプ / マウスドラッグでカテゴリ切替 ---
   const pointerRef = useRef<{ x: number; y: number } | null>(null);
@@ -312,15 +314,15 @@ export default function MenuPage() {
                     </div>
                   )}
                   <div
-                    className={`flex flex-1 flex-col p-3 lg:p-4 ${sold ? "opacity-60" : ""}`}
+                    className={`flex flex-col p-4 ${sold ? "opacity-60" : ""}`}
                   >
-                    <h3 className="text-base lg:text-lg font-bold text-[color:var(--color-text-primary)] line-clamp-2 min-h-[3rem]">
+                    <h3 className="h-12 text-base font-bold leading-6 line-clamp-2 text-[color:var(--color-text-primary)]">
                       {menu.name}
                     </h3>
-                    <p className="mt-1 line-clamp-2 min-h-[2.5rem] text-sm text-[color:var(--color-text-muted)]">
+                    <p className="mt-1 h-10 text-sm leading-5 line-clamp-2 text-[color:var(--color-text-muted)]">
                       {menu.description || "\u00A0"}
                     </p>
-                    <p className="mt-auto pt-2 text-lg lg:text-xl font-bold text-[color:var(--color-accent-char)]">
+                    <p className="mt-2 h-7 text-lg font-bold leading-7 text-[color:var(--color-accent-char)]">
                       {menu.price.toLocaleString()}円
                     </p>
                   </div>
@@ -379,31 +381,33 @@ export default function MenuPage() {
                   </p>
                 </div>
 
-                {/* 数量ステッパー */}
-                <div className="flex items-center justify-between rounded-xl bg-[color:var(--color-bg-subtle)] p-3">
-                  <span className="text-sm text-[color:var(--color-text-primary)]">数量</span>
-                  <div className="flex items-center gap-4">
-                    <button
-                      onClick={() => setSelectedQuantity((q) => Math.max(1, q - 1))}
-                      disabled={selectedQuantity <= 1}
-                      aria-label="数量を減らす"
-                      className="w-11 h-11 rounded-full bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] text-[color:var(--color-text-primary)] text-xl font-bold hover:opacity-80 disabled:opacity-30 disabled:cursor-not-allowed transition-opacity"
-                    >
-                      −
-                    </button>
-                    <span className="w-8 text-center text-xl font-bold text-[color:var(--color-text-primary)] tabular-nums">
-                      {selectedQuantity}
-                    </span>
-                    <button
-                      onClick={() => setSelectedQuantity((q) => Math.min(99, q + 1))}
-                      disabled={selectedQuantity >= 99}
-                      aria-label="数量を増やす"
-                      className="w-11 h-11 rounded-full bg-[color:var(--color-accent-char)] text-white text-xl font-bold hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-opacity"
-                    >
-                      +
-                    </button>
+                {/* 数量ステッパー (ラーメンは 1 杯固定のため非ラーメンのみ) */}
+                {!isRamenFlow && (
+                  <div className="flex items-center justify-between rounded-xl bg-[color:var(--color-bg-subtle)] p-3">
+                    <span className="text-sm text-[color:var(--color-text-primary)]">数量</span>
+                    <div className="flex items-center gap-4">
+                      <button
+                        onClick={() => setSelectedQuantity((q) => Math.max(1, q - 1))}
+                        disabled={selectedQuantity <= 1}
+                        aria-label="数量を減らす"
+                        className="w-11 h-11 rounded-full bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] text-[color:var(--color-text-primary)] text-xl font-bold hover:opacity-80 disabled:opacity-30 disabled:cursor-not-allowed transition-opacity"
+                      >
+                        −
+                      </button>
+                      <span className="w-8 text-center text-xl font-bold text-[color:var(--color-text-primary)] tabular-nums">
+                        {selectedQuantity}
+                      </span>
+                      <button
+                        onClick={() => setSelectedQuantity((q) => Math.min(99, q + 1))}
+                        disabled={selectedQuantity >= 99}
+                        aria-label="数量を増やす"
+                        className="w-11 h-11 rounded-full bg-[color:var(--color-accent-char)] text-white text-xl font-bold hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-opacity"
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* ラーメン選択時のみ: トッピング選択 */}
                 {isRamenFlow && toppings.length > 0 && (
@@ -489,23 +493,34 @@ export default function MenuPage() {
               <button
                 onClick={() => {
                   if (!selectedMenu) return;
-                  const lines: { item: Omit<CartItem, "quantity">; qty: number }[] = [
-                    {
-                      item: {
+                  if (isRamenFlow) {
+                    // ラーメン: 1 杯 = 1 コンボ。トッピングはネスト (1杯あたり個数)
+                    const toppings: CartItemTopping[] = extraLines.map((l) => ({
+                      menuId: l.menu.id,
+                      name: l.menu.name,
+                      price: l.menu.price,
+                      quantity: l.quantity,
+                    }));
+                    addItem(
+                      {
+                        menuId: selectedMenu.id,
+                        name: selectedMenu.name,
+                        price: selectedMenu.price,
+                        toppings: toppings.length > 0 ? toppings : undefined,
+                      },
+                      1
+                    );
+                  } else {
+                    // 非ラーメン (単品): qty × 個数、トッピングなし
+                    addItem(
+                      {
                         menuId: selectedMenu.id,
                         name: selectedMenu.name,
                         price: selectedMenu.price,
                       },
-                      qty: selectedQuantity,
-                    },
-                  ];
-                  for (const l of extraLines) {
-                    lines.push({
-                      item: { menuId: l.menu.id, name: l.menu.name, price: l.menu.price },
-                      qty: l.quantity,
-                    });
+                      selectedQuantity
+                    );
                   }
-                  for (const l of lines) addItem(l.item, l.qty);
                   setSelectedMenu(null);
                   setExtraQty({});
                 }}
