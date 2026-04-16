@@ -19,20 +19,20 @@ type Period = "daily" | "weekly" | "monthly";
 type Analysis = "sales" | "menu" | "price";
 const MAX_MENU_SERIES = 5;
 const MENU_COLORS = [
-  "#c8633a",
-  "#5a7a9e",
-  "#7b9d3a",
-  "#b86a8c",
-  "#d4a13a",
+  "#3b82f6",
+  "#22c55e",
+  "#f59e0b",
+  "#8b5cf6",
+  "#ec4899",
 ];
 const PRICE_COLORS = [
-  "#c8633a",
-  "#5a7a9e",
-  "#7b9d3a",
-  "#b86a8c",
-  "#d4a13a",
-  "#8b6ba6",
-  "#c8311e",
+  "#3b82f6",
+  "#22c55e",
+  "#f59e0b",
+  "#8b5cf6",
+  "#ec4899",
+  "#06b6d4",
+  "#ef4444",
 ];
 function formatDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
