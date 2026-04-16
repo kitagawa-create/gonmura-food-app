@@ -4,26 +4,26 @@
   --background: #ffffff;
   --foreground: #171717;
 
-  /* === 家系ラーメンテーマ (Window A 提供 / 共通仕様) ===
-     ライトベース + 醤油・チャーシュー・ネギの差し色。店内タブレット前提。
+  /* === 白基調 + ブルーアクセントテーマ ===
+     クリーンで明るい印象。店内タブレット前提。
      ダークモードは持たない (prefers-color-scheme は無視)。 */
-  --color-bg-base: #faf6ed;       /* ページ背景: 生成り (ラーメンスープの泡) */
+  --color-bg-base: #f5f7fa;       /* ページ背景: ごく薄いブルーグレー */
   --color-bg-card: #ffffff;       /* カード/モーダル背景: 純白 */
-  --color-bg-elevated: #2e1a0f;   /* ヘッダー/サイドバー: 濃醤油 (白文字想定) */
-  --color-bg-subtle: #f3ece0;     /* 控えめな区画背景 (タブ非選択など) */
+  --color-bg-elevated: #1e3a5f;   /* ヘッダー/サイドバー: ネイビー (白文字想定) */
+  --color-bg-subtle: #eef2f7;     /* 控えめな区画背景 */
 
-  --color-text-primary: #2e1a0f;  /* 本文: 濃醤油色 */
-  --color-text-muted: #6b5648;    /* 補助文: 温かみのあるグレー */
-  --color-text-on-dark: #faf6ed;  /* elevated 上の文字 */
+  --color-text-primary: #1a2332;  /* 本文: ダークネイビー */
+  --color-text-muted: #6b7b8d;    /* 補助文: ブルーグレー */
+  --color-text-on-dark: #f0f4f8;  /* elevated 上の文字 */
 
-  --color-accent-soy: #5a3a28;    /* 醤油: メインアクション */
-  --color-accent-char: #c8633a;   /* チャーシュー焼き目: CTA・強調 */
-  --color-accent-char-hover: #b15630;
-  --color-accent-negi: #7b9d3a;   /* ネギ緑: 成功・在庫あり */
-  --color-accent-warn: #c8311e;   /* 唐辛子赤: 警告・売切れ */
+  --color-accent-soy: #2563eb;    /* メインブルー: アクション */
+  --color-accent-char: #3b82f6;   /* 明るいブルー: CTA・強調 */
+  --color-accent-char-hover: #2563eb;
+  --color-accent-negi: #22c55e;   /* グリーン: 成功・在庫あり */
+  --color-accent-warn: #ef4444;   /* レッド: 警告・売切れ */
 
-  --color-border: #e5dace;        /* 境界線: 温かみのあるクリーム */
-  --color-border-strong: #c9b8a3; /* 強い境界線 */
+  --color-border: #e2e8f0;        /* 境界線: ライトグレー */
+  --color-border-strong: #cbd5e1; /* 強い境界線 */
 }
 
 @theme inline {
