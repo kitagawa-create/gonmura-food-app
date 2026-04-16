@@ -522,8 +522,8 @@ export default function AdminSalesPage() {
       : `${visible[0].label} 〜 ${visible[visible.length - 1].label}`;
 
   return (
-    <div className="w-full flex flex-col gap-3 overflow-hidden h-[calc(100dvh-24px)] md:h-[calc(100dvh-48px)]">
-      <div className="flex flex-wrap items-center gap-2 justify-between shrink-0">
+    <div className="w-full flex flex-col gap-3 h-[calc(100dvh-24px)] md:h-[calc(100dvh-48px)]">
+      <div className="relative z-30 flex flex-wrap items-center gap-2 justify-between shrink-0">
         <h1 className="text-2xl font-bold text-[color:var(--color-text-primary)]">売上分析</h1>
         <div className="flex items-center gap-2">
           <select
