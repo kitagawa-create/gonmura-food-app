@@ -113,7 +113,6 @@ export default function MenuPage() {
     : [];
 
   const activeCategoryName = categories.find((c) => c.id === activeCategory)?.name;
-  const isRecommend = activeCategoryName === "おすすめ";
 
   // 「トッピング」カテゴリの商品
   const toppings = useMemo(
@@ -271,8 +270,8 @@ export default function MenuPage() {
           <p className="text-[color:var(--color-text-muted)] text-center py-12">
             このカテゴリにはメニューがありません
           </p>
-        ) : isRecommend ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-5">
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {filteredMenus.map((menu) => {
               const sold = menu.isSoldOut === true;
               return (
@@ -313,87 +312,21 @@ export default function MenuPage() {
                     </div>
                   )}
                   <div
-                    className={`flex flex-1 flex-col justify-between p-4 ${sold ? "opacity-60" : ""}`}
+                    className={`flex flex-1 flex-col p-3 lg:p-4 ${sold ? "opacity-60" : ""}`}
                   >
-                    <div>
-                      <h3 className="text-base lg:text-lg font-bold text-[color:var(--color-text-primary)] line-clamp-2 min-h-[3rem]">
-                        {menu.name}
-                      </h3>
-                      {menu.description && (
-                        <p className="text-sm text-[color:var(--color-text-muted)] mt-1 line-clamp-2">
-                          {menu.description}
-                        </p>
-                      )}
-                    </div>
-                    <p className="text-lg lg:text-xl font-bold text-[color:var(--color-accent-char)] mt-2">
+                    <h3 className="text-base lg:text-lg font-bold text-[color:var(--color-text-primary)] line-clamp-2 min-h-[3rem]">
+                      {menu.name}
+                    </h3>
+                    <p className="mt-1 line-clamp-2 min-h-[2.5rem] text-sm text-[color:var(--color-text-muted)]">
+                      {menu.description || "\u00A0"}
+                    </p>
+                    <p className="mt-auto pt-2 text-lg lg:text-xl font-bold text-[color:var(--color-accent-char)]">
                       {menu.price.toLocaleString()}円
                     </p>
                   </div>
                   {sold && (
                     <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                       <span className="rounded-full bg-[color:var(--color-accent-warn)]/90 px-5 py-2 text-base font-bold text-white shadow-md">
-                        売り切れ
-                      </span>
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 lg:gap-4">
-            {filteredMenus.map((menu) => {
-              const sold = menu.isSoldOut === true;
-              return (
-                <button
-                  key={menu.id}
-                  type="button"
-                  disabled={sold}
-                  aria-disabled={sold}
-                  aria-label={sold ? `${menu.name} (売り切れ)` : menu.name}
-                  onClick={() => {
-                    if (sold) return;
-                    setSelectedMenu(menu);
-                    setSelectedQuantity(1);
-                    setExtraQty({});
-                  }}
-                  className={`relative flex h-full w-full flex-col text-left rounded-xl overflow-hidden bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] transition-colors ${
-                    sold
-                      ? "cursor-not-allowed"
-                      : "hover:border-[color:var(--color-accent-soy)]"
-                  }`}
-                >
-                  {menu.imageUrl ? (
-                    <div className={`w-full aspect-[4/3] ${sold ? "opacity-40 grayscale" : ""}`}>
-                      <FadeImage
-                        src={menu.imageUrl}
-                        alt={menu.name}
-                        className="w-full h-full"
-                      />
-                    </div>
-                  ) : (
-                    <div
-                      className={`w-full aspect-[4/3] flex items-center justify-center bg-[color:var(--color-bg-subtle)] text-xs text-[color:var(--color-text-muted)] ${
-                        sold ? "opacity-40 grayscale" : ""
-                      }`}
-                      aria-hidden
-                    >
-                      画像なし
-                    </div>
-                  )}
-                  <div
-                    className={`flex flex-1 flex-col justify-between p-3 lg:p-4 ${sold ? "opacity-60" : ""}`}
-                  >
-                    <h3 className="text-sm lg:text-base font-semibold text-[color:var(--color-text-primary)] leading-tight line-clamp-2 min-h-[3rem]">
-                      {menu.name}
-                    </h3>
-                    <p className="text-sm lg:text-base font-bold text-[color:var(--color-accent-char)] mt-1">
-                      {menu.price.toLocaleString()}円
-                    </p>
-                  </div>
-                  {sold && (
-                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                      <span className="rounded-full bg-[color:var(--color-accent-warn)]/90 px-3 py-1 text-sm font-bold text-white shadow-md">
                         売り切れ
                       </span>
                     </div>
