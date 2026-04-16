@@ -25,12 +25,6 @@ function todayISO(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function dateLabel(ts: Timestamp | undefined): string {
-  if (!ts) return "不明";
-  const d = ts.toDate();
-  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
-}
-
 function timeAgo(date: Date): string {
   const diff = Math.floor((Date.now() - date.getTime()) / 60000);
   if (diff < 1) return "たった今";
@@ -192,41 +186,41 @@ function NewOrdersView({ onError }: { onError: (msg: string | null) => void }) {
         ? prev.filter((i) => i !== itemIdx)
         : [...prev, itemIdx];
 
-      const allChecked = next.length >= order.items.length;
-
-      // optimistic
+      // optimistic (チェック更新のみ、完了遷移はしない)
       setOrders((os) =>
-        allChecked
-          ? os.filter((o) => o.id !== order.id)
-          : os.map((o) =>
-              o.id === order.id ? { ...o, checkedItems: next } : o
-            )
+        os.map((o) =>
+          o.id === order.id ? { ...o, checkedItems: next } : o
+        )
       );
 
       try {
-        if (allChecked) {
-          await updateDoc(doc(db, "orders", order.id), {
-            checkedItems: next,
-            status: "completed",
-            updatedAt: serverTimestamp(),
-          });
-        } else {
-          await updateDoc(doc(db, "orders", order.id), {
-            checkedItems: next,
-            updatedAt: serverTimestamp(),
-          });
-        }
+        await updateDoc(doc(db, "orders", order.id), {
+          checkedItems: next,
+          updatedAt: serverTimestamp(),
+        });
       } catch (e) {
-        // rollback
         setOrders((os) =>
-          os.find((o) => o.id === order.id)
-            ? os.map((o) =>
-                o.id === order.id
-                  ? { ...o, checkedItems: prev, status: order.status }
-                  : o
-              )
-            : [...os, { ...order, checkedItems: prev }]
+          os.map((o) =>
+            o.id === order.id ? { ...o, checkedItems: prev } : o
+          )
         );
+        onError(e instanceof Error ? e.message : "更新に失敗しました。");
+      }
+    },
+    [onError]
+  );
+
+  const completeOrder = useCallback(
+    async (order: Order) => {
+      onError(null);
+      setOrders((os) => os.filter((o) => o.id !== order.id));
+      try {
+        await updateDoc(doc(db, "orders", order.id), {
+          status: "completed",
+          updatedAt: serverTimestamp(),
+        });
+      } catch (e) {
+        setOrders((os) => [...os, order]);
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
       }
     },
@@ -267,6 +261,7 @@ function NewOrdersView({ onError }: { onError: (msg: string | null) => void }) {
             order={order}
             now={now}
             onToggle={toggleCheck}
+            onComplete={completeOrder}
             onDelete={deleteOrder}
           />
         ))}
@@ -281,11 +276,13 @@ function ActiveOrderCard({
   order,
   now,
   onToggle,
+  onComplete,
   onDelete,
 }: {
   order: Order;
   now: number;
   onToggle: (order: Order, idx: number) => void;
+  onComplete: (order: Order) => void;
   onDelete: (id: string) => void;
 }) {
   const [showCancel, setShowCancel] = useState(false);
@@ -293,6 +290,7 @@ function ActiveOrderCard({
   const created = order.createdAt?.toDate?.();
   const elapsed = created ? timeAgo(created) : "";
   const checked = new Set(order.checkedItems ?? []);
+  const allDone = checked.size >= order.items.length;
   const progress = `${checked.size}/${order.items.length}`;
 
   const isUrgent =
@@ -402,19 +400,29 @@ function ActiveOrderCard({
         })}
       </ul>
 
-      {/* 取消 + 合計 */}
-      <div className="flex items-center justify-between">
+      {/* 完了ボタン (全チェック時) or 取消 + 合計 */}
+      {allDone ? (
         <button
           type="button"
-          onClick={() => setShowCancel(true)}
-          className="rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+          onClick={() => onComplete(order)}
+          className="w-full min-h-[44px] rounded-lg bg-[color:var(--color-accent-negi)] px-3 text-sm text-white font-bold hover:opacity-90 transition-opacity"
         >
-          取消
+          提供完了
         </button>
-        <p className="text-[11px] text-[color:var(--color-text-muted)]">
-          ¥{total.toLocaleString()}
-        </p>
-      </div>
+      ) : (
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setShowCancel(true)}
+            className="rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+          >
+            取消
+          </button>
+          <p className="text-[11px] text-[color:var(--color-text-muted)]">
+            ¥{total.toLocaleString()}
+          </p>
+        </div>
+      )}
 
       <ConfirmDialog
         open={showCancel}
@@ -437,12 +445,18 @@ function ActiveOrderCard({
 function HistoryView({ onError }: { onError: (msg: string | null) => void }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dateSearch, setDateSearch] = useState<string>(todayISO());
 
   useEffect(() => {
-    // completed + paid を新しい順に購読
+    setLoading(true);
+    const start = new Date(`${dateSearch}T00:00:00`);
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+
     const q = query(
       collection(db, "orders"),
       where("status", "in", ["completed", "paid"]),
+      where("createdAt", ">=", Timestamp.fromDate(start)),
+      where("createdAt", "<", Timestamp.fromDate(end)),
       orderBy("createdAt", "desc")
     );
     const unsub = onSnapshot(
@@ -461,56 +475,48 @@ function HistoryView({ onError }: { onError: (msg: string | null) => void }) {
       }
     );
     return unsub;
-  }, [onError]);
+  }, [dateSearch, onError]);
 
-  // 日付ごとにグループ化
-  const grouped = useMemo(() => {
-    const map = new Map<string, Order[]>();
-    for (const o of orders) {
-      const key = dateLabel(o.createdAt);
-      const arr = map.get(key) ?? [];
-      arr.push(o);
-      map.set(key, arr);
-    }
-    return Array.from(map.entries());
-  }, [orders]);
-
-  if (loading) return <PageLoader />;
-
-  if (orders.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <p className="text-[color:var(--color-text-muted)]">履歴はまだありません</p>
-      </div>
-    );
-  }
+  const totalAmount = useMemo(
+    () => orders.reduce((sum, o) => sum + o.items.reduce((s, i) => s + i.price * i.quantity, 0), 0),
+    [orders]
+  );
 
   return (
-    <div className="flex-1 overflow-y-auto space-y-6">
-      {grouped.map(([date, dayOrders]) => {
-        const dayTotal = dayOrders.reduce(
-          (sum, o) =>
-            sum + o.items.reduce((s, i) => s + i.price * i.quantity, 0),
-          0
-        );
-        return (
-          <section key={date}>
-            <div className="sticky top-0 z-10 flex items-baseline justify-between bg-[color:var(--color-bg-base)] pb-2 pt-1">
-              <h2 className="text-base font-bold text-[color:var(--color-text-primary)]">
-                {date}
-              </h2>
-              <span className="text-xs text-[color:var(--color-text-muted)]">
-                {dayOrders.length}件 / ¥{dayTotal.toLocaleString()}
-              </span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {dayOrders.map((order) => (
-                <HistoryOrderCard key={order.id} order={order} />
-              ))}
-            </div>
-          </section>
-        );
-      })}
+    <div className="flex-1 overflow-y-auto">
+      {/* 日付検索 */}
+      <div className="flex items-center gap-3 mb-4">
+        <input
+          type="date"
+          value={dateSearch}
+          onChange={(e) => setDateSearch(e.target.value)}
+          className="bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
+        />
+        <button
+          type="button"
+          onClick={() => setDateSearch(todayISO())}
+          className="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+        >
+          今日
+        </button>
+        <span className="text-xs text-[color:var(--color-text-muted)]">
+          {orders.length}件 / ¥{totalAmount.toLocaleString()}
+        </span>
+      </div>
+
+      {loading ? (
+        <PageLoader />
+      ) : orders.length === 0 ? (
+        <div className="flex items-center justify-center py-16">
+          <p className="text-[color:var(--color-text-muted)]">この日の履歴はありません</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          {orders.map((order) => (
+            <HistoryOrderCard key={order.id} order={order} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
