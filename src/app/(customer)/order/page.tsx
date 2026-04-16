@@ -138,9 +138,6 @@ export default function OrderPage() {
         <div className="px-3 sm:px-4 py-2 flex items-center gap-2">
           <BackButton href="/menu" label="メニューに戻る" />
           <h1 className="text-lg font-bold text-[color:var(--color-text-primary)]">注文確認</h1>
-          <span className="ml-auto text-xs text-[color:var(--color-text-muted)]">
-            テーブル {tableNumber} / {totalItems}点
-          </span>
         </div>
       </header>
 
