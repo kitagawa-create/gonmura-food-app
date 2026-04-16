@@ -133,7 +133,7 @@ export default function OrderPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[color:var(--color-bg-base)] pb-36">
+    <div className="min-h-screen bg-[color:var(--color-bg-base)] pb-28">
       <header className="sticky top-0 z-10 bg-[color:var(--color-bg-card)] border-b border-[color:var(--color-border)]">
         <div className="px-3 sm:px-4 py-2 flex items-center gap-2">
           <BackButton href="/menu" label="メニューに戻る" />
@@ -148,73 +148,69 @@ export default function OrderPage() {
             {items.map((item) => {
               const img = imageMap[item.menuId];
               return (
-                <li key={item.menuId} className="flex items-center gap-3 px-3 sm:px-4 py-3">
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-lg overflow-hidden bg-[color:var(--color-bg-subtle)]">
+                <li key={item.menuId} className="flex items-center gap-2 px-3 py-2">
+                  {/* 画像 (小さめ) */}
+                  <div className="w-12 h-12 shrink-0 rounded-md overflow-hidden bg-[color:var(--color-bg-subtle)]">
                     {img ? (
                       <FadeImage src={img} alt={item.name} className="w-full h-full" />
                     ) : (
                       <div className="w-full h-full" aria-hidden />
                     )}
                   </div>
+                  {/* 名前 + 価格 */}
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-[color:var(--color-text-primary)] text-sm truncate">
                       {item.name}
                     </h3>
-                    <p className="text-[color:var(--color-accent-char)] font-bold text-sm">
-                      {item.price.toLocaleString()}円
+                    <p className="text-[color:var(--color-accent-char)] font-bold text-xs">
+                      ¥{item.price.toLocaleString()}
                     </p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <button
-                        type="button"
-                        onClick={() => updateQuantity(item.menuId, item.quantity - 1)}
-                        className="w-8 h-8 rounded-full border border-[color:var(--color-border)] flex items-center justify-center text-[color:var(--color-text-primary)] hover:opacity-80 transition-opacity"
-                        aria-label="数量を減らす"
-                      >
-                        −
-                      </button>
-                      <span className="font-bold text-[color:var(--color-text-primary)] w-7 text-center text-sm tabular-nums">
-                        {item.quantity}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => updateQuantity(item.menuId, item.quantity + 1)}
-                        className="w-8 h-8 rounded-full border border-[color:var(--color-border)] flex items-center justify-center text-[color:var(--color-text-primary)] hover:opacity-80 transition-opacity"
-                        aria-label="数量を増やす"
-                      >
-                        +
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removeItem(item.menuId)}
-                        aria-label={`${item.name}を削除`}
-                        className="ml-auto p-2 text-[color:var(--color-text-muted)] hover:text-[color:var(--color-accent-warn)] transition-colors"
-                      >
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"
-                          />
-                        </svg>
-                      </button>
-                    </div>
                   </div>
-                  <div className="shrink-0 text-right text-[color:var(--color-text-primary)] font-semibold text-sm tabular-nums w-20">
-                    {(item.price * item.quantity).toLocaleString()}円
+                  {/* 数量 ± */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => updateQuantity(item.menuId, item.quantity - 1)}
+                      className="w-7 h-7 rounded-full border border-[color:var(--color-border)] flex items-center justify-center text-[color:var(--color-text-primary)] text-sm hover:opacity-80 transition-opacity"
+                      aria-label="数量を減らす"
+                    >
+                      −
+                    </button>
+                    <span className="font-bold text-[color:var(--color-text-primary)] w-5 text-center text-sm tabular-nums">
+                      {item.quantity}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => updateQuantity(item.menuId, item.quantity + 1)}
+                      className="w-7 h-7 rounded-full border border-[color:var(--color-border)] flex items-center justify-center text-[color:var(--color-text-primary)] text-sm hover:opacity-80 transition-opacity"
+                      aria-label="数量を増やす"
+                    >
+                      +
+                    </button>
+                  </div>
+                  {/* 小計 + 削除 */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-[color:var(--color-text-primary)] font-semibold text-sm tabular-nums">
+                      ¥{(item.price * item.quantity).toLocaleString()}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeItem(item.menuId)}
+                      aria-label={`${item.name}を削除`}
+                      className="p-1.5 text-[color:var(--color-text-muted)] hover:text-[color:var(--color-accent-warn)] transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
                   </div>
                 </li>
               );
             })}
           </ul>
 
-          {/* 合計行 (連結カード内、border-t-strong で強調) */}
-          <div className="border-t border-[color:var(--color-border-strong)] bg-[color:var(--color-bg-subtle)] px-4 py-3 flex justify-between items-center">
+          {/* 合計行 */}
+          <div className="border-t border-[color:var(--color-border-strong)] bg-[color:var(--color-bg-subtle)] px-3 py-2.5 flex justify-between items-center">
             <span className="font-bold text-[color:var(--color-text-primary)]">
               合計 ({totalItems}点)
             </span>
