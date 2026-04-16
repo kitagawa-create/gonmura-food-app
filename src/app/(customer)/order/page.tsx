@@ -63,7 +63,13 @@ export default function OrderPage() {
     return (
       <div className="relative min-h-screen bg-[color:var(--color-bg-base)] flex flex-col items-center justify-center px-4">
         <BackButton href="/menu" label="メニューに戻る" className="absolute top-3 left-3" />
-        <p className="text-[color:var(--color-text-muted)] text-lg">カートが空です</p>
+        <p className="text-[color:var(--color-text-muted)] text-lg mb-4">カートが空です</p>
+        <Link
+          href="/menu"
+          className="inline-flex items-center gap-2 rounded-xl bg-[color:var(--color-accent-char)] px-6 py-3 text-white font-bold hover:opacity-90 transition-opacity"
+        >
+          メニューに戻る
+        </Link>
       </div>
     );
   }
