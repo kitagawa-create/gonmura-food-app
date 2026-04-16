@@ -317,8 +317,9 @@ export default function AdminMenusPage() {
   }, [deleteTarget, toast]);
 
   return (
-    <div className="w-full">
-      <div className="sticky -top-3 md:-top-6 z-20 -mx-3 md:-mx-6 px-3 md:px-6 pt-3 md:pt-6 pb-2 mb-4 bg-[color:var(--color-bg-base)] border-b border-[color:var(--color-border)]">
+    <div className="w-full h-full flex flex-col -m-3 md:-m-6">
+      {/* 固定ヘッダー (スクロールしない) */}
+      <div className="shrink-0 px-3 md:px-6 pt-3 md:pt-6 pb-2 bg-[color:var(--color-bg-base)] border-b border-[color:var(--color-border)]">
         <div className="mb-3 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-[color:var(--color-text-primary)]">メニュー管理</h1>
           {role === "owner" && (
@@ -368,6 +369,9 @@ export default function AdminMenusPage() {
           </div>
         )}
       </div>
+
+      {/* スクロール領域 */}
+      <div className="flex-1 overflow-y-auto px-3 md:px-6 py-3">
 
       {error && (
         <p className="mb-4 rounded-lg bg-[color:var(--color-accent-warn)]/10 border border-[color:var(--color-accent-warn)]/30 p-3 text-sm text-[color:var(--color-accent-warn)]">
@@ -550,6 +554,8 @@ export default function AdminMenusPage() {
           onSave={handleSave}
         />
       )}
+
+      </div>{/* スクロール領域 閉じ */}
 
       <ConfirmDialog
         open={deleteTarget !== null}
