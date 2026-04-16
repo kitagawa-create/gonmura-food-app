@@ -24,6 +24,7 @@ export default function OrderPage() {
     useCart();
   const [customerNote, setCustomerNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [showComplete, setShowComplete] = useState(false);
   const [unavailableNames, setUnavailableNames] = useState<string[]>([]);
   const [imageMap, setImageMap] = useState<Record<string, string>>({});
   const router = useRouter();
@@ -125,7 +126,8 @@ export default function OrderPage() {
       });
 
       clearCart();
-      router.push(`/order/${orderRef.id}`);
+      setSubmitting(false);
+      setShowComplete(true);
     } catch {
       alert("注文の送信に失敗しました。もう一度お試しください。");
       setSubmitting(false);
@@ -286,6 +288,34 @@ export default function OrderPage() {
               className="w-full rounded-xl bg-[color:var(--color-accent-char)] py-3 text-sm font-bold text-white hover:opacity-90 transition-opacity"
             >
               OK
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 注文完了ダイアログ */}
+      {showComplete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-xs bg-[color:var(--color-bg-card)] rounded-2xl border border-[color:var(--color-border)] p-6 text-center">
+            <div className="mb-3 flex items-center justify-center">
+              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[color:var(--color-accent-negi)]/15">
+                <svg className="h-8 w-8 text-[color:var(--color-accent-negi)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+              </span>
+            </div>
+            <h2 className="text-lg font-bold text-[color:var(--color-text-primary)] mb-1">
+              注文を送信しました
+            </h2>
+            <p className="text-sm text-[color:var(--color-text-muted)] mb-5">
+              調理が完了するまでしばらくお待ちください
+            </p>
+            <button
+              type="button"
+              onClick={() => router.push("/menu")}
+              className="w-full rounded-xl bg-[color:var(--color-accent-char)] py-3 text-sm font-bold text-white hover:opacity-90 transition-opacity"
+            >
+              メニューに戻る
             </button>
           </div>
         </div>
