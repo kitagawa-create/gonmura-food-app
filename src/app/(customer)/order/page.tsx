@@ -135,7 +135,7 @@ export default function OrderPage() {
   return (
     <div className="min-h-screen bg-[color:var(--color-bg-base)] pb-36">
       <header className="sticky top-0 z-10 bg-[color:var(--color-bg-card)] border-b border-[color:var(--color-border)]">
-        <div className="max-w-3xl mx-auto px-3 sm:px-6 lg:px-8 py-2 flex items-center gap-2">
+        <div className="px-3 sm:px-4 py-2 flex items-center gap-2">
           <BackButton href="/menu" label="メニューに戻る" />
           <h1 className="text-lg font-bold text-[color:var(--color-text-primary)]">注文確認</h1>
           <span className="ml-auto text-xs text-[color:var(--color-text-muted)]">
@@ -144,7 +144,7 @@ export default function OrderPage() {
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4">
+      <main className="px-3 sm:px-4 py-3 space-y-3">
         {/* カート + 合計 を 1 つの連結カードに (二重線回避) */}
         <section className="bg-[color:var(--color-bg-card)] rounded-xl border border-[color:var(--color-border)] overflow-hidden">
           <ul className="divide-y divide-[color:var(--color-border)]">
@@ -227,27 +227,27 @@ export default function OrderPage() {
           </div>
         </section>
 
-        {/* 備考 (別カード) */}
+        {/* 備考 */}
         <form onSubmit={handleSubmit}>
-          <div className="bg-[color:var(--color-bg-card)] rounded-xl border border-[color:var(--color-border)] p-4">
-            <label className="block font-medium text-[color:var(--color-text-primary)] mb-2 text-sm">
+          <div className="bg-[color:var(--color-bg-card)] rounded-xl border border-[color:var(--color-border)] p-3">
+            <label className="block font-medium text-[color:var(--color-text-primary)] mb-1.5 text-sm">
               備考（任意）
             </label>
             <textarea
               value={customerNote}
               onChange={(e) => setCustomerNote(e.target.value)}
               placeholder="アレルギーや要望があればご記入ください"
-              rows={3}
+              rows={2}
               maxLength={500}
-              className="w-full bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] rounded-lg px-4 py-2.5 text-[color:var(--color-text-primary)] placeholder-[color:var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-soy)] resize-none"
+              className="w-full bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] placeholder-[color:var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-soy)] resize-none"
             />
           </div>
         </form>
       </main>
 
-      {/* 固定フッター (border-t のみ。shadow との二重表現は避ける) */}
+      {/* 固定フッター */}
       <div className="fixed bottom-0 left-0 right-0 bg-[color:var(--color-bg-card)] border-t border-[color:var(--color-border-strong)]">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="px-3 sm:px-4 py-3">
           <button
             type="button"
             onClick={handleSubmit}
