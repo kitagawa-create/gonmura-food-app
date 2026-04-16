@@ -136,9 +136,9 @@ export default function OrderPage() {
         total_amount: totalAmount,
       });
 
-      clearCart();
-      setSubmitting(false);
       setShowComplete(true);
+      setSubmitting(false);
+      clearCart();
     } catch {
       alert("注文の送信に失敗しました。もう一度お試しください。");
       setSubmitting(false);
