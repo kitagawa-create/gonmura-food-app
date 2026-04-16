@@ -635,14 +635,15 @@ function MenuFormModal({
           </Field>
           <Field label="価格(税込・円)">
             <input
-              type="number"
-              min={0}
-              step={1}
+              type="text"
+              inputMode="numeric"
               className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
-              value={form.price}
-              onChange={(e) =>
-                setForm({ ...form, price: Math.trunc(Number(e.target.value)) || 0 })
-              }
+              value={form.price === 0 ? "" : String(form.price)}
+              onChange={(e) => {
+                const v = e.target.value.replace(/\D/g, "");
+                setForm({ ...form, price: v === "" ? 0 : Math.trunc(Number(v)) });
+              }}
+              placeholder="0"
             />
           </Field>
           <Field label="画像">
