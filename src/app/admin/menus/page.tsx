@@ -468,7 +468,7 @@ export default function AdminMenusPage() {
                       }}
                       onClick={() => { if (isMoveTarget) handleTapMoveMenu(items, m.id); }}
                       className={`relative rounded-xl border bg-[color:var(--color-bg-card)] p-4 shadow-sm select-none ${
-                        m.isAvailable ? "" : "bg-[color:var(--color-bg-subtle)] opacity-60"
+                        m.isAvailable ? "" : "bg-[color:var(--color-bg-subtle)] opacity-60 border-dashed"
                       } ${
                         isMovingThis
                           ? "border-[color:var(--color-accent-char)] ring-2 ring-[color:var(--color-accent-char)]/30 bg-[color:var(--color-accent-char)]/5"
@@ -477,10 +477,19 @@ export default function AdminMenusPage() {
                             : "border-[color:var(--color-border)]"
                       } ${isMoveTarget ? "cursor-pointer" : ""} ${isDragging ? "opacity-40" : ""}`}
                     >
-                      {m.isSoldOut && (
-                        <span className="absolute right-2 top-2 rounded-full bg-[color:var(--color-accent-warn)] px-2 py-0.5 text-[10px] font-bold text-white">
-                          売り切れ中
-                        </span>
+                      {(!m.isAvailable || m.isSoldOut) && (
+                        <div className="absolute right-2 top-2 flex flex-col items-end gap-1">
+                          {!m.isAvailable && (
+                            <span className="rounded-full bg-[color:var(--color-text-muted)] px-2 py-0.5 text-[10px] font-bold text-white">
+                              非公開中
+                            </span>
+                          )}
+                          {m.isSoldOut && (
+                            <span className="rounded-full bg-[color:var(--color-accent-warn)] px-2 py-0.5 text-[10px] font-bold text-white">
+                              売り切れ中
+                            </span>
+                          )}
+                        </div>
                       )}
                       <div className="flex gap-3">
                         {m.imageUrl && (
