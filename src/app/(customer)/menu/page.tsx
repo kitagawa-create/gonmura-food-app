@@ -304,7 +304,7 @@ export default function MenuPage() {
             このカテゴリにはメニューがありません
           </p>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 auto-rows-fr gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {filteredMenus.map((menu) => {
               const sold = menu.isSoldOut === true;
               return (
@@ -320,40 +320,53 @@ export default function MenuPage() {
                     setSelectedQuantity(1);
                     setExtraQty({});
                   }}
-                  className={`relative flex h-full w-full flex-col text-left rounded-xl overflow-hidden bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] transition-colors ${
+                  className={`relative flex w-full flex-col text-left rounded-xl overflow-hidden bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] transition-colors ${
                     sold
                       ? "cursor-not-allowed"
                       : "hover:border-[color:var(--color-accent-soy)]"
                   }`}
                 >
+                  {/* 画像領域: padding-top:75% で確実に 4:3 固定。aspect-ratio だけだと
+                      大きな縦長画像や一部ブラウザで高さが滲むことがあるためこちらを採用。 */}
                   {menu.imageUrl ? (
-                    <div className={`w-full aspect-[4/3] shrink-0 ${sold ? "opacity-40 grayscale" : ""}`}>
-                      <FadeImage
-                        src={menu.imageUrl}
-                        alt={menu.name}
-                        className="w-full h-full"
-                      />
+                    <div
+                      className={`relative w-full shrink-0 overflow-hidden ${
+                        sold ? "opacity-40 grayscale" : ""
+                      }`}
+                      style={{ paddingTop: "75%" }}
+                    >
+                      <div className="absolute inset-0">
+                        <FadeImage
+                          src={menu.imageUrl}
+                          alt={menu.name}
+                          className="w-full h-full"
+                        />
+                      </div>
                     </div>
                   ) : (
                     <div
-                      className={`w-full aspect-[4/3] shrink-0 flex items-center justify-center bg-[color:var(--color-bg-subtle)] text-xs text-[color:var(--color-text-muted)] ${
+                      className={`relative w-full shrink-0 overflow-hidden bg-[color:var(--color-bg-subtle)] ${
                         sold ? "opacity-40 grayscale" : ""
                       }`}
+                      style={{ paddingTop: "75%" }}
                       aria-hidden
                     >
-                      画像なし
+                      <div className="absolute inset-0 flex items-center justify-center text-xs text-[color:var(--color-text-muted)]">
+                        画像なし
+                      </div>
                     </div>
                   )}
+                  {/* テキスト領域: 各行を固定高 + 固定余白で、全カードの縦位置を揃える */}
                   <div
-                    className={`flex flex-col p-4 ${sold ? "opacity-60" : ""}`}
+                    className={`flex flex-col p-4 gap-2 ${sold ? "opacity-60" : ""}`}
                   >
                     <h3 className="h-12 text-base font-bold leading-6 line-clamp-2 text-[color:var(--color-text-primary)]">
                       {menu.name}
                     </h3>
-                    <p className="mt-1 h-10 text-sm leading-5 line-clamp-2 text-[color:var(--color-text-muted)]">
+                    <p className="h-10 text-sm leading-5 line-clamp-2 text-[color:var(--color-text-muted)]">
                       {menu.description || "\u00A0"}
                     </p>
-                    <p className="mt-2 h-7 text-lg font-bold leading-7 text-[color:var(--color-accent-char)]">
+                    <p className="h-7 text-lg font-bold leading-7 text-[color:var(--color-accent-char)]">
                       {menu.price.toLocaleString()}円
                     </p>
                   </div>
