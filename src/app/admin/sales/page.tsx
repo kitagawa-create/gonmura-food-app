@@ -364,7 +364,7 @@ export default function AdminSalesPage() {
   }, [orders, period]);
 
   const limit =
-    period === "daily" ? 30 : period === "weekly" ? 20 : 12;
+    period === "daily" ? 90 : period === "weekly" ? 52 : 36;
   const visible = buckets.slice(-limit);
 
   const menuOptions = useMemo(() => {
