@@ -233,7 +233,7 @@ export default function MenuPage() {
   }
 
   return (
-    <div className="h-[100dvh] bg-[color:var(--color-bg-base)] flex flex-col sm:grid sm:grid-cols-[minmax(0,1fr)_240px] md:grid-cols-[minmax(0,1fr)_280px] lg:grid-cols-[minmax(0,1fr)_360px]">
+    <div className="h-[100dvh] w-full bg-[color:var(--color-bg-base)] grid grid-cols-1 grid-rows-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_240px] sm:grid-rows-1 md:grid-cols-[minmax(0,1fr)_280px] lg:grid-cols-[minmax(0,1fr)_360px]">
       {/* メインカラム (メニュー側)。min-w-0 で画像 intrinsic 幅による左カラム伸長を防ぎ、
           w-full で常にトラック幅いっぱいに広がるよう固定。 */}
       <div className="flex min-w-0 min-h-0 w-full flex-1 flex-col overflow-y-auto">
@@ -294,7 +294,7 @@ export default function MenuPage() {
 
       {/* メニュー一覧 (左右スワイプ / マウスドラッグでカテゴリ移動) */}
       <main
-        className="w-full max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-6"
+        className="w-full px-4 sm:px-6 lg:px-8 py-4 lg:py-6"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onMouseDown={handleMouseDown}
