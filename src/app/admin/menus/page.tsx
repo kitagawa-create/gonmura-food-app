@@ -19,7 +19,7 @@ import {
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
-import type { Category, Menu } from "@/types";
+import type { Category, Menu, MenuKind } from "@/types";
 import { useAdminRole } from "@/components/admin/AdminContext";
 import { useToast } from "@/components/ui/Snackbar";
 
@@ -31,6 +31,7 @@ type MenuFormData = {
   categoryIds: string[];
   isAvailable: boolean;
   isSoldOut: boolean;
+  kind: MenuKind;
 };
 
 const EMPTY_FORM: MenuFormData = {
@@ -41,7 +42,15 @@ const EMPTY_FORM: MenuFormData = {
   categoryIds: [],
   isAvailable: true,
   isSoldOut: false,
+  kind: "side",
 };
+
+const KIND_OPTIONS: { value: MenuKind; label: string }[] = [
+  { value: "ramen", label: "ラーメン" },
+  { value: "topping", label: "トッピング" },
+  { value: "side", label: "サイドメニュー" },
+  { value: "drink", label: "ドリンク" },
+];
 
 export default function AdminMenusPage() {
   const role = useAdminRole();
@@ -539,6 +548,7 @@ function MenuFormModal({
           categoryIds: menu.categoryIds,
           isAvailable: menu.isAvailable,
           isSoldOut: menu.isSoldOut ?? false,
+          kind: menu.kind ?? "side",
         }
       : EMPTY_FORM
   );
@@ -680,6 +690,32 @@ function MenuFormModal({
                 })
               )}
             </div>
+          </Field>
+          <Field label="種別">
+            <div className="flex flex-wrap gap-2">
+              {KIND_OPTIONS.map((opt) => (
+                <label
+                  key={opt.value}
+                  className={`cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-medium ${
+                    form.kind === opt.value
+                      ? "border-[color:var(--color-accent-char)] bg-[color:var(--color-accent-char)] text-white"
+                      : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)]"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="kind"
+                    className="sr-only"
+                    checked={form.kind === opt.value}
+                    onChange={() => setForm({ ...form, kind: opt.value })}
+                  />
+                  {opt.label}
+                </label>
+              ))}
+            </div>
+            <p className="mt-1 text-[10px] text-[color:var(--color-text-muted)]">
+              「ラーメン」を選ぶと、お客様がタップした時にトッピング追加モーダルが開きます
+            </p>
           </Field>
           <label className="flex items-center gap-2 text-sm text-[color:var(--color-text-primary)]">
             <input
