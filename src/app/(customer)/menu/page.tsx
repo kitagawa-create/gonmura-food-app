@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { collection, query, where, getDocs, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Menu, MenuKind, Category, CartItem } from "@/types";
+import type { Menu, Category, CartItem } from "@/types";
 import { useCart } from "@/lib/cart-context";
 import { FadeImage } from "@/components/ui/FadeImage";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
@@ -12,11 +12,15 @@ import Link from "next/link";
 
 const TABLE_KEY = "gonmura-table";
 
-function kindOf(menu: Menu): MenuKind {
-  return menu.kind ?? "side";
-}
-
 type SelectionLine = { menu: Menu; quantity: number };
+
+// カテゴリ名からメニューの役割を判定するヘルパー
+function menuBelongsToCategory(menu: Menu, categories: Category[], categoryName: string): boolean {
+  return menu.categoryIds.some((cid) => {
+    const cat = categories.find((c) => c.id === cid);
+    return cat?.name === categoryName;
+  });
+}
 
 export default function MenuPage() {
   const [menus, setMenus] = useState<Menu[]>([]);
@@ -109,25 +113,19 @@ export default function MenuPage() {
   const activeCategoryName = categories.find((c) => c.id === activeCategory)?.name;
   const isRecommend = activeCategoryName === "おすすめ";
 
+  // 「トッピング」カテゴリの商品
   const toppings = useMemo(
     () =>
       menus
-        .filter((m) => kindOf(m) === "topping" && m.isSoldOut !== true)
+        .filter((m) => menuBelongsToCategory(m, categories, "トッピング") && m.isSoldOut !== true)
         .sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999)),
-    [menus]
-  );
-  const recommends = useMemo(
-    () =>
-      menus
-        .filter(
-          (m) => (kindOf(m) === "side" || kindOf(m) === "drink") && m.isSoldOut !== true
-        )
-        .sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999)),
-    [menus]
+    [menus, categories]
   );
 
-  const selectedKind = selectedMenu ? kindOf(selectedMenu) : "side";
-  const isRamenFlow = selectedKind === "ramen";
+  // 選択中の商品が「ラーメン」カテゴリかどうか
+  const isRamenFlow = selectedMenu
+    ? menuBelongsToCategory(selectedMenu, categories, "ラーメン")
+    : false;
 
   const extraLines: SelectionLine[] = isRamenFlow
     ? Object.entries(extraQty)
@@ -526,49 +524,6 @@ export default function MenuPage() {
                   </section>
                 )}
 
-                {/* ラーメン選択時のみ: サイド/ドリンク推薦 */}
-                {isRamenFlow && recommends.length > 0 && (
-                  <section>
-                    <h3 className="text-sm font-bold text-[color:var(--color-text-primary)] mb-2">
-                      こちらもいかがですか
-                    </h3>
-                    <div className="flex gap-3 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
-                      {recommends.map((r) => {
-                        const q = extraQty[r.id] ?? 0;
-                        return (
-                          <div
-                            key={r.id}
-                            className="shrink-0 w-32 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-subtle)] overflow-hidden"
-                          >
-                            {r.imageUrl && (
-                              <FadeImage src={r.imageUrl} alt={r.name} className="w-full h-20" />
-                            )}
-                            <div className="p-2">
-                              <p className="text-xs font-semibold text-[color:var(--color-text-primary)] line-clamp-2 leading-snug">
-                                {r.name}
-                              </p>
-                              <p className="text-xs text-[color:var(--color-accent-char)] font-bold mt-1">
-                                ¥{r.price.toLocaleString()}
-                              </p>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setExtraQty((prev) => ({
-                                    ...prev,
-                                    [r.id]: Math.min(20, (prev[r.id] ?? 0) + 1),
-                                  }))
-                                }
-                                className="mt-2 w-full py-1 rounded-md bg-[color:var(--color-accent-soy)] text-white text-xs font-bold hover:opacity-90"
-                              >
-                                {q > 0 ? `+1 (${q})` : "追加"}
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
-                )}
               </div>
             </div>
 
