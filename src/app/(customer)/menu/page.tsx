@@ -209,19 +209,17 @@ export default function MenuPage() {
             </h1>
             <div className="flex items-center gap-2">
               <p className="text-xs text-[color:var(--color-text-muted)]">テーブル {tableNumber}</p>
-              {!hasUnpaidOrders && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPinInput("");
-                    setPinError("");
-                    setShowPinDialog(true);
-                  }}
-                  className="text-[10px] text-[color:var(--color-text-muted)] underline hover:text-[color:var(--color-text-primary)] transition-colors"
-                >
-                  変更
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setPinInput("");
+                  setPinError("");
+                  setShowPinDialog(true);
+                }}
+                className="text-[10px] text-[color:var(--color-text-muted)] underline hover:text-[color:var(--color-text-primary)] transition-colors"
+              >
+                変更
+              </button>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -588,11 +586,7 @@ export default function MenuPage() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                const stored = localStorage.getItem("gonmura-table-pin") ?? "";
-                if (!stored) {
-                  setPinError("PINが未設定です。管理画面から設定してください");
-                  return;
-                }
+                const stored = localStorage.getItem("gonmura-table-pin") || "1234";
                 if (pinInput !== stored) {
                   setPinError("PINが正しくありません");
                   return;
