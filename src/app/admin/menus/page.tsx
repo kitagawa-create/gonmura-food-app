@@ -519,7 +519,12 @@ export default function AdminMenusPage() {
                         )}
                         <button
                           onClick={() => handleToggleAvailable(m)}
-                          className="rounded-lg border border-[color:var(--color-border)] px-3 py-1 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+                          aria-pressed={!m.isAvailable}
+                          className={`rounded-lg border px-3 py-1 text-xs transition-colors ${
+                            !m.isAvailable
+                              ? "border-[color:var(--color-accent-char)] bg-[color:var(--color-accent-char)] text-white hover:opacity-90"
+                              : "border-[color:var(--color-accent-char)]/40 text-[color:var(--color-accent-char)] hover:bg-[color:var(--color-accent-char)]/10"
+                          }`}
                         >
                           {m.isAvailable ? "非公開にする" : "公開する"}
                         </button>

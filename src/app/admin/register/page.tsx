@@ -17,6 +17,7 @@ import {
 import { db } from "@/lib/firebase";
 import type { Order } from "@/types";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { comboLineTotal, flattenForReceipt } from "@/lib/order-utils";
 
 type TableBill = {
   tableNumber: number;
@@ -45,8 +46,7 @@ function groupByTable(orders: Order[]): TableBill[] {
   const tableBills: TableBill[] = [];
   for (const [tableNumber, tableOrders] of tableMap) {
     const totalAmount = tableOrders.reduce(
-      (sum, o) =>
-        sum + o.items.reduce((s, i) => s + i.price * i.quantity, 0),
+      (sum, o) => sum + o.items.reduce((s, i) => s + comboLineTotal(i), 0),
       0
     );
     tableBills.push({ tableNumber, orders: tableOrders, totalAmount });
@@ -56,17 +56,18 @@ function groupByTable(orders: Order[]): TableBill[] {
   return tableBills;
 }
 
+// レシート明細: コンボ内のトッピングも独立行として展開し、name+price でマージ。
 function mergeItems(orders: Order[]): { name: string; price: number; quantity: number }[] {
   const allItems: { name: string; price: number; quantity: number }[] = [];
   for (const order of orders) {
-    for (const item of order.items) {
+    for (const flat of flattenForReceipt(order.items)) {
       const existing = allItems.find(
-        (a) => a.name === item.name && a.price === item.price
+        (a) => a.name === flat.name && a.price === flat.price
       );
       if (existing) {
-        existing.quantity += item.quantity;
+        existing.quantity += flat.quantity;
       } else {
-        allItems.push({ name: item.name, price: item.price, quantity: item.quantity });
+        allItems.push({ name: flat.name, price: flat.price, quantity: flat.quantity });
       }
     }
   }
@@ -214,7 +215,7 @@ export default function AdminRegisterPage() {
   const todaySales = useMemo(
     () =>
       todayPaidOrders.reduce(
-        (sum, o) => sum + o.items.reduce((s, i) => s + i.price * i.quantity, 0),
+        (sum, o) => sum + o.items.reduce((s, i) => s + comboLineTotal(i), 0),
         0
       ),
     [todayPaidOrders]

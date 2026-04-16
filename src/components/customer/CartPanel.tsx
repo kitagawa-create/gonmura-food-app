@@ -15,6 +15,7 @@ import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
 import { trackEvent } from "@/lib/analytics";
 import { FadeImage } from "@/components/ui/FadeImage";
+import { comboUnitPrice } from "@/lib/order-utils";
 
 export function CartPanel() {
   const {
@@ -39,7 +40,7 @@ export function CartPanel() {
     return () => clearTimeout(timer);
   }, [showComplete]);
 
-  // カート内商品の画像URLを取得 (CartItem に imageUrl を持たせていないため別途 fetch)
+  // カート内商品の画像URLを取得。ラーメンの画像のみ表示 (トッピングはテキスト表示で十分)
   useEffect(() => {
     const ids = items.map((i) => i.menuId);
     if (ids.length === 0) return;
@@ -71,7 +72,13 @@ export function CartPanel() {
     if (submitting || !tableNumber || items.length === 0) return;
     setSubmitting(true);
     try {
-      const ids = items.map((i) => i.menuId);
+      // コンボ本体 + 全トッピングの menuId を重複なく収集して一括で在庫確認
+      const idSet = new Set<string>();
+      for (const i of items) {
+        idSet.add(i.menuId);
+        for (const t of i.toppings ?? []) idSet.add(t.menuId);
+      }
+      const ids = Array.from(idSet);
       if (ids.length > 30) {
         alert("一度に注文できる商品数を超えています。点数を減らしてください。");
         setSubmitting(false);
@@ -86,21 +93,39 @@ export function CartPanel() {
         const data = d.data() as { isAvailable?: boolean; isSoldOut?: boolean };
         orderable.set(d.id, data.isAvailable === true && data.isSoldOut !== true);
       });
-      const unavailable = items.filter((i) => orderable.get(i.menuId) !== true);
+      // コンボ本体 または いずれかのトッピングが注文不可ならコンボ全体を落とす
+      const unavailable = items.filter((i) => {
+        if (orderable.get(i.menuId) !== true) return true;
+        for (const t of i.toppings ?? []) {
+          if (orderable.get(t.menuId) !== true) return true;
+        }
+        return false;
+      });
       if (unavailable.length > 0) {
         setUnavailableNames(unavailable.map((i) => i.name));
-        for (const i of unavailable) removeItem(i.menuId);
+        for (const i of unavailable) removeItem(i.lineId);
         setSubmitting(false);
         return;
       }
 
       const orderRef = doc(collection(db, "orders"));
       await setDoc(orderRef, {
+        // OrderItem には lineId を含めない (顧客向け識別子ではなくカート内で merge 用)
         items: items.map((item) => ({
           menuId: item.menuId,
           name: item.name,
           price: item.price,
           quantity: item.quantity,
+          ...(item.toppings && item.toppings.length > 0
+            ? {
+                toppings: item.toppings.map((t) => ({
+                  menuId: t.menuId,
+                  name: t.name,
+                  price: t.price,
+                  quantity: t.quantity,
+                })),
+              }
+            : {}),
         })),
         status: "pending",
         tableNumber,
@@ -145,54 +170,76 @@ export function CartPanel() {
             <ul className="divide-y divide-[color:var(--color-border)]">
               {items.map((item) => {
                 const img = imageMap[item.menuId];
+                const unitPrice = comboUnitPrice(item);
                 return (
-                  <li key={item.menuId} className="flex items-center gap-2 px-3 py-2">
-                    <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-[color:var(--color-bg-subtle)]">
-                      {img ? (
-                        <FadeImage src={img} alt={item.name} className="h-full w-full" />
-                      ) : (
-                        <div className="h-full w-full" aria-hidden />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="truncate text-xs font-semibold text-[color:var(--color-text-primary)]">
-                        {item.name}
-                      </h3>
-                      <p className="text-xs font-bold text-[color:var(--color-accent-char)]">
-                        ¥{item.price.toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
+                  <li key={item.lineId} className="px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-[color:var(--color-bg-subtle)]">
+                        {img ? (
+                          <FadeImage src={img} alt={item.name} className="h-full w-full" />
+                        ) : (
+                          <div className="h-full w-full" aria-hidden />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="truncate text-xs font-semibold text-[color:var(--color-text-primary)]">
+                          {item.name}
+                        </h3>
+                        <p className="text-xs font-bold text-[color:var(--color-accent-char)] tabular-nums">
+                          ¥{unitPrice.toLocaleString()}
+                          {item.toppings && item.toppings.length > 0 && (
+                            <span className="ml-1 text-[10px] font-normal text-[color:var(--color-text-muted)]">
+                              /杯
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(item.lineId, item.quantity - 1)}
+                          aria-label="数量を減らす"
+                          className="flex h-6 w-6 items-center justify-center rounded-full border border-[color:var(--color-border)] text-sm text-[color:var(--color-text-primary)] hover:opacity-80 transition-opacity"
+                        >
+                          −
+                        </button>
+                        <span className="w-5 text-center text-xs font-bold tabular-nums text-[color:var(--color-text-primary)]">
+                          {item.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(item.lineId, item.quantity + 1)}
+                          aria-label="数量を増やす"
+                          className="flex h-6 w-6 items-center justify-center rounded-full border border-[color:var(--color-border)] text-sm text-[color:var(--color-text-primary)] hover:opacity-80 transition-opacity"
+                        >
+                          +
+                        </button>
+                      </div>
                       <button
                         type="button"
-                        onClick={() => updateQuantity(item.menuId, item.quantity - 1)}
-                        aria-label="数量を減らす"
-                        className="flex h-6 w-6 items-center justify-center rounded-full border border-[color:var(--color-border)] text-sm text-[color:var(--color-text-primary)] hover:opacity-80 transition-opacity"
+                        onClick={() => removeItem(item.lineId)}
+                        aria-label={`${item.name}を削除`}
+                        className="shrink-0 p-1 text-[color:var(--color-text-muted)] hover:text-[color:var(--color-accent-warn)] transition-colors"
                       >
-                        −
-                      </button>
-                      <span className="w-5 text-center text-xs font-bold tabular-nums text-[color:var(--color-text-primary)]">
-                        {item.quantity}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => updateQuantity(item.menuId, item.quantity + 1)}
-                        aria-label="数量を増やす"
-                        className="flex h-6 w-6 items-center justify-center rounded-full border border-[color:var(--color-border)] text-sm text-[color:var(--color-text-primary)] hover:opacity-80 transition-opacity"
-                      >
-                        +
+                        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
                       </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => removeItem(item.menuId)}
-                      aria-label={`${item.name}を削除`}
-                      className="shrink-0 p-1 text-[color:var(--color-text-muted)] hover:text-[color:var(--color-accent-warn)] transition-colors"
-                    >
-                      <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
+                    {/* トッピング (ネスト表示) */}
+                    {item.toppings && item.toppings.length > 0 && (
+                      <ul className="mt-1 ml-14 space-y-0.5">
+                        {item.toppings.map((t) => (
+                          <li
+                            key={t.menuId}
+                            className="flex items-baseline justify-between text-[11px] text-[color:var(--color-text-muted)]"
+                          >
+                            <span className="truncate">＋ {t.name}</span>
+                            <span className="shrink-0 tabular-nums">×{t.quantity}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </li>
                 );
               })}
@@ -251,8 +298,8 @@ export function CartPanel() {
               以下の商品は品切れのため、カートから削除しました。
             </p>
             <ul className="mb-5 space-y-1 rounded-lg bg-[color:var(--color-bg-subtle)] px-4 py-3">
-              {unavailableNames.map((n) => (
-                <li key={n} className="text-sm text-[color:var(--color-accent-char)]">
+              {unavailableNames.map((n, i) => (
+                <li key={i} className="text-sm text-[color:var(--color-accent-char)]">
                   ・{n}
                 </li>
               ))}

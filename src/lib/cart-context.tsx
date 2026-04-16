@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
-import type { CartItem } from "@/types";
+import type { CartItem, CartItemTopping } from "@/types";
+import { comboLineHash, newLineId } from "@/lib/order-utils";
 
 // 注意: Window C の /admin/tables、CLAUDE.md 既存規約と揃えて "gonmura-table" を共有。
 // 共通仕様で "gonmura-table-number" と書かれていたが、実態の既存キーに合わせる。
@@ -11,11 +12,19 @@ function cartKey(table: number | null): string {
   return table ? `gonmura-cart-${table}` : "gonmura-cart";
 }
 
+/** addItem に渡す入力。lineId / quantity はここで決定するため不要。 */
+type CartItemInput = {
+  menuId: string;
+  name: string;
+  price: number;
+  toppings?: CartItemTopping[];
+};
+
 type CartContextType = {
   items: CartItem[];
-  addItem: (item: Omit<CartItem, "quantity">, quantity?: number) => void;
-  removeItem: (menuId: string) => void;
-  updateQuantity: (menuId: string, quantity: number) => void;
+  addItem: (item: CartItemInput, quantity?: number) => void;
+  removeItem: (lineId: string) => void;
+  updateQuantity: (lineId: string, quantity: number) => void;
   clearCart: () => void;
   totalAmount: number;
   totalItems: number;
@@ -33,6 +42,22 @@ function loadFromStorage<T>(key: string, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+// 旧バージョン (lineId なし) のカートを復元する際に lineId を採番して移行する。
+function rehydrateItems(raw: unknown): CartItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((x): x is Partial<CartItem> => !!x && typeof x === "object")
+    .map((x) => ({
+      lineId: typeof x.lineId === "string" && x.lineId ? x.lineId : newLineId(),
+      menuId: String(x.menuId ?? ""),
+      name: String(x.name ?? ""),
+      price: Number(x.price ?? 0),
+      quantity: Math.max(1, Math.trunc(Number(x.quantity ?? 1))),
+      toppings: Array.isArray(x.toppings) ? x.toppings : undefined,
+    }))
+    .filter((x) => x.menuId);
 }
 
 // admin/tables 側が String(n) で保存するケースもあるため、JSON 失敗時は数値として再解釈
@@ -63,7 +88,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [tableNumber, setTableNumberState] = useState<number | null>(() => loadTableNumber());
   const [items, setItems] = useState<CartItem[]>(() => {
     const t = loadTableNumber();
-    return loadFromStorage<CartItem[]>(cartKey(t), []);
+    return rehydrateItems(loadFromStorage<unknown>(cartKey(t), []));
   });
   const currentTableRef = useRef<number | null>(tableNumber);
 
@@ -73,7 +98,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== "undefined") {
       localStorage.setItem(TABLE_KEY, JSON.stringify(n));
       // 新しいテーブルのカートを読み込む
-      const savedCart = loadFromStorage<CartItem[]>(cartKey(n), []);
+      const savedCart = rehydrateItems(loadFromStorage<unknown>(cartKey(n), []));
       setItems(savedCart);
       currentTableRef.current = n;
     }
@@ -85,37 +110,58 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem(cartKey(currentTableRef.current), JSON.stringify(items));
   }, [items]);
 
-  const addItem = useCallback((item: Omit<CartItem, "quantity">, quantity: number = 1) => {
+  const addItem = useCallback((input: CartItemInput, quantity: number = 1) => {
     const qty = Math.max(1, Math.trunc(quantity));
+    const hash = comboLineHash(input.menuId, input.toppings);
     setItems((prev) => {
-      const existing = prev.find((i) => i.menuId === item.menuId);
+      const existing = prev.find(
+        (i) => comboLineHash(i.menuId, i.toppings) === hash
+      );
       if (existing) {
         return prev.map((i) =>
-          i.menuId === item.menuId ? { ...i, quantity: i.quantity + qty } : i
+          i.lineId === existing.lineId ? { ...i, quantity: i.quantity + qty } : i
         );
       }
-      return [...prev, { ...item, quantity: qty }];
+      return [
+        ...prev,
+        {
+          lineId: newLineId(),
+          menuId: input.menuId,
+          name: input.name,
+          price: input.price,
+          quantity: qty,
+          toppings: input.toppings && input.toppings.length > 0 ? input.toppings : undefined,
+        },
+      ];
     });
   }, []);
 
-  const removeItem = useCallback((menuId: string) => {
-    setItems((prev) => prev.filter((i) => i.menuId !== menuId));
+  const removeItem = useCallback((lineId: string) => {
+    setItems((prev) => prev.filter((i) => i.lineId !== lineId));
   }, []);
 
-  const updateQuantity = useCallback((menuId: string, quantity: number) => {
+  const updateQuantity = useCallback((lineId: string, quantity: number) => {
     if (quantity <= 0) {
-      setItems((prev) => prev.filter((i) => i.menuId !== menuId));
+      setItems((prev) => prev.filter((i) => i.lineId !== lineId));
       return;
     }
     setItems((prev) =>
-      prev.map((i) => (i.menuId === menuId ? { ...i, quantity } : i))
+      prev.map((i) => (i.lineId === lineId ? { ...i, quantity } : i))
     );
   }, []);
 
   const clearCart = useCallback(() => setItems([]), []);
 
-  const totalAmount = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
-  const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
+  // コンボ価格 = (ラーメン単価 + Σトッピング単価×個数) × 杯数
+  const totalAmount = items.reduce((sum, i) => {
+    const topPerBowl = (i.toppings ?? []).reduce((s, t) => s + t.price * t.quantity, 0);
+    return sum + (i.price + topPerBowl) * i.quantity;
+  }, 0);
+  // 総点数 = 各コンボの (杯数 + Σトッピング個数×杯数)。トッピングも個数分カウント。
+  const totalItems = items.reduce((sum, i) => {
+    const topPerBowl = (i.toppings ?? []).reduce((a, t) => a + t.quantity, 0);
+    return sum + i.quantity + topPerBowl * i.quantity;
+  }, 0);
 
   return (
     <CartContext.Provider

@@ -15,6 +15,7 @@ import { db } from "@/lib/firebase";
 import type { Category, Menu, Order } from "@/types";
 import { useAdminRole } from "@/components/admin/AdminContext";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { comboLineTotal, flattenForReceipt } from "@/lib/order-utils";
 
 type Period = "daily" | "weekly" | "monthly";
 type Analysis = "sales" | "menu" | "price";
@@ -61,10 +62,14 @@ function shortLabel(key: string, period: Period): string {
   return `${Number(m)}/${Number(d)}`;
 }
 function orderTotal(o: Order): number {
-  return o.items.reduce((s, i) => s + i.price * i.quantity, 0);
+  return o.items.reduce((s, i) => s + comboLineTotal(i), 0);
 }
 function orderQty(o: Order): number {
-  return o.items.reduce((s, i) => s + i.quantity, 0);
+  // コンボ本体の杯数 + ネストトッピング個数 (杯数倍)
+  return o.items.reduce((s, i) => {
+    const top = (i.toppings ?? []).reduce((a, t) => a + t.quantity * i.quantity, 0);
+    return s + i.quantity + top;
+  }, 0);
 }
 
 type Bucket = {
@@ -350,7 +355,8 @@ export default function AdminSalesPage() {
   const menuOptions = useMemo(() => {
     const map = new Map<string, { menuId: string; name: string; qty: number }>();
     for (const o of orders) {
-      for (const it of o.items) {
+      // コンボ本体 + ネストトッピングを独立行に展開してカウント
+      for (const it of flattenForReceipt(o.items)) {
         const e = map.get(it.menuId) || { menuId: it.menuId, name: it.name, qty: 0 };
         e.qty += it.quantity;
         e.name = it.name;
@@ -382,7 +388,7 @@ export default function AdminSalesPage() {
       if (!date) continue;
       const key = bucketKey(date, period);
       if (!visibleKeys.has(key)) continue;
-      for (const it of o.items) {
+      for (const it of flattenForReceipt(o.items)) {
         const b = perMenuBuckets.get(it.menuId);
         if (!b) continue;
         b.set(key, (b.get(key) ?? 0) + it.quantity);
@@ -403,7 +409,7 @@ export default function AdminSalesPage() {
   const priceChangedMenus = useMemo(() => {
     const map = new Map<string, { menuId: string; name: string; qty: number; prices: Set<number> }>();
     for (const o of orders) {
-      for (const it of o.items) {
+      for (const it of flattenForReceipt(o.items)) {
         const e = map.get(it.menuId) ?? {
           menuId: it.menuId,
           name: it.name,
@@ -440,7 +446,7 @@ export default function AdminSalesPage() {
       if (!date) continue;
       const key = bucketKey(date, period);
       if (!visibleKeys.has(key)) continue;
-      for (const it of o.items) {
+      for (const it of flattenForReceipt(o.items)) {
         if (it.menuId !== priceMenuId) continue;
         const price = Math.trunc(it.price);
         const b = priceBuckets.get(price) ?? new Map<string, number>();
@@ -474,7 +480,7 @@ export default function AdminSalesPage() {
       { name: string; qty: number; revenue: number }
     >();
     for (const o of filtered) {
-      for (const it of o.items) {
+      for (const it of flattenForReceipt(o.items)) {
         const e = menuMap.get(it.menuId) ?? {
           name: it.name,
           qty: 0,

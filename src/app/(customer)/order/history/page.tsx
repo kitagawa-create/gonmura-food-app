@@ -7,6 +7,7 @@ import { useCart } from "@/lib/cart-context";
 import type { Order } from "@/types";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import { BackButton } from "@/components/ui/BackButton";
+import { comboLineTotal } from "@/lib/order-utils";
 export default function OrderHistoryPage() {
   const { tableNumber } = useCart();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -67,7 +68,7 @@ export default function OrderHistoryPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {orders.map((order) => {
               const total = order.items.reduce(
-                (sum, item) => sum + item.price * item.quantity,
+                (sum, item) => sum + comboLineTotal(item),
                 0
               );
               const time = order.createdAt?.toDate?.();
@@ -80,7 +81,12 @@ export default function OrderHistoryPage() {
                   <div className="flex justify-between items-start mb-3">
                     <div>
                       <p className="text-xs text-[color:var(--color-text-muted)]">
-                        {time ? time.toLocaleString("ja-JP") : ""}
+                        {time
+                          ? time.toLocaleTimeString("ja-JP", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : ""}
                       </p>
                     </div>
                     <span className="font-bold text-[color:var(--color-accent-char)]">
@@ -90,7 +96,18 @@ export default function OrderHistoryPage() {
                   <ul className="text-sm text-[color:var(--color-text-muted)] space-y-0.5">
                     {order.items.map((item, i) => (
                       <li key={i}>
-                        {item.name} x {item.quantity}
+                        <div>
+                          {item.name} x {item.quantity}
+                        </div>
+                        {item.toppings && item.toppings.length > 0 && (
+                          <ul className="ml-4 text-xs">
+                            {item.toppings.map((t) => (
+                              <li key={t.menuId}>
+                                ＋ {t.name} x {t.quantity * item.quantity}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </li>
                     ))}
                   </ul>

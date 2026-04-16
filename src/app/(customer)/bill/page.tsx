@@ -7,6 +7,7 @@ import { useCart } from "@/lib/cart-context";
 import type { Order } from "@/types";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import { BackButton } from "@/components/ui/BackButton";
+import { flattenForReceipt } from "@/lib/order-utils";
 import Link from "next/link";
 
 export default function BillPage() {
@@ -65,12 +66,15 @@ export default function BillPage() {
     );
   }
 
+  // コンボ内トッピングも独立行に展開して name+price でマージ
   const allItems: { name: string; price: number; quantity: number }[] = [];
   for (const order of orders) {
-    for (const item of order.items) {
-      const existing = allItems.find((a) => a.name === item.name && a.price === item.price);
-      if (existing) existing.quantity += item.quantity;
-      else allItems.push({ name: item.name, price: item.price, quantity: item.quantity });
+    for (const flat of flattenForReceipt(order.items)) {
+      const existing = allItems.find(
+        (a) => a.name === flat.name && a.price === flat.price
+      );
+      if (existing) existing.quantity += flat.quantity;
+      else allItems.push({ name: flat.name, price: flat.price, quantity: flat.quantity });
     }
   }
 

@@ -19,6 +19,7 @@ import {
 import { db } from "@/lib/firebase";
 import type { Category, Menu, Order } from "@/types";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { comboLineTotal } from "@/lib/order-utils";
 
 const TIME_FORMATTER = new Intl.DateTimeFormat("ja-JP", {
   hour: "2-digit",
@@ -378,7 +379,7 @@ function ActiveOrderCard({
 }) {
   const [showCancel, setShowCancel] = useState(false);
   const [cancelItemIdx, setCancelItemIdx] = useState<number | null>(null);
-  const total = order.items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const total = order.items.reduce((s, i) => s + comboLineTotal(i), 0);
   const created = order.createdAt?.toDate?.();
   const elapsed = created ? timeAgo(created) : "";
   const checked = new Set(order.checkedItems ?? []);
@@ -437,65 +438,93 @@ function ActiveOrderCard({
       <ul className="mb-3 space-y-1">
         {order.items.map((item, idx) => {
           const done = checked.has(idx);
-          const isTopping = toppingMenuIds.has(item.menuId);
+          // 新スキーマ: item.toppings に含まれる → コンボ1杯としてネスト表示
+          // 旧スキーマ: toppings 未設定 → menuId ベースの heuristic で 1 行分インデント
+          const hasNestedToppings = !!item.toppings && item.toppings.length > 0;
+          const isLegacyTopping = !hasNestedToppings && toppingMenuIds.has(item.menuId);
           return (
             <li key={`${item.menuId}-${idx}`} className="flex items-stretch gap-1">
               <button
                 type="button"
                 onClick={() => onToggle(order, idx)}
-                className={`flex-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${
+                className={`flex-1 rounded-lg px-3 py-2.5 text-left transition-colors ${
                   done
                     ? "bg-[color:var(--color-accent-negi)]/10"
                     : "bg-[color:var(--color-bg-subtle)] hover:bg-[color:var(--color-bg-subtle)]/80"
                 }`}
               >
-                {/* チェックボックス */}
-                <span
-                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-2 transition-colors ${
-                    done
-                      ? "border-[color:var(--color-accent-negi)] bg-[color:var(--color-accent-negi)]"
-                      : "border-[color:var(--color-border-strong)]"
-                  }`}
-                >
-                  {done && (
-                    <svg
-                      className="h-4 w-4 text-white"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={3}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                  )}
-                </span>
-                <span
-                  className={`flex-1 text-lg leading-tight ${
-                    isTopping ? "pl-5" : ""
-                  } ${
-                    done
-                      ? "line-through text-[color:var(--color-text-muted)]"
-                      : "text-[color:var(--color-text-primary)]"
-                  }`}
-                >
-                  {isTopping && (
-                    <span className="mr-1 text-[color:var(--color-text-muted)]">＋</span>
-                  )}
-                  {item.name}
-                </span>
-                <span
-                  className={`whitespace-nowrap text-xl font-bold ${
-                    done
-                      ? "text-[color:var(--color-text-muted)]"
-                      : "text-[color:var(--color-accent-char)]"
-                  }`}
-                >
-                  ×{item.quantity}
-                </span>
+                <div className="flex items-center gap-3">
+                  {/* チェックボックス */}
+                  <span
+                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-2 transition-colors ${
+                      done
+                        ? "border-[color:var(--color-accent-negi)] bg-[color:var(--color-accent-negi)]"
+                        : "border-[color:var(--color-border-strong)]"
+                    }`}
+                  >
+                    {done && (
+                      <svg
+                        className="h-4 w-4 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={3}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    )}
+                  </span>
+                  <span
+                    className={`flex-1 text-lg leading-tight ${
+                      isLegacyTopping ? "pl-5" : ""
+                    } ${
+                      done
+                        ? "line-through text-[color:var(--color-text-muted)]"
+                        : "text-[color:var(--color-text-primary)]"
+                    }`}
+                  >
+                    {isLegacyTopping && (
+                      <span className="mr-1 text-[color:var(--color-text-muted)]">＋</span>
+                    )}
+                    {item.name}
+                  </span>
+                  <span
+                    className={`whitespace-nowrap text-xl font-bold ${
+                      done
+                        ? "text-[color:var(--color-text-muted)]"
+                        : "text-[color:var(--color-accent-char)]"
+                    }`}
+                  >
+                    ×{item.quantity}
+                  </span>
+                </div>
+                {/* ネストトッピング: チェックなしで一覧表示 (コンボ全体のチェックで共に提供扱い) */}
+                {hasNestedToppings && (
+                  <ul className="mt-1 ml-10 space-y-0.5">
+                    {item.toppings!.map((t) => (
+                      <li
+                        key={t.menuId}
+                        className={`flex items-baseline justify-between text-base ${
+                          done
+                            ? "text-[color:var(--color-text-muted)] line-through"
+                            : "text-[color:var(--color-text-primary)]"
+                        }`}
+                      >
+                        <span>
+                          <span className="mr-1 text-[color:var(--color-text-muted)]">＋</span>
+                          {t.name}
+                        </span>
+                        <span className="tabular-nums font-semibold">
+                          ×{t.quantity * item.quantity}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </button>
               <button
                 type="button"
@@ -552,7 +581,7 @@ function ActiveOrderCard({
         title={`商品をキャンセル`}
         message={
           cancelTarget
-            ? `${cancelTarget.name} ×${cancelTarget.quantity}（¥${(cancelTarget.price * cancelTarget.quantity).toLocaleString()}）をキャンセルしますか？${isLastItem ? "これが最後の商品のため注文自体が削除されます。" : ""}`
+            ? `${cancelTarget.name} ×${cancelTarget.quantity}（¥${comboLineTotal(cancelTarget).toLocaleString()}）をキャンセルしますか？${isLastItem ? "これが最後の商品のため注文自体が削除されます。" : ""}`
             : ""
         }
         confirmLabel={isLastItem ? "注文を削除" : "キャンセルする"}
@@ -693,7 +722,7 @@ function HistoryOrderCard({
   onRevert: (order: Order) => void;
 }) {
   const [showRevert, setShowRevert] = useState(false);
-  const total = order.items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const total = order.items.reduce((s, i) => s + comboLineTotal(i), 0);
   const created = order.createdAt?.toDate?.();
   const isPaid = order.status === "paid";
 
@@ -725,16 +754,35 @@ function HistoryOrderCard({
       </div>
       <ul className="text-sm text-[color:var(--color-text-primary)] space-y-0.5">
         {order.items.map((item, i) => {
-          const isTopping = toppingMenuIds.has(item.menuId);
+          const hasNestedToppings = !!item.toppings && item.toppings.length > 0;
+          const isLegacyTopping = !hasNestedToppings && toppingMenuIds.has(item.menuId);
           return (
-            <li key={i} className={`flex justify-between ${isTopping ? "pl-4" : ""}`}>
-              <span>
-                {isTopping && (
-                  <span className="mr-1 text-[color:var(--color-text-muted)]">＋</span>
-                )}
-                {item.name}
-              </span>
-              <span className="text-[color:var(--color-text-muted)]">×{item.quantity}</span>
+            <li key={i}>
+              <div className={`flex justify-between ${isLegacyTopping ? "pl-4" : ""}`}>
+                <span>
+                  {isLegacyTopping && (
+                    <span className="mr-1 text-[color:var(--color-text-muted)]">＋</span>
+                  )}
+                  {item.name}
+                </span>
+                <span className="text-[color:var(--color-text-muted)]">×{item.quantity}</span>
+              </div>
+              {hasNestedToppings && (
+                <ul className="mt-0.5 ml-4 space-y-0">
+                  {item.toppings!.map((t) => (
+                    <li
+                      key={t.menuId}
+                      className="flex justify-between text-xs text-[color:var(--color-text-muted)]"
+                    >
+                      <span>
+                        <span className="mr-0.5">＋</span>
+                        {t.name}
+                      </span>
+                      <span>×{t.quantity * item.quantity}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
           );
         })}
