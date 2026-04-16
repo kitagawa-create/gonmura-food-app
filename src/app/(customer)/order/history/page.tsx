@@ -9,11 +9,6 @@ import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import { BackButton } from "@/components/ui/BackButton";
 import Link from "next/link";
 
-const statusLabels: Record<string, { label: string; color: string }> = {
-  pending: { label: "受付中", color: "var(--color-accent-warn)" },
-  preparing: { label: "調理中", color: "var(--color-accent-soy)" },
-  completed: { label: "完成", color: "var(--color-accent-negi)" },
-};
 
 export default function OrderHistoryPage() {
   const { tableNumber } = useCart();
@@ -76,10 +71,6 @@ export default function OrderHistoryPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {orders.map((order) => {
-              const status = statusLabels[order.status] ?? {
-                label: order.status,
-                color: "var(--color-text-primary)",
-              };
               const total = order.items.reduce(
                 (sum, item) => sum + item.price * item.quantity,
                 0
@@ -94,13 +85,7 @@ export default function OrderHistoryPage() {
                 >
                   <div className="flex justify-between items-start mb-3">
                     <div>
-                      <span
-                        className="inline-block px-3 py-1 rounded-full text-xs font-bold border"
-                        style={{ borderColor: status.color, color: status.color }}
-                      >
-                        {status.label}
-                      </span>
-                      <p className="text-xs text-[color:var(--color-text-muted)] mt-1">
+                      <p className="text-xs text-[color:var(--color-text-muted)]">
                         {time ? time.toLocaleString("ja-JP") : ""}
                       </p>
                     </div>
