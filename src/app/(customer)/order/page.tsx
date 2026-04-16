@@ -141,7 +141,7 @@ export default function OrderPage() {
     <div className="min-h-screen bg-[color:var(--color-bg-base)] pb-28">
       <header className="sticky top-0 z-10 bg-[color:var(--color-bg-card)] border-b border-[color:var(--color-border)]">
         <div className="px-3 sm:px-4 py-2 flex items-center gap-2">
-          <BackButton href="/menu" label="メニューに戻る" />
+          <BackButton href="/menu" label="メニューに戻る" size="sm" />
           <h1 className="text-lg font-bold text-[color:var(--color-text-primary)]">注文確認</h1>
         </div>
       </header>
