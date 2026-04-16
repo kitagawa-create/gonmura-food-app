@@ -27,6 +27,9 @@ export default function MenuPage() {
   const [selectedQuantity, setSelectedQuantity] = useState(1);
   // ラーメンモーダルのトッピング/サイド選択 (menuId → quantity)
   const [extraQty, setExtraQty] = useState<Record<string, number>>({});
+  const [showPinDialog, setShowPinDialog] = useState(false);
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState("");
   const [showTableChange, setShowTableChange] = useState(false);
   const [newTableInput, setNewTableInput] = useState("");
   const [tableChangeError, setTableChangeError] = useState("");
@@ -187,9 +190,9 @@ export default function MenuPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setNewTableInput("");
-                    setTableChangeError("");
-                    setShowTableChange(true);
+                    setPinInput("");
+                    setPinError("");
+                    setShowPinDialog(true);
                   }}
                   className="text-[10px] text-[color:var(--color-text-muted)] underline hover:text-[color:var(--color-text-primary)] transition-colors"
                 >
@@ -584,7 +587,79 @@ export default function MenuPage() {
         </div>
       )}
 
-      {/* テーブル番号変更モーダル */}
+      {/* PIN 認証モーダル */}
+      {showPinDialog && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setShowPinDialog(false)}
+        >
+          <div
+            className="w-full max-w-xs bg-[color:var(--color-bg-card)] rounded-2xl border border-[color:var(--color-border)] p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-bold text-[color:var(--color-text-primary)] mb-1 text-center">
+              PIN を入力
+            </h2>
+            <p className="text-xs text-[color:var(--color-text-muted)] text-center mb-4">
+              テーブル番号の変更にはPINが必要です
+            </p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const stored = localStorage.getItem("gonmura-table-pin") ?? "";
+                if (!stored) {
+                  setPinError("PINが未設定です。管理画面から設定してください");
+                  return;
+                }
+                if (pinInput !== stored) {
+                  setPinError("PINが正しくありません");
+                  return;
+                }
+                setShowPinDialog(false);
+                setNewTableInput(tableNumber !== null ? String(tableNumber) : "");
+                setTableChangeError("");
+                setShowTableChange(true);
+              }}
+              className="space-y-4"
+            >
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                required
+                autoFocus
+                value={pinInput}
+                onChange={(e) => {
+                  setPinInput(e.target.value.replace(/\D/g, "").slice(0, 4));
+                  setPinError("");
+                }}
+                placeholder="4桁の数字"
+                className="w-full bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-center text-2xl tracking-[0.5em] text-[color:var(--color-text-primary)] placeholder-[color:var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-soy)]"
+              />
+              {pinError && (
+                <p className="text-sm text-[color:var(--color-accent-warn)] text-center">{pinError}</p>
+              )}
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowPinDialog(false)}
+                  className="flex-1 min-h-[44px] rounded-xl border border-[color:var(--color-border)] text-[color:var(--color-text-primary)] font-medium hover:opacity-80 transition-opacity"
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 min-h-[44px] rounded-xl bg-[color:var(--color-accent-char)] text-white font-bold hover:opacity-90 transition-opacity"
+                >
+                  確認
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* テーブル番号変更モーダル (PIN 認証後) */}
       {showTableChange && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
@@ -648,13 +723,13 @@ export default function MenuPage() {
                 <button
                   type="button"
                   onClick={() => setShowTableChange(false)}
-                  className="flex-1 py-3 rounded-xl border border-[color:var(--color-border)] text-[color:var(--color-text-primary)] font-medium hover:opacity-80 transition-opacity"
+                  className="flex-1 min-h-[44px] rounded-xl border border-[color:var(--color-border)] text-[color:var(--color-text-primary)] font-medium hover:opacity-80 transition-opacity"
                 >
                   キャンセル
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 rounded-xl bg-[color:var(--color-accent-char)] text-white font-bold hover:opacity-90 transition-opacity"
+                  className="flex-1 min-h-[44px] rounded-xl bg-[color:var(--color-accent-char)] text-white font-bold hover:opacity-90 transition-opacity"
                 >
                   変更する
                 </button>

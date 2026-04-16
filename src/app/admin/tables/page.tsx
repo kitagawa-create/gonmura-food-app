@@ -1,17 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 
 const TABLE_KEY = "gonmura-table";
-const LOCK_KEY = "gonmura-table-locked";
+const PIN_KEY = "gonmura-table-pin";
 const MIN_TABLE = 1;
 const MAX_TABLE = 30;
 
 export default function AdminTablesPage() {
   const [mounted, setMounted] = useState(false);
   const [tableNumber, setTableNumber] = useState<number | null>(null);
-  const [locked, setLocked] = useState(false);
+  const [currentPin, setCurrentPin] = useState<string>("");
   const [draft, setDraft] = useState<string>("");
+  const [pinDraft, setPinDraft] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
 
@@ -22,9 +24,10 @@ export default function AdminTablesPage() {
       const valid = Number.isFinite(n) && Number.isInteger(n) && n >= MIN_TABLE && n <= MAX_TABLE;
       setTableNumber(valid ? n : null);
       setDraft(valid ? String(n) : "");
-      setLocked(localStorage.getItem(LOCK_KEY) === "1");
+      setCurrentPin(localStorage.getItem(PIN_KEY) ?? "");
+      setPinDraft(localStorage.getItem(PIN_KEY) ?? "");
     } catch {
-      // localStorage 利用不可の環境ではデフォルト値のままにする
+      // localStorage 利用不可
     }
     setMounted(true);
   }, []);
@@ -33,6 +36,7 @@ export default function AdminTablesPage() {
     (e: React.FormEvent) => {
       e.preventDefault();
       setError(null);
+
       const trimmed = draft.trim();
       if (trimmed === "") {
         setError("テーブル番号を入力してください。");
@@ -43,58 +47,33 @@ export default function AdminTablesPage() {
         setError(`${MIN_TABLE}〜${MAX_TABLE} の整数を入力してください。`);
         return;
       }
+      if (!/^\d{4}$/.test(pinDraft)) {
+        setError("PINは4桁の数字で入力してください。");
+        return;
+      }
+
       try {
         localStorage.setItem(TABLE_KEY, String(n));
+        localStorage.setItem(PIN_KEY, pinDraft);
       } catch {
         setError("保存に失敗しました (localStorage 利用不可)。");
         return;
       }
       setTableNumber(n);
+      setCurrentPin(pinDraft);
       setSavedFlash(true);
       window.setTimeout(() => setSavedFlash(false), 1600);
     },
-    [draft]
+    [draft, pinDraft]
   );
-
-  const handleClear = useCallback(() => {
-    try {
-      localStorage.removeItem(TABLE_KEY);
-    } catch {
-      // noop
-    }
-    setTableNumber(null);
-    setDraft("");
-  }, []);
-
-  const handleToggleLock = useCallback(() => {
-    setError(null);
-    if (!locked) {
-      if (tableNumber === null) {
-        setError("番号を保存してからロックしてください。");
-        return;
-      }
-      try {
-        localStorage.setItem(LOCK_KEY, "1");
-      } catch {
-        setError("保存に失敗しました (localStorage 利用不可)。");
-        return;
-      }
-      setLocked(true);
-    } else {
-      try {
-        localStorage.removeItem(LOCK_KEY);
-      } catch {
-        // noop
-      }
-      setLocked(false);
-    }
-  }, [locked, tableNumber]);
 
   return (
     <div className="w-full max-w-2xl">
-      <h1 className="mb-1 text-2xl font-bold text-[color:var(--color-text-primary)]">テーブル設定</h1>
+      <h1 className="mb-1 text-2xl font-bold text-[color:var(--color-text-primary)]">
+        テーブル設定
+      </h1>
       <p className="mb-6 text-xs text-[color:var(--color-text-muted)]">
-        この端末に割り当てるテーブル番号を設定します。ロック中はお客様側の /setup 画面から番号を変更できなくなります。
+        この端末に割り当てるテーブル番号と、変更用PINを設定します。
       </p>
 
       {error && (
@@ -103,17 +82,20 @@ export default function AdminTablesPage() {
         </p>
       )}
 
+      {/* 現在の状態 */}
       <section className="mb-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-5 shadow-sm">
         <p className="text-xs text-[color:var(--color-text-muted)]">現在の設定</p>
         {!mounted ? (
           <p className="mt-1 text-lg text-[color:var(--color-text-muted)]">読み込み中…</p>
         ) : tableNumber !== null ? (
           <div className="mt-1 flex items-baseline gap-3">
-            <span className="text-4xl font-bold text-[color:var(--color-text-primary)]">{tableNumber}</span>
+            <span className="text-4xl font-bold text-[color:var(--color-text-primary)]">
+              {tableNumber}
+            </span>
             <span className="text-sm text-[color:var(--color-text-muted)]">番テーブル</span>
-            {locked && (
-              <span className="rounded-full bg-[color:var(--color-accent-char)]/15 border border-[color:var(--color-accent-char)]/40 px-2 py-0.5 text-xs text-[color:var(--color-accent-char)]">
-                ロック中
+            {currentPin && (
+              <span className="rounded-full bg-[color:var(--color-accent-negi)]/15 border border-[color:var(--color-accent-negi)]/40 px-2 py-0.5 text-xs text-[color:var(--color-accent-negi)]">
+                PIN 設定済
               </span>
             )}
           </div>
@@ -122,17 +104,21 @@ export default function AdminTablesPage() {
         )}
       </section>
 
+      {/* 設定フォーム */}
       <form
         onSubmit={handleSave}
-        className="mb-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-5 shadow-sm"
+        className="mb-4 rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-5 shadow-sm space-y-4"
       >
-        <label htmlFor="table-number" className="mb-2 block text-sm font-semibold text-[color:var(--color-text-primary)]">
-          テーブル番号を変更
-        </label>
-        <p className="mb-3 text-xs text-[color:var(--color-text-muted)]">
-          {MIN_TABLE}〜{MAX_TABLE} の整数を入力してください。
-        </p>
-        <div className="flex flex-wrap gap-2">
+        <div>
+          <label
+            htmlFor="table-number"
+            className="mb-1 block text-sm font-semibold text-[color:var(--color-text-primary)]"
+          >
+            テーブル番号
+          </label>
+          <p className="mb-2 text-xs text-[color:var(--color-text-muted)]">
+            {MIN_TABLE}〜{MAX_TABLE} の整数
+          </p>
           <input
             id="table-number"
             type="number"
@@ -145,57 +131,58 @@ export default function AdminTablesPage() {
             onChange={(e) => setDraft(e.target.value)}
             className="w-32 bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-lg text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
           />
+        </div>
+
+        <div>
+          <label
+            htmlFor="table-pin"
+            className="mb-1 block text-sm font-semibold text-[color:var(--color-text-primary)]"
+          >
+            変更用 PIN（4桁の数字）
+          </label>
+          <p className="mb-2 text-xs text-[color:var(--color-text-muted)]">
+            お客様がテーブル番号を変更する際に求められます
+          </p>
+          <input
+            id="table-pin"
+            type="password"
+            inputMode="numeric"
+            maxLength={4}
+            required
+            value={pinDraft}
+            onChange={(e) => setPinDraft(e.target.value.replace(/\D/g, "").slice(0, 4))}
+            placeholder="0000"
+            className="w-32 bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-lg tracking-[0.3em] text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 pt-2">
           <button
             type="submit"
             className="rounded-xl bg-[color:var(--color-accent-char)] px-5 py-2 text-sm text-white font-bold hover:bg-[color:var(--color-accent-char-hover)] transition-colors"
           >
             保存
           </button>
-          {tableNumber !== null && (
-            <button
-              type="button"
-              onClick={handleClear}
-              className="rounded-xl border border-[color:var(--color-border)] px-4 py-2 text-sm text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
-            >
-              未設定に戻す
-            </button>
-          )}
           {savedFlash && (
-            <span className="self-center rounded-full bg-[color:var(--color-accent-negi)]/15 border border-[color:var(--color-accent-negi)]/40 px-2 py-0.5 text-xs text-[color:var(--color-accent-negi)]">
+            <span className="rounded-full bg-[color:var(--color-accent-negi)]/15 border border-[color:var(--color-accent-negi)]/40 px-2 py-0.5 text-xs text-[color:var(--color-accent-negi)]">
               保存しました
             </span>
           )}
         </div>
       </form>
 
-      <section className="rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-5 shadow-sm">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold text-[color:var(--color-text-primary)]">客向けにロック</p>
-            <p className="mt-1 text-xs text-[color:var(--color-text-muted)]">
-              ONにするとお客様側の /setup 画面からテーブル番号を変更できなくなります。開店後の誤操作対策用。
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={handleToggleLock}
-            role="switch"
-            aria-checked={locked}
-            aria-label="テーブル番号をロック"
-            className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${
-              locked
-                ? "bg-[color:var(--color-accent-char)]"
-                : "bg-[color:var(--color-border-strong)]"
-            }`}
-          >
-            <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                locked ? "translate-x-6" : "translate-x-1"
-              }`}
-            />
-          </button>
-        </div>
-      </section>
+      {/* 客用画面へ */}
+      {tableNumber !== null && (
+        <Link
+          href="/menu"
+          className="inline-flex items-center gap-2 rounded-xl border border-[color:var(--color-border)] px-5 py-2.5 text-sm font-medium text-[color:var(--color-text-primary)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+          客用画面を開く
+        </Link>
+      )}
     </div>
   );
 }

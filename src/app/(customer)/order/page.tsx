@@ -61,14 +61,9 @@ export default function OrderPage() {
 
   if (items.length === 0) {
     return (
-      <div className="min-h-screen bg-[color:var(--color-bg-base)] flex flex-col items-center justify-center px-4">
-        <p className="text-[color:var(--color-text-muted)] text-lg mb-4">カートが空です</p>
-        <Link
-          href="/menu"
-          className="text-[color:var(--color-accent-char)] font-medium hover:underline"
-        >
-          メニューに戻る
-        </Link>
+      <div className="relative min-h-screen bg-[color:var(--color-bg-base)] flex flex-col items-center justify-center px-4">
+        <BackButton href="/menu" label="メニューに戻る" className="absolute top-3 left-3" />
+        <p className="text-[color:var(--color-text-muted)] text-lg">カートが空です</p>
       </div>
     );
   }

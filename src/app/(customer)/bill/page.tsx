@@ -56,17 +56,11 @@ export default function BillPage() {
 
   if (orders.length === 0) {
     return (
-      <div className="min-h-screen bg-[color:var(--color-bg-base)] flex flex-col items-center justify-center px-4">
-        <BackButton href="/menu" label="メニューに戻る" />
-        <p className="text-[color:var(--color-text-muted)] text-lg mt-12 mb-4">
+      <div className="relative min-h-screen bg-[color:var(--color-bg-base)] flex flex-col items-center justify-center px-4">
+        <BackButton href="/menu" label="メニューに戻る" size="sm" className="absolute top-3 left-3" />
+        <p className="text-[color:var(--color-text-muted)] text-lg">
           未精算の注文はありません
         </p>
-        <Link
-          href="/menu"
-          className="text-[color:var(--color-accent-char)] font-medium hover:underline"
-        >
-          メニューに戻る
-        </Link>
       </div>
     );
   }
@@ -85,10 +79,8 @@ export default function BillPage() {
   const subtotal = totalAmount - tax;
 
   return (
-    <div className="min-h-screen bg-[color:var(--color-bg-base)] p-4 flex flex-col">
-      <div className="max-w-3xl mx-auto w-full mb-3">
-        <BackButton href="/menu" label="メニューに戻る" />
-      </div>
+    <div className="relative min-h-screen bg-[color:var(--color-bg-base)] p-4 flex flex-col">
+      <BackButton href="/menu" label="メニューに戻る" size="sm" className="absolute top-3 left-3 z-10" />
       <div className="flex-1 flex items-center justify-center">
         {/* レシート: 外側 padding 撤去、各セクションが px-6 + 全幅 dashed divider */}
         <div className="w-full max-w-sm md:max-w-md lg:max-w-lg bg-[color:var(--color-bg-card)] rounded-2xl border border-[color:var(--color-border)] overflow-hidden">
@@ -159,14 +151,6 @@ export default function BillPage() {
             </p>
           </div>
 
-          <div className="px-6 py-3 border-t border-[color:var(--color-border)]">
-            <Link
-              href="/menu"
-              className="block w-full text-center py-2 text-[color:var(--color-text-muted)] text-sm hover:text-[color:var(--color-text-primary)] transition-colors"
-            >
-              メニューに戻る
-            </Link>
-          </div>
         </div>
       </div>
     </div>
