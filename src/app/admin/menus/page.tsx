@@ -58,6 +58,7 @@ export default function AdminMenusPage() {
   const [deleting, setDeleting] = useState(false);
   const [orderedMenuIds, setOrderedMenuIds] = useState<Set<string>>(new Set());
   const [orderedLoaded, setOrderedLoaded] = useState(false);
+  const [movingMenuId, setMovingMenuId] = useState<string | null>(null);
   const [draggingMenuId, setDraggingMenuId] = useState<string | null>(null);
   const [dragOverMenuId, setDragOverMenuId] = useState<string | null>(null);
   const [savingMenuOrder, setSavingMenuOrder] = useState(false);
@@ -281,6 +282,25 @@ export default function AdminMenusPage() {
     [draggingMenuId, persistMenuOrder]
   );
 
+  // 長押し→タップ移動 (iPad 対応)
+  const handleTapMoveMenu = useCallback(
+    (sectionItems: Menu[], targetId: string) => {
+      if (!movingMenuId || movingMenuId === targetId) {
+        setMovingMenuId(null);
+        return;
+      }
+      const fromIdx = sectionItems.findIndex((m) => m.id === movingMenuId);
+      const toIdx = sectionItems.findIndex((m) => m.id === targetId);
+      if (fromIdx < 0 || toIdx < 0) return;
+      const next = [...sectionItems];
+      const [moved] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, moved);
+      setMovingMenuId(null);
+      persistMenuOrder(next);
+    },
+    [movingMenuId, persistMenuOrder]
+  );
+
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -391,6 +411,9 @@ export default function AdminMenusPage() {
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 {items.map((m) => {
                   const isDragging = draggingMenuId === m.id;
+                  const isMovingThis = movingMenuId === m.id;
+                  const isMoveTarget = role === "owner" && movingMenuId !== null && movingMenuId !== m.id;
+                  const longPressRef = { current: null as ReturnType<typeof setTimeout> | null };
                   return (
                     <div
                       key={m.id}
@@ -409,13 +432,36 @@ export default function AdminMenusPage() {
                         setDraggingMenuId(null);
                         setDragOverMenuId(null);
                       }}
-                      className={`relative rounded-xl border bg-[color:var(--color-bg-card)] p-4 shadow-sm ${
+                      onTouchStart={() => {
+                        if (role !== "owner") return;
+                        longPressRef.current = setTimeout(() => {
+                          setMovingMenuId(m.id);
+                          longPressRef.current = null;
+                        }, 400);
+                      }}
+                      onTouchEnd={() => {
+                        if (longPressRef.current) {
+                          clearTimeout(longPressRef.current);
+                          longPressRef.current = null;
+                          if (isMoveTarget) handleTapMoveMenu(items, m.id);
+                        }
+                      }}
+                      onTouchMove={() => {
+                        if (longPressRef.current) {
+                          clearTimeout(longPressRef.current);
+                          longPressRef.current = null;
+                        }
+                      }}
+                      onClick={() => { if (isMoveTarget) handleTapMoveMenu(items, m.id); }}
+                      className={`relative rounded-xl border bg-[color:var(--color-bg-card)] p-4 shadow-sm select-none ${
                         m.isAvailable ? "" : "bg-[color:var(--color-bg-subtle)] opacity-60"
                       } ${
-                        m.isSoldOut
-                          ? "border-[color:var(--color-accent-warn)]"
-                          : "border-[color:var(--color-border)]"
-                      } ${isDragging ? "opacity-40" : ""}`}
+                        isMovingThis
+                          ? "border-[color:var(--color-accent-char)] ring-2 ring-[color:var(--color-accent-char)]/30 bg-[color:var(--color-accent-char)]/5"
+                          : m.isSoldOut
+                            ? "border-[color:var(--color-accent-warn)]"
+                            : "border-[color:var(--color-border)]"
+                      } ${isMoveTarget ? "cursor-pointer" : ""} ${isDragging ? "opacity-40" : ""}`}
                     >
                       {m.isSoldOut && (
                         <span className="absolute right-2 top-2 rounded-full bg-[color:var(--color-accent-warn)] px-2 py-0.5 text-[10px] font-bold text-white">

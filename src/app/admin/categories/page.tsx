@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAdminRole } from "@/components/admin/AdminContext";
 import {
@@ -33,10 +33,11 @@ export default function AdminCategoriesPage() {
   const [addNameError, setAddNameError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // ドラッグ＆ドロップ状態
+  // 並び替え状態 (DnD + 長押し→タップ移動)
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
+  const [movingId, setMovingId] = useState<string | null>(null);
 
   // 削除確認ダイアログ
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
@@ -178,9 +179,26 @@ export default function AdminCategoriesPage() {
     const next = [...categories];
     const [moved] = next.splice(fromIdx, 1);
     next.splice(toIdx, 0, moved);
-    setCategories(next); // 楽観的更新
+    setCategories(next);
     setDraggingId(null);
     setDragOverId(null);
+    persistOrder(next);
+  }
+
+  // 長押し→タップ移動: 選択中の項目を targetId の位置に移動
+  function handleTapMove(targetId: string) {
+    if (!movingId || movingId === targetId) {
+      setMovingId(null);
+      return;
+    }
+    const fromIdx = categories.findIndex((c) => c.id === movingId);
+    const toIdx = categories.findIndex((c) => c.id === targetId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const next = [...categories];
+    const [moved] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, moved);
+    setCategories(next);
+    setMovingId(null);
     persistOrder(next);
   }
 
@@ -233,7 +251,7 @@ export default function AdminCategoriesPage() {
       ) : (
         <>
           <p className="mb-2 text-xs text-[color:var(--color-text-muted)]">
-            ⠿ ハンドルをドラッグして並び替え{savingOrder && " (保存中...)"}
+            {movingId ? "移動先をタップしてください" : "長押しで並び替え"}{savingOrder && " (保存中...)"}
           </p>
           <ul className="space-y-2">
             {categories.map((c) => (
@@ -242,6 +260,8 @@ export default function AdminCategoriesPage() {
                 category={c}
                 isDragging={draggingId === c.id}
                 isDragOver={dragOverId === c.id && draggingId !== c.id}
+                isMoving={movingId === c.id}
+                isMoveTarget={movingId !== null && movingId !== c.id}
                 onDragStart={() => setDraggingId(c.id)}
                 onDragEnter={() => setDragOverId(c.id)}
                 onDragEnd={() => {
@@ -249,6 +269,8 @@ export default function AdminCategoriesPage() {
                   setDragOverId(null);
                 }}
                 onDrop={() => handleDrop(c.id)}
+                onLongPress={() => setMovingId(c.id)}
+                onTapMove={() => handleTapMove(c.id)}
                 onRename={(name) => handleRename(c.id, name)}
                 onDelete={() => requestDelete(c)}
                 findDuplicate={findDuplicateName}
@@ -277,10 +299,14 @@ function CategoryRow({
   category,
   isDragging,
   isDragOver,
+  isMoving,
+  isMoveTarget,
   onDragStart,
   onDragEnter,
   onDragEnd,
   onDrop,
+  onLongPress,
+  onTapMove,
   onRename,
   onDelete,
   findDuplicate,
@@ -288,10 +314,14 @@ function CategoryRow({
   category: Category;
   isDragging: boolean;
   isDragOver: boolean;
+  isMoving: boolean;
+  isMoveTarget: boolean;
   onDragStart: () => void;
   onDragEnter: () => void;
   onDragEnd: () => void;
   onDrop: () => void;
+  onLongPress: () => void;
+  onTapMove: () => void;
   onRename: (name: string) => Promise<void>;
   onDelete: () => void;
   findDuplicate: (name: string, excludeId?: string) => string | null;
@@ -299,6 +329,7 @@ function CategoryRow({
   const [name, setName] = useState(category.name);
   const [nameError, setNameError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setName(category.name);
@@ -339,18 +370,40 @@ function CategoryRow({
         onDrop();
       }}
       onDragEnd={onDragEnd}
-      className={`rounded-xl border bg-[color:var(--color-bg-card)] p-3 shadow-sm transition-all ${
+      onTouchStart={() => {
+        longPressTimer.current = setTimeout(() => {
+          onLongPress();
+          longPressTimer.current = null;
+        }, 400);
+      }}
+      onTouchEnd={() => {
+        if (longPressTimer.current) {
+          clearTimeout(longPressTimer.current);
+          longPressTimer.current = null;
+          if (isMoveTarget) onTapMove();
+        }
+      }}
+      onTouchMove={() => {
+        if (longPressTimer.current) {
+          clearTimeout(longPressTimer.current);
+          longPressTimer.current = null;
+        }
+      }}
+      onClick={() => { if (isMoveTarget) onTapMove(); }}
+      className={`rounded-xl border bg-[color:var(--color-bg-card)] p-3 shadow-sm transition-all select-none ${
         isDragging ? "opacity-40" : ""
+      } ${isMoving ? "border-[color:var(--color-accent-char)] ring-2 ring-[color:var(--color-accent-char)]/30 bg-[color:var(--color-accent-char)]/5" : ""}${
+        isMoveTarget ? " cursor-pointer" : ""
       } ${
         isDragOver
           ? "border-[color:var(--color-accent-char)] ring-2 ring-[color:var(--color-accent-char)]/30"
-          : "border-[color:var(--color-border)]"
+          : isMoving ? "" : "border-[color:var(--color-border)]"
       }`}
     >
       <div className="flex items-center gap-2">
         <span
-          className="cursor-grab select-none px-2 text-[color:var(--color-text-muted)] active:cursor-grabbing"
-          title="ドラッグして並び替え"
+          className="select-none px-2 text-[color:var(--color-text-muted)]"
+          title="長押しで並び替え"
         >
           ⠿
         </span>
