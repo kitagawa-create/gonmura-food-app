@@ -3,6 +3,27 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* === 家系ラーメンテーマ (Window A 提供 / 共通仕様) ===
+     ライトベース + 醤油・チャーシュー・ネギの差し色。店内タブレット前提。
+     ダークモードは持たない (prefers-color-scheme は無視)。 */
+  --color-bg-base: #faf6ed;       /* ページ背景: 生成り (ラーメンスープの泡) */
+  --color-bg-card: #ffffff;       /* カード/モーダル背景: 純白 */
+  --color-bg-elevated: #2e1a0f;   /* ヘッダー/サイドバー: 濃醤油 (白文字想定) */
+  --color-bg-subtle: #f3ece0;     /* 控えめな区画背景 (タブ非選択など) */
+
+  --color-text-primary: #2e1a0f;  /* 本文: 濃醤油色 */
+  --color-text-muted: #6b5648;    /* 補助文: 温かみのあるグレー */
+  --color-text-on-dark: #faf6ed;  /* elevated 上の文字 */
+
+  --color-accent-soy: #5a3a28;    /* 醤油: メインアクション */
+  --color-accent-char: #c8633a;   /* チャーシュー焼き目: CTA・強調 */
+  --color-accent-char-hover: #b15630;
+  --color-accent-negi: #7b9d3a;   /* ネギ緑: 成功・在庫あり */
+  --color-accent-warn: #c8311e;   /* 唐辛子赤: 警告・売切れ */
+
+  --color-border: #e5dace;        /* 境界線: 温かみのあるクリーム */
+  --color-border-strong: #c9b8a3; /* 強い境界線 */
 }
 
 @theme inline {
@@ -10,6 +31,23 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* 家系ラーメンテーマを Tailwind から bg-bg-base / text-text-primary 等で
+     使えるよう alias 定義。直接 var() 参照も推奨 (THEME.md 参照)。 */
+  --color-bg-base: var(--color-bg-base);
+  --color-bg-card: var(--color-bg-card);
+  --color-bg-elevated: var(--color-bg-elevated);
+  --color-bg-subtle: var(--color-bg-subtle);
+  --color-text-primary: var(--color-text-primary);
+  --color-text-muted: var(--color-text-muted);
+  --color-text-on-dark: var(--color-text-on-dark);
+  --color-accent-soy: var(--color-accent-soy);
+  --color-accent-char: var(--color-accent-char);
+  --color-accent-char-hover: var(--color-accent-char-hover);
+  --color-accent-negi: var(--color-accent-negi);
+  --color-accent-warn: var(--color-accent-warn);
+  --color-border: var(--color-border);
+  --color-border-strong: var(--color-border-strong);
 }
 
 @media (prefers-color-scheme: dark) {

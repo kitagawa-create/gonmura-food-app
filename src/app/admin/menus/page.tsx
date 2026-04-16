@@ -21,6 +21,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import type { Category, Menu } from "@/types";
 import { useAdminRole } from "@/components/admin/AdminContext";
+import { useToast } from "@/components/ui/Snackbar";
 
 type MenuFormData = {
   name: string;
@@ -29,6 +30,7 @@ type MenuFormData = {
   imageUrl: string;
   categoryIds: string[];
   isAvailable: boolean;
+  isSoldOut: boolean;
 };
 
 const EMPTY_FORM: MenuFormData = {
@@ -38,10 +40,12 @@ const EMPTY_FORM: MenuFormData = {
   imageUrl: "",
   categoryIds: [],
   isAvailable: true,
+  isSoldOut: false,
 };
 
 export default function AdminMenusPage() {
   const role = useAdminRole();
+  const { show: toast } = useToast();
   const [menus, setMenus] = useState<Menu[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -169,6 +173,7 @@ export default function AdminMenusPage() {
           ...saveData,
           updatedAt: serverTimestamp(),
         });
+        toast("メニューを更新しました");
       } else {
         // 新規: 末尾になるように既存最大 + 1
         const maxOrder = menus.reduce(
@@ -181,22 +186,53 @@ export default function AdminMenusPage() {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
+        toast("メニューを追加しました");
       }
       setShowForm(false);
       setEditing(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "保存に失敗しました。");
+      toast("保存に失敗しました");
     }
   }
 
   async function handleToggleAvailable(menu: Menu) {
+    const next = !menu.isAvailable;
+    setMenus((prev) =>
+      prev.map((x) => (x.id === menu.id ? { ...x, isAvailable: next } : x))
+    );
     try {
       await updateDoc(doc(db, "menus", menu.id), {
-        isAvailable: !menu.isAvailable,
+        isAvailable: next,
         updatedAt: serverTimestamp(),
       });
+      toast("公開状態を更新しました");
     } catch (e) {
+      setMenus((prev) =>
+        prev.map((x) => (x.id === menu.id ? { ...x, isAvailable: !next } : x))
+      );
       setError(e instanceof Error ? e.message : "更新に失敗しました。");
+      toast("更新に失敗しました");
+    }
+  }
+
+  async function handleToggleSoldOut(menu: Menu) {
+    const next = !(menu.isSoldOut ?? false);
+    setMenus((prev) =>
+      prev.map((x) => (x.id === menu.id ? { ...x, isSoldOut: next } : x))
+    );
+    try {
+      await updateDoc(doc(db, "menus", menu.id), {
+        isSoldOut: next,
+        updatedAt: serverTimestamp(),
+      });
+      toast(next ? "売り切れに設定しました" : "売り切れを解除しました");
+    } catch (e) {
+      setMenus((prev) =>
+        prev.map((x) => (x.id === menu.id ? { ...x, isSoldOut: !next } : x))
+      );
+      setError(e instanceof Error ? e.message : "更新に失敗しました。");
+      toast("更新に失敗しました");
     }
   }
 
@@ -250,74 +286,78 @@ export default function AdminMenusPage() {
     try {
       await deleteDoc(doc(db, "menus", deleteTarget.id));
       setDeleteTarget(null);
+      toast("メニューを削除しました");
     } catch (e) {
       setError(e instanceof Error ? e.message : "削除に失敗しました。");
+      toast("削除に失敗しました");
     } finally {
       setDeleting(false);
     }
-  }, [deleteTarget]);
+  }, [deleteTarget, toast]);
 
   return (
     <div className="w-full">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">メニュー管理</h1>
-        {role === "owner" && (
-          <button
-            onClick={() => {
-              setEditing(null);
-              setShowForm(true);
-            }}
-            className="rounded-xl bg-orange-500 px-4 py-2 text-sm text-white font-bold hover:bg-orange-600 transition-colors"
-          >
-            新規追加
-          </button>
+      <div className="sticky top-0 z-20 -mx-3 md:-mx-6 -mt-3 md:-mt-6 px-3 md:px-6 pt-3 md:pt-6 pb-2 mb-4 bg-[color:var(--color-bg-base)] border-b border-[color:var(--color-border)]">
+        <div className="mb-3 flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-[color:var(--color-text-primary)]">メニュー管理</h1>
+          {role === "owner" && (
+            <button
+              onClick={() => {
+                setEditing(null);
+                setShowForm(true);
+              }}
+              className="rounded-xl bg-[color:var(--color-accent-char)] px-4 py-2 text-sm text-white font-bold hover:bg-[color:var(--color-accent-char-hover)] transition-colors"
+            >
+              新規追加
+            </button>
+          )}
+        </div>
+
+        {/* カテゴリタブ */}
+        {!loading && categories.length > 0 && (
+          <div className="flex gap-1 overflow-x-auto no-scrollbar">
+            <button
+              onClick={() => setActiveTab("all")}
+              className={`shrink-0 border-b-2 px-4 py-2 text-sm transition-colors ${
+                activeTab === "all"
+                  ? "border-[color:var(--color-accent-char)] font-semibold text-[color:var(--color-accent-char)]"
+                  : "border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-primary)]"
+              }`}
+            >
+              すべて
+              <span className="ml-1 text-xs">({menus.length})</span>
+            </button>
+            {categories.map((cat) => {
+              const count = menus.filter((m) => m.categoryIds.includes(cat.id)).length;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setActiveTab(cat.id)}
+                  className={`shrink-0 border-b-2 px-4 py-2 text-sm transition-colors ${
+                    activeTab === cat.id
+                      ? "border-[color:var(--color-accent-char)] font-semibold text-[color:var(--color-accent-char)]"
+                      : "border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-primary)]"
+                  }`}
+                >
+                  {cat.name}
+                  <span className="ml-1 text-xs">({count})</span>
+                </button>
+              );
+            })}
+          </div>
         )}
       </div>
 
       {error && (
-        <p className="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-sm text-red-400">
+        <p className="mb-4 rounded-lg bg-[color:var(--color-accent-warn)]/10 border border-[color:var(--color-accent-warn)]/30 p-3 text-sm text-[color:var(--color-accent-warn)]">
           {error}
         </p>
-      )}
-
-      {/* カテゴリタブ */}
-      {!loading && categories.length > 0 && (
-        <div className="mb-4 flex gap-1 overflow-x-auto no-scrollbar border-b border-neutral-800">
-          <button
-            onClick={() => setActiveTab("all")}
-            className={`shrink-0 border-b-2 px-4 py-2 text-sm transition-colors ${
-              activeTab === "all"
-                ? "border-orange-400 font-semibold text-orange-400"
-                : "border-transparent text-neutral-500 hover:text-neutral-300"
-            }`}
-          >
-            すべて
-            <span className="ml-1 text-xs">({menus.length})</span>
-          </button>
-          {categories.map((cat) => {
-            const count = menus.filter((m) => m.categoryIds.includes(cat.id)).length;
-            return (
-              <button
-                key={cat.id}
-                onClick={() => setActiveTab(cat.id)}
-                className={`shrink-0 border-b-2 px-4 py-2 text-sm transition-colors ${
-                  activeTab === cat.id
-                    ? "border-orange-400 font-semibold text-orange-400"
-                    : "border-transparent text-neutral-500 hover:text-neutral-300"
-                }`}
-              >
-                {cat.name}
-                <span className="ml-1 text-xs">({count})</span>
-              </button>
-            );
-          })}
-        </div>
       )}
 
       {loading || !orderedLoaded ? (
         <PageLoader />
       ) : menus.length === 0 ? (
-        <p className="text-sm text-neutral-500">メニューがまだありません。</p>
+        <p className="text-sm text-[color:var(--color-text-muted)]">メニューがまだありません。</p>
       ) : (
         <div className="space-y-6">
           {(activeTab === "all"
@@ -338,11 +378,11 @@ export default function AdminMenusPage() {
           ).map(({ category, items }) => (
             <section key={category?.id ?? "__uncategorized__"}>
               {activeTab === "all" && (
-                <div className="mb-2 flex items-baseline gap-2 border-b border-neutral-800 pb-1">
-                  <h2 className="text-lg font-bold text-white">
+                <div className="mb-2 flex items-baseline gap-2 border-b border-[color:var(--color-border)] pb-1">
+                  <h2 className="text-lg font-bold text-[color:var(--color-text-primary)]">
                     {category?.name ?? "未分類"}
                   </h2>
-                  <span className="text-xs text-neutral-500">
+                  <span className="text-xs text-[color:var(--color-text-muted)]">
                     {items.length}件
                   </span>
                 </div>
@@ -350,7 +390,6 @@ export default function AdminMenusPage() {
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 {items.map((m) => {
                   const isDragging = draggingMenuId === m.id;
-                  const isDragOver = dragOverMenuId === m.id && draggingMenuId !== m.id;
                   return (
                     <div
                       key={m.id}
@@ -369,16 +408,20 @@ export default function AdminMenusPage() {
                         setDraggingMenuId(null);
                         setDragOverMenuId(null);
                       }}
-                      className={`rounded-xl border bg-neutral-900 p-4 transition-all ${
-                        m.isAvailable ? "" : "bg-neutral-800/50 opacity-60"
-                      } ${isDragging ? "opacity-40" : ""} ${
-                        isDragOver ? "border-orange-500 ring-2 ring-orange-500/30" : "border-neutral-800"
-                      }`}
+                      className={`relative rounded-xl border bg-[color:var(--color-bg-card)] p-4 shadow-sm ${
+                        m.isAvailable ? "" : "bg-[color:var(--color-bg-subtle)] opacity-60"
+                      } ${
+                        m.isSoldOut
+                          ? "border-[color:var(--color-accent-warn)]"
+                          : "border-[color:var(--color-border)]"
+                      } ${isDragging ? "opacity-40" : ""}`}
                     >
-                      <div className="flex gap-3">
-                        <span className="cursor-grab select-none self-start pt-1 text-neutral-500 active:cursor-grabbing" title="ドラッグで並び替え">
-                          ⠿
+                      {m.isSoldOut && (
+                        <span className="absolute right-2 top-2 rounded-full bg-[color:var(--color-accent-warn)] px-2 py-0.5 text-[10px] font-bold text-white">
+                          売り切れ中
                         </span>
+                      )}
+                      <div className="flex gap-3">
                         {m.imageUrl && (
                           <FadeImage
                             src={m.imageUrl}
@@ -387,15 +430,15 @@ export default function AdminMenusPage() {
                           />
                         )}
                         <div className="min-w-0 flex-1">
-                          <h3 className="truncate font-semibold text-white">{m.name}</h3>
-                          <p className="text-sm text-orange-400">¥{m.price}</p>
-                          <p className="mt-1 text-xs text-neutral-500">
+                          <h3 className="truncate font-semibold text-[color:var(--color-text-primary)]">{m.name}</h3>
+                          <p className="text-sm text-[color:var(--color-accent-char)]">¥{m.price}</p>
+                          <p className="mt-1 text-xs text-[color:var(--color-text-muted)]">
                             {m.categoryIds
                               .map((id) => categoryMap.get(id)?.name ?? "(不明)")
                               .join(", ") || "(カテゴリ未設定)"}
                           </p>
                           {m.description && (
-                            <p className="mt-1 line-clamp-2 text-xs text-neutral-500">
+                            <p className="mt-1 line-clamp-2 text-xs text-[color:var(--color-text-muted)]">
                               {m.description}
                             </p>
                           )}
@@ -408,21 +451,33 @@ export default function AdminMenusPage() {
                               setEditing(m);
                               setShowForm(true);
                             }}
-                            className="rounded-lg border border-neutral-700 px-3 py-1 text-xs text-neutral-400 hover:bg-neutral-800 transition-colors"
+                            className="rounded-lg border border-[color:var(--color-border)] px-3 py-1 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
                           >
                             編集
                           </button>
                         )}
                         <button
                           onClick={() => handleToggleAvailable(m)}
-                          className="rounded-lg border border-neutral-700 px-3 py-1 text-xs text-neutral-400 hover:bg-neutral-800 transition-colors"
+                          className="rounded-lg border border-[color:var(--color-border)] px-3 py-1 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
                         >
                           {m.isAvailable ? "非公開にする" : "公開する"}
+                        </button>
+                        {/* 売り切れトグル: 非公開とは独立。warn 色で別系統と分かるように */}
+                        <button
+                          onClick={() => handleToggleSoldOut(m)}
+                          aria-pressed={!!m.isSoldOut}
+                          className={`rounded-lg border px-3 py-1 text-xs transition-colors ${
+                            m.isSoldOut
+                              ? "border-[color:var(--color-accent-warn)] bg-[color:var(--color-accent-warn)] text-white hover:opacity-90"
+                              : "border-[color:var(--color-accent-warn)]/40 text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10"
+                          }`}
+                        >
+                          {m.isSoldOut ? "売り切れ解除" : "売り切れにする"}
                         </button>
                         {role === "owner" && !orderedMenuIds.has(m.id) && (
                           <button
                             onClick={() => setDeleteTarget(m)}
-                            className="rounded-lg bg-red-600 px-3 py-1 text-xs text-white hover:bg-red-700 transition-colors"
+                            className="rounded-lg bg-[color:var(--color-accent-warn)] px-3 py-1 text-xs text-white hover:opacity-90 transition-colors"
                           >
                             削除
                           </button>
@@ -483,6 +538,7 @@ function MenuFormModal({
           imageUrl: menu.imageUrl,
           categoryIds: menu.categoryIds,
           isAvailable: menu.isAvailable,
+          isSoldOut: menu.isSoldOut ?? false,
         }
       : EMPTY_FORM
   );
@@ -515,20 +571,44 @@ function MenuFormModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <form
         onSubmit={handleSubmit}
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-neutral-900 border border-neutral-800 p-6"
+        className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] shadow-xl"
       >
-        <h2 className="mb-4 text-lg font-bold text-white">
-          {menu ? "メニュー編集" : "メニュー追加"}
-        </h2>
+        {/* ヘッダー: タイトル左 + 閉じる・保存を右上 */}
+        <div className="flex items-center justify-between gap-3 border-b border-[color:var(--color-border)] px-6 py-4">
+          <h2 className="text-lg font-bold text-[color:var(--color-text-primary)]">
+            {menu ? "メニュー編集" : "メニュー追加"}
+          </h2>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="閉じる"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-xl bg-[color:var(--color-accent-char)] px-4 py-2 text-sm text-white font-bold hover:bg-[color:var(--color-accent-char-hover)] transition-colors disabled:opacity-50"
+            >
+              {saving ? "保存中..." : "保存"}
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-y-auto px-6 py-4">
 
         <div className="space-y-3">
           <Field label="名前">
             <input
               required
-              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
@@ -536,19 +616,19 @@ function MenuFormModal({
           <Field label="説明">
             <textarea
               rows={3}
-              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
               value={form.description}
               onChange={(e) =>
                 setForm({ ...form, description: e.target.value })
               }
             />
           </Field>
-          <Field label="価格（税込・円）">
+          <Field label="価格(税込・円)">
             <input
               type="number"
               min={0}
               step={1}
-              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
               value={form.price}
               onChange={(e) =>
                 setForm({ ...form, price: Math.trunc(Number(e.target.value)) || 0 })
@@ -567,13 +647,13 @@ function MenuFormModal({
               type="file"
               accept="image/*"
               onChange={handleFileChange}
-              className="w-full text-sm text-gray-600 file:mr-3 file:rounded file:border-0 file:bg-gray-100 file:px-3 file:py-2 file:text-sm file:font-medium hover:file:bg-gray-200"
+              className="w-full text-sm text-[color:var(--color-text-muted)] file:mr-3 file:rounded file:border-0 file:bg-[color:var(--color-bg-subtle)] file:px-3 file:py-2 file:text-sm file:font-medium file:text-[color:var(--color-text-primary)] hover:file:bg-[color:var(--color-border)]"
             />
           </Field>
-          <Field label="カテゴリ（複数選択可）">
+          <Field label="カテゴリ(複数選択可)">
             <div className="flex flex-wrap gap-2">
               {categories.length === 0 ? (
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-[color:var(--color-text-muted)]">
                   カテゴリがまだありません。
                 </p>
               ) : (
@@ -584,8 +664,8 @@ function MenuFormModal({
                       key={c.id}
                       className={`cursor-pointer rounded-lg border px-3 py-1 text-xs ${
                         checked
-                          ? "border-orange-500 bg-orange-500 text-white"
-                          : "border-neutral-700 text-neutral-400"
+                          ? "border-[color:var(--color-accent-char)] bg-[color:var(--color-accent-char)] text-white"
+                          : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)]"
                       }`}
                     >
                       <input
@@ -601,7 +681,7 @@ function MenuFormModal({
               )}
             </div>
           </Field>
-          <label className="flex items-center gap-2 text-sm text-neutral-300">
+          <label className="flex items-center gap-2 text-sm text-[color:var(--color-text-primary)]">
             <input
               type="checkbox"
               checked={form.isAvailable}
@@ -611,23 +691,18 @@ function MenuFormModal({
             />
             公開する
           </label>
+          <label className="flex items-center gap-2 text-sm text-[color:var(--color-accent-warn)]">
+            <input
+              type="checkbox"
+              checked={form.isSoldOut}
+              onChange={(e) =>
+                setForm({ ...form, isSoldOut: e.target.checked })
+              }
+            />
+            売り切れ中
+          </label>
         </div>
 
-        <div className="mt-6 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-neutral-700 px-4 py-2 text-sm text-neutral-400 hover:bg-neutral-800 transition-colors"
-          >
-            キャンセル
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded-xl bg-orange-500 px-4 py-2 text-sm text-white font-bold hover:bg-orange-600 transition-colors disabled:opacity-50"
-          >
-            {saving ? "保存中..." : "保存"}
-          </button>
         </div>
       </form>
     </div>
@@ -643,7 +718,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="mb-1 block text-xs text-neutral-400">{label}</label>
+      <label className="mb-1 block text-xs text-[color:var(--color-text-muted)]">{label}</label>
       {children}
     </div>
   );

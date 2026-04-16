@@ -6,12 +6,13 @@ import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
 import type { Order } from "@/types";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
+import { BackButton } from "@/components/ui/BackButton";
 import Link from "next/link";
 
 const statusLabels: Record<string, { label: string; color: string }> = {
-  pending: { label: "受付中", color: "bg-yellow-500/20 text-yellow-400" },
-  preparing: { label: "調理中", color: "bg-blue-500/20 text-blue-400" },
-  completed: { label: "完成", color: "bg-green-500/20 text-green-400" },
+  pending: { label: "受付中", color: "var(--color-accent-warn)" },
+  preparing: { label: "調理中", color: "var(--color-accent-soy)" },
+  completed: { label: "完成", color: "var(--color-accent-negi)" },
 };
 
 export default function OrderHistoryPage() {
@@ -40,9 +41,16 @@ export default function OrderHistoryPage() {
 
   if (!tableNumber) {
     return (
-      <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center px-4">
-        <p className="text-neutral-500 text-lg mb-4">テーブル番号が設定されていません</p>
-        <Link href="/menu" className="text-orange-400 font-medium hover:underline">メニューに戻る</Link>
+      <div className="min-h-screen bg-[color:var(--color-bg-base)] flex flex-col items-center justify-center px-4">
+        <p className="text-[color:var(--color-text-muted)] text-lg mb-4">
+          テーブル番号が設定されていません
+        </p>
+        <Link
+          href="/menu"
+          className="text-[color:var(--color-accent-char)] font-medium hover:underline"
+        >
+          メニューに戻る
+        </Link>
       </div>
     );
   }
@@ -52,46 +60,59 @@ export default function OrderHistoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 pb-8">
-      <header className="sticky top-0 z-10 bg-neutral-900 border-b border-neutral-800">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center">
-          <Link href="/menu" className="text-neutral-400 mr-4">&larr;</Link>
-          <h1 className="text-lg font-bold text-white">注文履歴</h1>
+    <div className="min-h-screen bg-[color:var(--color-bg-base)] pb-8">
+      <header className="sticky top-0 z-10 bg-[color:var(--color-bg-card)] border-b border-[color:var(--color-border)]">
+        <div className="max-w-5xl mx-auto px-3 sm:px-6 lg:px-8 py-2 flex items-center gap-2">
+          <BackButton href="/menu" label="メニューに戻る" />
+          <h1 className="text-lg font-bold text-[color:var(--color-text-primary)]">注文履歴</h1>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         {orders.length === 0 ? (
-          <p className="text-neutral-500 text-center py-12">まだ注文がありません</p>
+          <p className="text-[color:var(--color-text-muted)] text-center py-12">
+            まだ注文がありません
+          </p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {orders.map((order) => {
-              const status = statusLabels[order.status] ?? { label: order.status, color: "bg-neutral-800 text-neutral-400" };
-              const total = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+              const status = statusLabels[order.status] ?? {
+                label: order.status,
+                color: "var(--color-text-primary)",
+              };
+              const total = order.items.reduce(
+                (sum, item) => sum + item.price * item.quantity,
+                0
+              );
               const time = order.createdAt?.toDate?.();
 
               return (
                 <Link
                   key={order.id}
                   href={`/order/${order.id}?from=history`}
-                  className="block bg-neutral-900 rounded-xl border border-neutral-800 p-4 hover:border-neutral-600 transition-colors"
+                  className="block bg-[color:var(--color-bg-card)] rounded-xl border border-[color:var(--color-border)] p-4 hover:border-[color:var(--color-accent-soy)] transition-colors"
                 >
                   <div className="flex justify-between items-start mb-3">
                     <div>
-                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${status.color}`}>
+                      <span
+                        className="inline-block px-3 py-1 rounded-full text-xs font-bold border"
+                        style={{ borderColor: status.color, color: status.color }}
+                      >
                         {status.label}
                       </span>
-                      <p className="text-xs text-neutral-600 mt-1">
+                      <p className="text-xs text-[color:var(--color-text-muted)] mt-1">
                         {time ? time.toLocaleString("ja-JP") : ""}
                       </p>
                     </div>
-                    <span className="font-bold text-orange-400">
+                    <span className="font-bold text-[color:var(--color-accent-char)]">
                       {total.toLocaleString()}円
                     </span>
                   </div>
-                  <ul className="text-sm text-neutral-400 space-y-0.5">
+                  <ul className="text-sm text-[color:var(--color-text-muted)] space-y-0.5">
                     {order.items.map((item, i) => (
-                      <li key={i}>{item.name} x {item.quantity}</li>
+                      <li key={i}>
+                        {item.name} x {item.quantity}
+                      </li>
                     ))}
                   </ul>
                 </Link>

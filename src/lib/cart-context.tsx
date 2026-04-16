@@ -3,6 +3,8 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
 import type { CartItem } from "@/types";
 
+// 注意: Window C の /admin/tables、CLAUDE.md 既存規約と揃えて "gonmura-table" を共有。
+// 共通仕様で "gonmura-table-number" と書かれていたが、実態の既存キーに合わせる。
 const TABLE_KEY = "gonmura-table";
 
 function cartKey(table: number | null): string {
@@ -33,13 +35,34 @@ function loadFromStorage<T>(key: string, fallback: T): T {
   }
 }
 
+// admin/tables 側が String(n) で保存するケースもあるため、JSON 失敗時は数値として再解釈
+function loadTableNumber(): number | null {
+  if (typeof window === "undefined") return null;
+  const raw = (() => {
+    try {
+      return localStorage.getItem(TABLE_KEY);
+    } catch {
+      return null;
+    }
+  })();
+  if (raw === null || raw === "" || raw === "null") return null;
+  // JSON 経由 (cart-context 旧書き込み)
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === "number" && Number.isFinite(parsed)) return parsed;
+    if (parsed === null) return null;
+  } catch {
+    // JSON でない: admin/tables の生 String(n) 書き込み形式
+  }
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
+}
+
 export function CartProvider({ children }: { children: React.ReactNode }) {
   // 初回レンダリング時に localStorage から同期的に復元 (SSRでは fallback を返す)
-  const [tableNumber, setTableNumberState] = useState<number | null>(() =>
-    loadFromStorage<number | null>(TABLE_KEY, null)
-  );
+  const [tableNumber, setTableNumberState] = useState<number | null>(() => loadTableNumber());
   const [items, setItems] = useState<CartItem[]>(() => {
-    const t = loadFromStorage<number | null>(TABLE_KEY, null);
+    const t = loadTableNumber();
     return loadFromStorage<CartItem[]>(cartKey(t), []);
   });
   const currentTableRef = useRef<number | null>(tableNumber);

@@ -84,12 +84,12 @@ function DonutChart({ percent }: { percent: number }) {
   return (
     <svg width="140" height="140" viewBox="0 0 140 140">
       <g transform="rotate(-90 70 70)">
-        <circle cx="70" cy="70" r={radius} stroke="#262626" strokeWidth="14" fill="none" />
+        <circle cx="70" cy="70" r={radius} stroke="#e5dace" strokeWidth="14" fill="none" />
         <circle
           cx="70"
           cy="70"
           r={radius}
-          stroke={achieved ? "#22c55e" : "#fb923c"}
+          stroke={achieved ? "#7b9d3a" : "#c8633a"}
           strokeWidth="14"
           fill="none"
           strokeDasharray={`${dash} ${circumference}`}
@@ -102,7 +102,7 @@ function DonutChart({ percent }: { percent: number }) {
         y="70"
         textAnchor="middle"
         dominantBaseline="central"
-        fill="#fff"
+        fill="#2e1a0f"
         fontSize="22"
         fontWeight="700"
       >
@@ -261,22 +261,22 @@ export default function AdminRegisterPage() {
   return (
     <div className="w-full">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold text-white">レジ</h1>
+        <h1 className="text-2xl font-bold text-[color:var(--color-text-primary)]">レジ</h1>
         {tab === "paid" && (
           <input
             type="date"
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
-            className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+            className="bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
           />
         )}
       </div>
 
       {/* 本日の売上カード */}
-      <div className="mb-5 rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+      <div className="mb-5 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-4 shadow-sm">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-neutral-300">本日の売上</h2>
-          <span className="text-xs text-neutral-500">
+          <h2 className="text-sm font-semibold text-[color:var(--color-text-primary)]">本日の売上</h2>
+          <span className="text-xs text-[color:var(--color-text-muted)]">
             {todayPaidOrders.length}件 精算済み
           </span>
         </div>
@@ -284,21 +284,21 @@ export default function AdminRegisterPage() {
           <DonutChart percent={achievementPercent} />
           <div className="flex-1 space-y-2">
             <div>
-              <p className="text-xs text-neutral-500">売上</p>
-              <p className="text-2xl font-bold text-orange-400">
+              <p className="text-xs text-[color:var(--color-text-muted)]">売上</p>
+              <p className="text-2xl font-bold text-[color:var(--color-accent-char)]">
                 ¥{todaySales.toLocaleString()}
               </p>
             </div>
             <div>
               <div className="flex items-baseline justify-between">
-                <p className="text-xs text-neutral-500">目標</p>
+                <p className="text-xs text-[color:var(--color-text-muted)]">目標</p>
                 {!editingGoal && (
                   <button
                     onClick={() => {
                       setGoalInput(String(goal));
                       setEditingGoal(true);
                     }}
-                    className="text-xs text-neutral-400 hover:text-orange-400 underline"
+                    className="text-xs text-[color:var(--color-text-muted)] hover:text-[color:var(--color-accent-char)] underline"
                   >
                     変更
                   </button>
@@ -310,30 +310,30 @@ export default function AdminRegisterPage() {
                     type="number"
                     value={goalInput}
                     onChange={(e) => setGoalInput(e.target.value)}
-                    className="w-28 bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-28 bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded px-2 py-1 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
                     min={1}
                     autoFocus
                   />
                   <button
                     onClick={saveGoal}
-                    className="text-xs bg-orange-500 hover:bg-orange-600 text-white px-2 py-1 rounded"
+                    className="text-xs bg-[color:var(--color-accent-char)] hover:bg-[color:var(--color-accent-char-hover)] text-white px-2 py-1 rounded"
                   >
                     保存
                   </button>
                   <button
                     onClick={() => setEditingGoal(false)}
-                    className="text-xs text-neutral-400 hover:text-white"
+                    className="text-xs text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-primary)]"
                   >
                     キャンセル
                   </button>
                 </div>
               ) : (
-                <p className="text-lg font-semibold text-white">
+                <p className="text-lg font-semibold text-[color:var(--color-text-primary)]">
                   ¥{goal.toLocaleString()}
                 </p>
               )}
             </div>
-            <p className="text-xs text-neutral-500">
+            <p className="text-xs text-[color:var(--color-text-muted)]">
               {achievementPercent >= 100
                 ? "🎉 目標達成！"
                 : `あと ¥${remaining.toLocaleString()}`}
@@ -343,16 +343,16 @@ export default function AdminRegisterPage() {
       </div>
 
       {error && (
-        <p className="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-sm text-red-400">{error}</p>
+        <p className="mb-4 rounded-lg bg-[color:var(--color-accent-warn)]/10 border border-[color:var(--color-accent-warn)]/30 p-3 text-sm text-[color:var(--color-accent-warn)]">{error}</p>
       )}
 
-      <div className="mb-4 flex gap-1 border-b border-neutral-800">
+      <div className="mb-4 flex gap-1 border-b border-[color:var(--color-border)]">
         <button
           onClick={() => setTab("unpaid")}
           className={`border-b-2 px-4 py-2 text-sm ${
             tab === "unpaid"
-              ? "border-orange-400 font-semibold text-orange-400"
-              : "border-transparent text-neutral-500"
+              ? "border-[color:var(--color-accent-char)] font-semibold text-[color:var(--color-accent-char)]"
+              : "border-transparent text-[color:var(--color-text-muted)]"
           }`}
         >
           未精算
@@ -362,8 +362,8 @@ export default function AdminRegisterPage() {
           onClick={() => setTab("paid")}
           className={`border-b-2 px-4 py-2 text-sm ${
             tab === "paid"
-              ? "border-orange-400 font-semibold text-orange-400"
-              : "border-transparent text-neutral-500"
+              ? "border-[color:var(--color-accent-char)] font-semibold text-[color:var(--color-accent-char)]"
+              : "border-transparent text-[color:var(--color-text-muted)]"
           }`}
         >
           精算済み
@@ -372,7 +372,7 @@ export default function AdminRegisterPage() {
       </div>
 
       {currentTables.length === 0 ? (
-        <p className="text-sm text-neutral-500 text-center py-12">
+        <p className="text-sm text-[color:var(--color-text-muted)] text-center py-12">
           {tab === "unpaid" ? "未精算のテーブルはありません。" : "精算済みの注文はありません。"}
         </p>
       ) : (
@@ -386,29 +386,31 @@ export default function AdminRegisterPage() {
               <div
                 key={table.tableNumber}
                 className={`rounded-xl border p-4 ${
-                  tab === "paid" ? "border-neutral-800 bg-neutral-800/50" : "border-neutral-800 bg-neutral-900"
+                  tab === "paid"
+                    ? "border-[color:var(--color-border)] bg-[color:var(--color-bg-subtle)]"
+                    : "border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] shadow-sm"
                 }`}
               >
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <h2 className="text-lg font-bold text-white">テーブル {table.tableNumber}</h2>
-                    <p className="text-xs text-neutral-500">{table.orders.length}件の注文</p>
+                    <h2 className="text-lg font-bold text-[color:var(--color-text-primary)]">テーブル {table.tableNumber}</h2>
+                    <p className="text-xs text-[color:var(--color-text-muted)]">{table.orders.length}件の注文</p>
                   </div>
-                  <p className="text-xl font-bold text-orange-400">¥{table.totalAmount.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-[color:var(--color-accent-char)]">¥{table.totalAmount.toLocaleString()}</p>
                 </div>
 
-                <ul className="mb-3 space-y-1 text-sm border-t border-neutral-800 pt-3">
+                <ul className="mb-3 space-y-1 text-sm border-t border-[color:var(--color-border)] pt-3">
                   {allItems.map((item, i) => (
                     <li key={i} className="flex justify-between">
-                      <span className="text-neutral-300">{item.name} x {item.quantity}</span>
-                      <span className="text-neutral-400">
+                      <span className="text-[color:var(--color-text-primary)]">{item.name} x {item.quantity}</span>
+                      <span className="text-[color:var(--color-text-muted)]">
                         ¥{(item.price * item.quantity).toLocaleString()}
                       </span>
                     </li>
                   ))}
                 </ul>
 
-                <div className="text-xs text-neutral-500 mb-3 border-t border-neutral-800 pt-2 space-y-1">
+                <div className="text-xs text-[color:var(--color-text-muted)] mb-3 border-t border-[color:var(--color-border)] pt-2 space-y-1">
                   <div className="flex justify-between">
                     <span>小計</span>
                     <span>¥{subtotal.toLocaleString()}</span>
@@ -423,14 +425,14 @@ export default function AdminRegisterPage() {
                   <button
                     onClick={() => setPayTarget(table)}
                     disabled={processing !== null}
-                    className="w-full rounded-xl bg-green-600 px-4 py-2.5 text-sm text-white font-bold hover:bg-green-700 disabled:opacity-50 transition-colors"
+                    className="w-full rounded-xl bg-[color:var(--color-accent-negi)] px-4 py-2.5 text-sm text-white font-bold hover:opacity-90 disabled:opacity-50 transition-colors"
                   >
                     {processing === table.tableNumber ? "処理中..." : "精算完了"}
                   </button>
                 )}
 
                 {tab === "paid" && (
-                  <p className="text-center text-xs text-green-400 font-medium">精算済み</p>
+                  <p className="text-center text-xs text-[color:var(--color-accent-negi)] font-medium">精算済み</p>
                 )}
               </div>
             );

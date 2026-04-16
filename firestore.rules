@@ -13,6 +13,11 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
+    function validTableNumber(n) {
+      return (n is int && n >= 1 && n <= 30)
+          || (n is string && n.matches('^([1-9]|[12][0-9]|30)$'));
+    }
+
     match /categories/{categoryId} {
       allow read: if true;
       allow write: if isOwner();
@@ -24,11 +29,12 @@ service cloud.firestore {
       allow update: if isOwner()
         || (isStaff()
             && request.resource.data.diff(resource.data).affectedKeys()
-                .hasOnly(["isAvailable", "updatedAt"]));
+                .hasOnly(["isAvailable", "isSoldOut", "updatedAt"]));
     }
 
     match /orders/{orderId} {
-      allow create: if true;
+      allow create: if request.resource.data.keys().hasAll(['tableNumber'])
+                    && validTableNumber(request.resource.data.tableNumber);
       allow read: if true;
       allow update: if isStaff();
       allow delete: if isStaff();

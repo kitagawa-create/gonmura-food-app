@@ -106,6 +106,22 @@ paid への変更は管理者のみ（Security Rules）
 - `firebase deploy --only firestore:indexes` — 複合インデックスデプロイ
 - `firebase deploy --only storage` — Storage Rulesデプロイ
 
+## 命名規則
+
+| 対象 | ルール | 例 |
+|---|---|---|
+| コンポーネントファイル | PascalCase `.tsx` | `FadeImage.tsx`, `AdminAuthGuard.tsx`, `ConfirmDialog.tsx` |
+| ユーティリティファイル | kebab-case `.ts`/`.tsx` | `admin-auth.ts`, `cart-context.tsx`, `analytics.ts` |
+| Reactコンポーネント | PascalCase function | `MenuPage`, `FadeImage`, `AdminSidebar` |
+| 関数（ユーティリティ） | camelCase | `loginWithEmail()`, `getAdminRole()`, `trackEvent()` |
+| カスタムHooks | camelCase `use`プレフィックス | `useCart()`, `useAdminRole()` |
+| 定数 | SCREAMING_SNAKE_CASE | `TABLE_KEY`, `COLUMNS` |
+| 型定義 | PascalCase 単数形 | `Category`, `Order`, `OrderItem`, `AdminRole` |
+| Props型 | PascalCase + `Props` | `FadeImageProps` |
+| Firestoreコレクション | lowercase複数形 | `orders`, `menus`, `categories`, `admins` |
+| Firestoreフィールド | camelCase | `tableNumber`, `isAvailable`, `categoryIds`, `createdAt` |
+| localStorageキー | kebab-case `gonmura-`プレフィックス | `gonmura-table`, `gonmura-cart-{N}` |
+
 ## 注意事項
 - .env.local は絶対にコミット・pushしないこと
 - Firebaseを使うページには必ず "use client" をつける

@@ -11,6 +11,7 @@ const NAV = [
   { href: "/admin/sales", label: "売上分析", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
   { href: "/admin/menus", label: "メニュー", icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" },
   { href: "/admin/categories", label: "カテゴリ", icon: "M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" },
+  { href: "/admin/tables", label: "テーブル設定", icon: "M4 7h16M4 12h16M4 17h7M7 4v3M12 4v3M17 4v3" },
 ];
 
 export function AdminSidebar() {
@@ -23,13 +24,13 @@ export function AdminSidebar() {
       : NAV;
 
   return (
-    <aside className="flex w-14 md:w-60 shrink-0 flex-col bg-neutral-950 border-r border-neutral-800">
+    <aside className="flex w-14 md:w-60 shrink-0 flex-col h-full overflow-y-auto bg-[color:var(--color-bg-elevated)] text-[color:var(--color-text-on-dark)] border-r border-[color:var(--color-border-strong)]/20">
       <div className="px-3 md:px-5 py-4 md:py-5 flex md:block items-center justify-center">
-        <div className="md:hidden w-8 h-8 rounded-lg bg-orange-500 flex items-center justify-center text-white font-bold text-sm">
+        <div className="md:hidden w-8 h-8 rounded-lg bg-[color:var(--color-accent-char)] flex items-center justify-center text-white font-bold text-sm">
           G
         </div>
-        <h1 className="hidden md:block text-lg font-bold text-white">Gonmura Food</h1>
-        <p className="hidden md:block text-xs text-neutral-500 mt-0.5">管理画面</p>
+        <h1 className="hidden md:block text-lg font-bold">Gonmura Food</h1>
+        <p className="hidden md:block text-xs text-[color:var(--color-text-on-dark)]/60 mt-0.5">管理画面</p>
       </div>
       <nav className="flex-1 px-2 md:px-3">
         <ul className="space-y-1">
@@ -42,8 +43,8 @@ export function AdminSidebar() {
                   title={item.label}
                   className={`flex items-center justify-center md:justify-start gap-3 rounded-lg px-2 md:px-3 py-2.5 text-sm transition-colors ${
                     active
-                      ? "bg-orange-500/10 text-orange-400"
-                      : "text-neutral-400 hover:bg-neutral-800 hover:text-white"
+                      ? "bg-[color:var(--color-accent-char)]/20 text-[color:var(--color-accent-char)]"
+                      : "text-[color:var(--color-text-on-dark)]/70 hover:bg-white/5 hover:text-[color:var(--color-text-on-dark)]"
                   }`}
                 >
                   <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -56,10 +57,10 @@ export function AdminSidebar() {
           })}
         </ul>
       </nav>
-      <div className="border-t border-neutral-800 p-2 md:p-3">
+      <div className="border-t border-[color:var(--color-text-on-dark)]/10 p-2 md:p-3">
         <button
           title="ログアウト"
-          className="w-full flex items-center justify-center md:justify-start gap-3 rounded-lg px-2 md:px-3 py-2.5 text-sm text-neutral-500 hover:bg-neutral-800 hover:text-white transition-colors"
+          className="w-full flex items-center justify-center md:justify-start gap-3 rounded-lg px-2 md:px-3 py-2.5 text-sm text-[color:var(--color-text-on-dark)]/70 hover:bg-white/5 hover:text-[color:var(--color-text-on-dark)] transition-colors"
           onClick={async () => {
             await logout();
             router.replace("/admin/login");

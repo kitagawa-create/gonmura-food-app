@@ -3,29 +3,36 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PageLoader } from "@/components/ui/PageLoader";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  onSnapshot,
+  orderBy,
+  query,
+  where,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Order } from "@/types";
+import type { Category, Menu, Order } from "@/types";
 import { useAdminRole } from "@/components/admin/AdminContext";
 
 type Period = "daily" | "weekly" | "monthly";
 type Analysis = "sales" | "menu" | "price";
 const MAX_MENU_SERIES = 5;
 const MENU_COLORS = [
-  "#f97316",
-  "#38bdf8",
-  "#a3e635",
-  "#f472b6",
-  "#fbbf24",
+  "#c8633a",
+  "#5a7a9e",
+  "#7b9d3a",
+  "#b86a8c",
+  "#d4a13a",
 ];
 const PRICE_COLORS = [
-  "#f97316",
-  "#38bdf8",
-  "#a3e635",
-  "#f472b6",
-  "#fbbf24",
-  "#c084fc",
-  "#ef4444",
+  "#c8633a",
+  "#5a7a9e",
+  "#7b9d3a",
+  "#b86a8c",
+  "#d4a13a",
+  "#8b6ba6",
+  "#c8311e",
 ];
 function formatDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -134,7 +141,7 @@ function LineChart({
             x2={W - padR}
             y1={padT + innerH * p}
             y2={padT + innerH * p}
-            stroke="#262626"
+            stroke="#e5dace"
             strokeDasharray="3 3"
           />
         ))}
@@ -157,7 +164,7 @@ function LineChart({
                   cy={y}
                   r={active ? 5 : hoverIdx === i ? 4 : 2.5}
                   fill={s.color}
-                  stroke={active ? "#fafafa" : undefined}
+                  stroke={active ? "#2e1a0f" : undefined}
                   strokeWidth={active ? 2 : 0}
                 />
               );
@@ -172,7 +179,7 @@ function LineChart({
             x2={xs(hoverIdx)}
             y1={padT}
             y2={padT + innerH}
-            stroke="#525252"
+            stroke="#c9b8a3"
             strokeWidth={1}
           />
         )}
@@ -186,7 +193,7 @@ function LineChart({
               y={height - 10}
               textAnchor="middle"
               fontSize={10}
-              fill="#737373"
+              fill="#6b5648"
             >
               {l}
             </text>
@@ -215,16 +222,16 @@ function LineChart({
       </svg>
 
       {hoverIdx !== null && (
-        <div className="pointer-events-none absolute top-2 right-2 rounded-lg border border-neutral-700 bg-neutral-900/95 px-3 py-2 text-xs shadow-lg">
-          <div className="text-neutral-400 mb-1">{labels[hoverIdx]}</div>
+        <div className="pointer-events-none absolute top-2 right-2 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)]/95 px-3 py-2 text-xs shadow-lg backdrop-blur-sm">
+          <div className="text-[color:var(--color-text-muted)] mb-1">{labels[hoverIdx]}</div>
           {series.map((s) => (
             <div key={s.name} className="flex items-center gap-2">
               <span
                 className="inline-block h-2 w-2 rounded-full"
                 style={{ backgroundColor: s.color }}
               />
-              <span className="text-neutral-300">{s.name}</span>
-              <span className="ml-auto tabular-nums font-medium text-white">
+              <span className="text-[color:var(--color-text-primary)]">{s.name}</span>
+              <span className="ml-auto tabular-nums font-medium text-[color:var(--color-text-primary)]">
                 {s.formatValue(s.values[hoverIdx])}
               </span>
             </div>
@@ -245,12 +252,12 @@ function KpiCard({
   sub?: string;
 }) {
   return (
-    <div className="rounded-xl bg-neutral-900 border border-neutral-800 p-3">
-      <p className="text-xs text-neutral-500">{label}</p>
-      <p className="text-xl font-bold text-white tabular-nums mt-0.5">
+    <div className="rounded-xl bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] p-3 shadow-sm">
+      <p className="text-xs text-[color:var(--color-text-muted)]">{label}</p>
+      <p className="text-xl font-bold text-[color:var(--color-text-primary)] tabular-nums mt-0.5">
         {value}
       </p>
-      {sub && <p className="text-[11px] text-neutral-600 mt-0.5">{sub}</p>}
+      {sub && <p className="text-[11px] text-[color:var(--color-text-muted)] mt-0.5">{sub}</p>}
     </div>
   );
 }
@@ -259,12 +266,15 @@ export default function AdminSalesPage() {
   const role = useAdminRole();
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [menus, setMenus] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("daily");
   const [analysis, setAnalysis] = useState<Analysis>("sales");
   const [selectedMenuIds, setSelectedMenuIds] = useState<string[]>([]);
   const [priceMenuId, setPriceMenuId] = useState<string>("");
   const [detailKey, setDetailKey] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   useEffect(() => {
     setDetailKey(null);
@@ -284,6 +294,31 @@ export default function AdminSalesPage() {
     }
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const unsubCats = onSnapshot(
+      query(collection(db, "categories"), orderBy("sortOrder", "asc")),
+      (snap) =>
+        setCategories(
+          snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Category, "id">) }))
+        )
+    );
+    const unsubMenus = onSnapshot(collection(db, "menus"), (snap) =>
+      setMenus(
+        snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Menu, "id">) }))
+      )
+    );
+    return () => {
+      unsubCats();
+      unsubMenus();
+    };
+  }, []);
+
+  const menuCategoryMap = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const menu of menus) m.set(menu.id, menu.categoryIds ?? []);
+    return m;
+  }, [menus]);
 
   const buckets: Bucket[] = useMemo(() => {
     const map = new Map<string, Bucket>();
@@ -320,8 +355,10 @@ export default function AdminSalesPage() {
         map.set(it.menuId, e);
       }
     }
-    return Array.from(map.values()).sort((a, b) => b.qty - a.qty);
-  }, [orders]);
+    const all = Array.from(map.values()).sort((a, b) => b.qty - a.qty);
+    if (categoryFilter === "all") return all;
+    return all.filter((m) => (menuCategoryMap.get(m.menuId) ?? []).includes(categoryFilter));
+  }, [orders, categoryFilter, menuCategoryMap]);
 
   const menuInitRef = useRef(false);
   useEffect(() => {
@@ -486,12 +523,12 @@ export default function AdminSalesPage() {
   return (
     <div className="w-full flex flex-col gap-3 overflow-hidden h-[calc(100dvh-24px)] md:h-[calc(100dvh-48px)]">
       <div className="flex flex-wrap items-center gap-2 justify-between shrink-0">
-        <h1 className="text-2xl font-bold text-white">売上分析</h1>
+        <h1 className="text-2xl font-bold text-[color:var(--color-text-primary)]">売上分析</h1>
         <div className="flex items-center gap-2">
           <select
             value={analysis}
             onChange={(e) => setAnalysis(e.target.value as Analysis)}
-            className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+            className="bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
           >
             <option value="sales">売上推移</option>
             <option value="menu">メニュー別売数</option>
@@ -500,7 +537,7 @@ export default function AdminSalesPage() {
           <select
             value={period}
             onChange={(e) => setPeriod(e.target.value as Period)}
-            className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+            className="bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
           >
             <option value="daily">日別</option>
             <option value="weekly">週別</option>
@@ -516,9 +553,9 @@ export default function AdminSalesPage() {
         <KpiCard label="平均品数" value={`${kpi.avgQty}点/注文`} />
       </div>
 
-      <section className="rounded-xl bg-neutral-900 border border-neutral-800 p-4 flex flex-col flex-1 min-h-0 overflow-hidden">
+      <section className="rounded-xl bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] p-4 flex flex-col flex-1 min-h-0 overflow-hidden shadow-sm">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2 shrink-0">
-          <h2 className="text-lg font-bold text-white">
+          <h2 className="text-lg font-bold text-[color:var(--color-text-primary)]">
             {analysis === "sales"
               ? "売上推移"
               : analysis === "menu"
@@ -533,7 +570,7 @@ export default function AdminSalesPage() {
                     className="inline-block h-2 w-2 rounded-full"
                     style={{ backgroundColor: s.color }}
                   />
-                  <span className="text-neutral-400">{s.name}</span>
+                  <span className="text-[color:var(--color-text-muted)]">{s.name}</span>
                 </div>
               ))}
             </div>
@@ -543,16 +580,16 @@ export default function AdminSalesPage() {
         {analysis === "price" && (
           <div className="mb-3">
             {priceChangedMenus.length === 0 ? (
-              <p className="text-xs text-neutral-500">価格変更履歴のあるメニューがありません</p>
+              <p className="text-xs text-[color:var(--color-text-muted)]">価格変更履歴のあるメニューがありません</p>
             ) : (
               <select
                 value={priceMenuId}
                 onChange={(e) => setPriceMenuId(e.target.value)}
-                className="w-full md:w-auto bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className="w-full md:w-auto bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
               >
                 {priceChangedMenus.map((m) => (
                   <option key={m.menuId} value={m.menuId}>
-                    {m.name}（{m.prices.size}価格・累計 {m.qty}個）
+                    {m.name}({m.prices.size}価格・累計 {m.qty}個)
                   </option>
                 ))}
               </select>
@@ -561,58 +598,94 @@ export default function AdminSalesPage() {
         )}
 
         {analysis === "menu" && (
-          <div className="mb-3 flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
-            {menuOptions.length === 0 ? (
-              <p className="text-xs text-neutral-500">注文データがありません</p>
-            ) : (
-              menuOptions.map((m) => {
-                const idx = selectedMenuIds.indexOf(m.menuId);
-                const active = idx >= 0;
-                const atCap =
-                  !active && selectedMenuIds.length >= MAX_MENU_SERIES;
-                return (
-                  <button
-                    key={m.menuId}
-                    onClick={() => toggleMenu(m.menuId)}
-                    disabled={atCap}
-                    className={`rounded-full px-3 py-1 text-xs border transition-colors ${
-                      active
-                        ? "text-white border-transparent"
-                        : atCap
-                        ? "text-neutral-600 border-neutral-800 cursor-not-allowed"
-                        : "text-neutral-400 border-neutral-700 hover:bg-neutral-800"
-                    }`}
-                    style={
-                      active
-                        ? {
-                            backgroundColor:
-                              MENU_COLORS[idx % MENU_COLORS.length] + "33",
-                            color: MENU_COLORS[idx % MENU_COLORS.length],
-                            borderColor:
-                              MENU_COLORS[idx % MENU_COLORS.length] + "80",
-                          }
-                        : undefined
-                    }
-                    title={`累計 ${m.qty}個`}
-                  >
-                    {m.name}
-                  </button>
-                );
-              })
+          <>
+            {categories.length > 0 && (
+              <div className="mb-2 flex gap-1.5 overflow-x-auto no-scrollbar pb-1 shrink-0">
+                <button
+                  onClick={() => setCategoryFilter("all")}
+                  className={`shrink-0 min-h-[44px] rounded-full px-3 py-1 text-xs border transition-colors ${
+                    categoryFilter === "all"
+                      ? "bg-[color:var(--color-accent-char)] text-white border-transparent"
+                      : "bg-[color:var(--color-bg-card)] text-[color:var(--color-text-primary)] border-[color:var(--color-border)] hover:bg-[color:var(--color-bg-subtle)]"
+                  }`}
+                >
+                  すべて
+                </button>
+                {categories.map((c) => {
+                  const active = categoryFilter === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => setCategoryFilter(c.id)}
+                      className={`shrink-0 min-h-[44px] rounded-full px-3 py-1 text-xs border transition-colors ${
+                        active
+                          ? "bg-[color:var(--color-accent-char)] text-white border-transparent"
+                          : "bg-[color:var(--color-bg-card)] text-[color:var(--color-text-primary)] border-[color:var(--color-border)] hover:bg-[color:var(--color-bg-subtle)]"
+                      }`}
+                    >
+                      {c.name}
+                    </button>
+                  );
+                })}
+              </div>
             )}
-          </div>
+            <div className="mb-3 flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+              {menuOptions.length === 0 ? (
+                <p className="text-xs text-[color:var(--color-text-muted)]">
+                  {categoryFilter === "all"
+                    ? "注文データがありません"
+                    : "該当メニューがありません"}
+                </p>
+              ) : (
+                menuOptions.map((m) => {
+                  const idx = selectedMenuIds.indexOf(m.menuId);
+                  const active = idx >= 0;
+                  const atCap =
+                    !active && selectedMenuIds.length >= MAX_MENU_SERIES;
+                  return (
+                    <button
+                      key={m.menuId}
+                      onClick={() => toggleMenu(m.menuId)}
+                      disabled={atCap}
+                      className={`rounded-full px-3 py-1 text-xs border transition-colors ${
+                        active
+                          ? "border-transparent"
+                          : atCap
+                          ? "text-[color:var(--color-text-muted)]/60 border-[color:var(--color-border)] cursor-not-allowed"
+                          : "text-[color:var(--color-text-muted)] border-[color:var(--color-border)] hover:bg-[color:var(--color-bg-subtle)]"
+                      }`}
+                      style={
+                        active
+                          ? {
+                              backgroundColor:
+                                MENU_COLORS[idx % MENU_COLORS.length] + "33",
+                              color: MENU_COLORS[idx % MENU_COLORS.length],
+                              borderColor:
+                                MENU_COLORS[idx % MENU_COLORS.length] + "80",
+                            }
+                          : undefined
+                      }
+                      title={`累計 ${m.qty}個`}
+                    >
+                      {m.name}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </>
         )}
 
         {visible.length === 0 ? (
-          <p className="text-sm text-neutral-500 py-10 text-center">
+          <p className="text-sm text-[color:var(--color-text-muted)] py-10 text-center">
             データがありません
           </p>
         ) : analysis === "menu" && menuSeries.length === 0 ? (
-          <p className="text-sm text-neutral-500 py-10 text-center">
-            メニューを選択してください（最大 {MAX_MENU_SERIES}）
+          <p className="text-sm text-[color:var(--color-text-muted)] py-10 text-center">
+            メニューを選択してください(最大 {MAX_MENU_SERIES})
           </p>
         ) : analysis === "price" && priceSeries.length === 0 ? (
-          <p className="text-sm text-neutral-500 py-10 text-center">
+          <p className="text-sm text-[color:var(--color-text-muted)] py-10 text-center">
             対象メニューの販売実績がありません
           </p>
         ) : analysis === "sales" ? (
@@ -623,7 +696,7 @@ export default function AdminSalesPage() {
                 series={[
                   {
                     name: "売上",
-                    color: "#f97316",
+                    color: "#c8633a",
                     values: visible.map((b) => b.revenue),
                     formatValue: yen,
                   },
@@ -642,50 +715,50 @@ export default function AdminSalesPage() {
               />
             </div>
             {detail ? (
-              <div className="flex-1 min-h-0 rounded-lg bg-neutral-800/60 border border-neutral-700 p-3 flex flex-col overflow-hidden">
+              <div className="flex-1 min-h-0 rounded-lg bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] p-3 flex flex-col overflow-hidden">
                 <div className="flex items-center justify-between mb-2 shrink-0">
-                  <h3 className="text-sm font-bold text-white">
+                  <h3 className="text-sm font-bold text-[color:var(--color-text-primary)]">
                     {detail.label} の詳細
                   </h3>
                   <button
                     onClick={() => setDetailKey(null)}
-                    className="text-xs text-neutral-500 hover:text-neutral-300"
+                    className="text-xs text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-primary)]"
                   >
                     閉じる
                   </button>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3 text-xs shrink-0">
                   <div>
-                    <p className="text-neutral-500">売上</p>
-                    <p className="text-white font-bold tabular-nums">
+                    <p className="text-[color:var(--color-text-muted)]">売上</p>
+                    <p className="text-[color:var(--color-text-primary)] font-bold tabular-nums">
                       {yen(detail.revenue)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-neutral-500">注文数</p>
-                    <p className="text-white font-bold tabular-nums">
+                    <p className="text-[color:var(--color-text-muted)]">注文数</p>
+                    <p className="text-[color:var(--color-text-primary)] font-bold tabular-nums">
                       {detail.count}件
                     </p>
                   </div>
                   <div>
-                    <p className="text-neutral-500">客単価</p>
-                    <p className="text-white font-bold tabular-nums">
+                    <p className="text-[color:var(--color-text-muted)]">客単価</p>
+                    <p className="text-[color:var(--color-text-primary)] font-bold tabular-nums">
                       {yen(detail.atv)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-neutral-500">総品数</p>
-                    <p className="text-white font-bold tabular-nums">
+                    <p className="text-[color:var(--color-text-muted)]">総品数</p>
+                    <p className="text-[color:var(--color-text-primary)] font-bold tabular-nums">
                       {detail.qty}点
                     </p>
                   </div>
                 </div>
-                <p className="text-xs text-neutral-500 mb-1 shrink-0">
+                <p className="text-xs text-[color:var(--color-text-muted)] mb-1 shrink-0">
                   メニュー別内訳
                 </p>
                 <div className="flex-1 min-h-0 overflow-y-auto">
                   <table className="w-full text-xs tabular-nums">
-                    <thead className="text-neutral-600 sticky top-0 bg-neutral-800/60">
+                    <thead className="text-[color:var(--color-text-muted)] sticky top-0 bg-[color:var(--color-bg-subtle)]">
                       <tr>
                         <th className="text-left font-normal py-1">メニュー</th>
                         <th className="text-right font-normal py-1 w-16">数量</th>
@@ -696,14 +769,14 @@ export default function AdminSalesPage() {
                     </thead>
                     <tbody>
                       {detail.breakdown.map((m) => (
-                        <tr key={m.name} className="border-t border-neutral-800">
-                          <td className="py-1 text-neutral-300 truncate pr-2">
+                        <tr key={m.name} className="border-t border-[color:var(--color-border)]">
+                          <td className="py-1 text-[color:var(--color-text-primary)] truncate pr-2">
                             {m.name}
                           </td>
-                          <td className="py-1 text-right text-neutral-200">
+                          <td className="py-1 text-right text-[color:var(--color-text-primary)]">
                             {m.qty}個
                           </td>
-                          <td className="py-1 text-right text-neutral-200">
+                          <td className="py-1 text-right text-[color:var(--color-text-primary)]">
                             {yen(m.revenue)}
                           </td>
                         </tr>
@@ -713,8 +786,8 @@ export default function AdminSalesPage() {
                 </div>
               </div>
             ) : (
-              <p className="text-[11px] text-neutral-600 shrink-0">
-                ポイントをタップするとその期間の詳細（注文数/客単価/メニュー別内訳）が見られます。
+              <p className="text-[11px] text-[color:var(--color-text-muted)] shrink-0">
+                ポイントをタップするとその期間の詳細(注文数/客単価/メニュー別内訳)が見られます。
               </p>
             )}
           </div>
@@ -727,7 +800,7 @@ export default function AdminSalesPage() {
                 sharedScale
               />
             </div>
-            <p className="text-[11px] text-neutral-600 mt-2 shrink-0">
+            <p className="text-[11px] text-[color:var(--color-text-muted)] mt-2 shrink-0">
               {analysis === "menu"
                 ? `同一スケールで比較。最大${MAX_MENU_SERIES}メニューまで重ね描き。`
                 : "価格帯ごとに線を分けて売数推移を比較。値上げ前後の販売数変化を読み取れます。"}

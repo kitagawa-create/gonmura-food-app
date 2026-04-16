@@ -6,6 +6,7 @@ import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
 import type { Order } from "@/types";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
+import { BackButton } from "@/components/ui/BackButton";
 import Link from "next/link";
 
 export default function BillPage() {
@@ -35,9 +36,16 @@ export default function BillPage() {
 
   if (!tableNumber) {
     return (
-      <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center px-4">
-        <p className="text-neutral-500 text-lg mb-4">テーブル番号が設定されていません</p>
-        <Link href="/menu" className="text-orange-400 font-medium hover:underline">メニューに戻る</Link>
+      <div className="min-h-screen bg-[color:var(--color-bg-base)] flex flex-col items-center justify-center px-4">
+        <p className="text-[color:var(--color-text-muted)] text-lg mb-4">
+          テーブル番号が設定されていません
+        </p>
+        <Link
+          href="/menu"
+          className="text-[color:var(--color-accent-char)] font-medium hover:underline"
+        >
+          メニューに戻る
+        </Link>
       </div>
     );
   }
@@ -48,9 +56,17 @@ export default function BillPage() {
 
   if (orders.length === 0) {
     return (
-      <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center px-4">
-        <p className="text-neutral-500 text-lg mb-4">未精算の注文はありません</p>
-        <Link href="/menu" className="text-orange-400 font-medium hover:underline">メニューに戻る</Link>
+      <div className="min-h-screen bg-[color:var(--color-bg-base)] flex flex-col items-center justify-center px-4">
+        <BackButton href="/menu" label="メニューに戻る" />
+        <p className="text-[color:var(--color-text-muted)] text-lg mt-12 mb-4">
+          未精算の注文はありません
+        </p>
+        <Link
+          href="/menu"
+          className="text-[color:var(--color-accent-char)] font-medium hover:underline"
+        >
+          メニューに戻る
+        </Link>
       </div>
     );
   }
@@ -69,29 +85,35 @@ export default function BillPage() {
   const subtotal = totalAmount - tax;
 
   return (
-    <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm md:max-w-md lg:max-w-lg bg-neutral-900 rounded-2xl border border-neutral-800">
-        <div className="p-6 space-y-4">
-          <div className="text-center border-b border-dashed border-neutral-700 pb-4">
-            <h1 className="text-2xl font-bold text-white">Gonmura Food</h1>
-            <p className="text-sm text-neutral-500 mt-1">お会計</p>
+    <div className="min-h-screen bg-[color:var(--color-bg-base)] p-4 flex flex-col">
+      <div className="max-w-3xl mx-auto w-full mb-3">
+        <BackButton href="/menu" label="メニューに戻る" />
+      </div>
+      <div className="flex-1 flex items-center justify-center">
+        {/* レシート: 外側 padding 撤去、各セクションが px-6 + 全幅 dashed divider */}
+        <div className="w-full max-w-sm md:max-w-md lg:max-w-lg bg-[color:var(--color-bg-card)] rounded-2xl border border-[color:var(--color-border)] overflow-hidden">
+          <div className="text-center px-6 pt-6 pb-4">
+            <h1 className="text-2xl font-bold text-[color:var(--color-text-primary)]">
+              Gonmura Food
+            </h1>
+            <p className="text-sm text-[color:var(--color-text-muted)] mt-1">お会計</p>
           </div>
 
-          <div className="text-sm text-neutral-400 border-b border-dashed border-neutral-700 pb-3">
+          <div className="text-sm text-[color:var(--color-text-muted)] px-6 py-3 border-t border-dashed border-[color:var(--color-border)]">
             <div className="flex justify-between">
               <span>テーブル</span>
-              <span className="text-white">{tableNumber}番</span>
+              <span className="text-[color:var(--color-text-primary)]">{tableNumber}番</span>
             </div>
             <div className="flex justify-between mt-1">
               <span>注文数</span>
-              <span className="text-white">{orders.length}件</span>
+              <span className="text-[color:var(--color-text-primary)]">{orders.length}件</span>
             </div>
           </div>
 
-          <div className="border-b border-dashed border-neutral-700 pb-3">
+          <div className="px-6 py-3 border-t border-dashed border-[color:var(--color-border)]">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-neutral-500">
+                <tr className="text-[color:var(--color-text-muted)]">
                   <th className="text-left font-normal pb-2">品名</th>
                   <th className="text-center font-normal pb-2 w-10">数</th>
                   <th className="text-right font-normal pb-2 w-20">金額</th>
@@ -100,9 +122,11 @@ export default function BillPage() {
               <tbody>
                 {allItems.map((item, i) => (
                   <tr key={i}>
-                    <td className="py-1 text-neutral-200">{item.name}</td>
-                    <td className="py-1 text-center text-neutral-400">{item.quantity}</td>
-                    <td className="py-1 text-right text-neutral-200">
+                    <td className="py-1 text-[color:var(--color-text-primary)]">{item.name}</td>
+                    <td className="py-1 text-center text-[color:var(--color-text-muted)]">
+                      {item.quantity}
+                    </td>
+                    <td className="py-1 text-right text-[color:var(--color-text-primary)] tabular-nums">
                       ¥{(item.price * item.quantity).toLocaleString()}
                     </td>
                   </tr>
@@ -111,35 +135,38 @@ export default function BillPage() {
             </table>
           </div>
 
-          <div className="space-y-1 text-sm">
-            <div className="flex justify-between text-neutral-400">
+          <div className="px-6 py-3 border-t border-dashed border-[color:var(--color-border)] space-y-1 text-sm">
+            <div className="flex justify-between text-[color:var(--color-text-muted)]">
               <span>小計</span>
-              <span>¥{subtotal.toLocaleString()}</span>
+              <span className="tabular-nums">¥{subtotal.toLocaleString()}</span>
             </div>
-            <div className="flex justify-between text-neutral-400">
+            <div className="flex justify-between text-[color:var(--color-text-muted)]">
               <span>消費税(10%)</span>
-              <span>¥{tax.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between text-xl font-bold pt-3 border-t border-neutral-700">
-              <span className="text-white">合計</span>
-              <span className="text-orange-400">¥{totalAmount.toLocaleString()}</span>
+              <span className="tabular-nums">¥{tax.toLocaleString()}</span>
             </div>
           </div>
-        </div>
 
-        <div className="p-4 border-t border-dashed border-neutral-700 text-center">
-          <p className="text-sm font-medium text-neutral-400">
-            この画面をレジにてご提示ください
-          </p>
-        </div>
+          <div className="flex justify-between px-6 py-3 text-xl font-bold border-t border-[color:var(--color-border-strong)] bg-[color:var(--color-bg-subtle)]">
+            <span className="text-[color:var(--color-text-primary)]">合計</span>
+            <span className="text-[color:var(--color-accent-char)] tabular-nums">
+              ¥{totalAmount.toLocaleString()}
+            </span>
+          </div>
 
-        <div className="p-4">
-          <Link
-            href="/menu"
-            className="block w-full text-center py-3 text-neutral-500 text-sm hover:text-neutral-300 transition-colors"
-          >
-            メニューに戻る
-          </Link>
+          <div className="px-6 py-4 border-t border-dashed border-[color:var(--color-border)] text-center">
+            <p className="text-sm font-medium text-[color:var(--color-text-muted)]">
+              この画面をレジにてご提示ください
+            </p>
+          </div>
+
+          <div className="px-6 py-3 border-t border-[color:var(--color-border)]">
+            <Link
+              href="/menu"
+              className="block w-full text-center py-2 text-[color:var(--color-text-muted)] text-sm hover:text-[color:var(--color-text-primary)] transition-colors"
+            >
+              メニューに戻る
+            </Link>
+          </div>
         </div>
       </div>
     </div>

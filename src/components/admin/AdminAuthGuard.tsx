@@ -40,21 +40,21 @@ export function AdminAuthGuard({ children }: { children: React.ReactNode }) {
 
   if (status === "loading" || status === "unauthorized") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-neutral-950">
-        <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      <div className="flex min-h-screen items-center justify-center bg-[color:var(--color-bg-base)]">
+        <div className="w-6 h-6 border-2 border-[color:var(--color-accent-char)] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   if (status === "not-admin") {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-8 bg-neutral-950">
-        <h1 className="text-xl font-bold text-white">アクセス拒否</h1>
-        <p className="text-sm text-neutral-400">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-8 bg-[color:var(--color-bg-base)]">
+        <h1 className="text-xl font-bold text-[color:var(--color-text-primary)]">アクセス拒否</h1>
+        <p className="text-sm text-[color:var(--color-text-muted)]">
           このアカウントは管理者として登録されていません。
         </p>
         <button
-          className="rounded-xl bg-orange-500 px-5 py-2.5 text-sm text-white font-bold hover:bg-orange-600 transition-colors"
+          className="rounded-xl bg-[color:var(--color-accent-char)] px-5 py-2.5 text-sm text-white font-bold hover:bg-[color:var(--color-accent-char-hover)] transition-colors"
           onClick={async () => {
             const { logout } = await import("@/lib/admin-auth");
             await logout();

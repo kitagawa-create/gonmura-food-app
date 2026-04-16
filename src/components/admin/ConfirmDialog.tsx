@@ -27,24 +27,24 @@ export function ConfirmDialog({
 
   const colorClass =
     confirmColor === "green"
-      ? "bg-green-600 hover:bg-green-700"
-      : "bg-red-600 hover:bg-red-700";
+      ? "bg-[color:var(--color-accent-negi)] hover:opacity-90"
+      : "bg-[color:var(--color-accent-warn)] hover:opacity-90";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-sm rounded-2xl bg-neutral-900 border border-neutral-800 p-6 shadow-xl">
-        <h2 className="text-lg font-bold text-white mb-3">{title}</h2>
-        <p className="text-sm text-neutral-400 mb-3">{message}</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-sm rounded-2xl bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] p-6 shadow-xl">
+        <h2 className="text-lg font-bold text-[color:var(--color-text-primary)] mb-3">{title}</h2>
+        <p className="text-sm text-[color:var(--color-text-muted)] mb-3">{message}</p>
         {warning && (
-          <div className="rounded-lg bg-yellow-500/10 border border-yellow-500/20 p-3 mb-4">
-            <p className="text-sm text-yellow-400">{warning}</p>
+          <div className="rounded-lg bg-[color:var(--color-accent-warn)]/10 border border-[color:var(--color-accent-warn)]/30 p-3 mb-4">
+            <p className="text-sm text-[color:var(--color-accent-warn)]">{warning}</p>
           </div>
         )}
         <div className="flex gap-2 justify-end">
           <button
             onClick={onCancel}
             disabled={loading}
-            className="rounded-xl border border-neutral-700 px-4 py-2.5 text-sm text-neutral-400 hover:bg-neutral-800 transition-colors disabled:opacity-50"
+            className="rounded-xl border border-[color:var(--color-border)] px-4 py-2.5 text-sm text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors disabled:opacity-50"
           >
             キャンセル
           </button>

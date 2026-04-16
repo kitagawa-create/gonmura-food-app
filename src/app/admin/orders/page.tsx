@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import {
@@ -16,19 +16,19 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Order, OrderStatus } from "@/types";
+import type { Order } from "@/types";
 
-type ColumnStatus = Exclude<OrderStatus, "paid">;
-
-const COLUMNS: { key: ColumnStatus; label: string; accent: string; badge: string }[] = [
-  { key: "pending", label: "新規注文", accent: "border-t-orange-500", badge: "bg-orange-500" },
-  { key: "preparing", label: "調理中", accent: "border-t-blue-500", badge: "bg-blue-500" },
-  { key: "completed", label: "提供済み", accent: "border-t-green-500", badge: "bg-green-500" },
-];
+// ---------- helpers ----------
 
 function todayISO(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function dateLabel(ts: Timestamp | undefined): string {
+  if (!ts) return "不明";
+  const d = ts.toDate();
+  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function timeAgo(date: Date): string {
@@ -36,6 +36,10 @@ function timeAgo(date: Date): string {
   if (diff < 1) return "たった今";
   if (diff < 60) return `${diff}分前`;
   return `${Math.floor(diff / 60)}時間${diff % 60}分前`;
+}
+
+function timeStr(date: Date): string {
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
 function playNotificationSound() {
@@ -63,33 +67,84 @@ function playNotificationSound() {
       gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
       osc2.stop(ctx.currentTime + 0.5);
     }, 200);
-  } catch { /* Audio not supported */ }
+  } catch {
+    /* Audio not supported */
+  }
 }
 
+// ---------- page ----------
+
 export default function AdminOrdersPage() {
+  const [view, setView] = useState<"orders" | "history">("orders");
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* タブ切替 */}
+      <div className="mb-4 flex items-center gap-4">
+        <h1 className="text-2xl font-bold text-[color:var(--color-text-primary)]">注文管理</h1>
+        <div className="flex rounded-lg border border-[color:var(--color-border)] overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setView("orders")}
+            className={`px-4 py-1.5 text-sm font-semibold transition-colors ${
+              view === "orders"
+                ? "bg-[color:var(--color-accent-char)] text-white"
+                : "bg-[color:var(--color-bg-card)] text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)]"
+            }`}
+          >
+            新規注文
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("history")}
+            className={`px-4 py-1.5 text-sm font-semibold transition-colors ${
+              view === "history"
+                ? "bg-[color:var(--color-accent-char)] text-white"
+                : "bg-[color:var(--color-bg-card)] text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)]"
+            }`}
+          >
+            履歴
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <p className="mb-4 rounded-lg bg-[color:var(--color-accent-warn)]/10 border border-[color:var(--color-accent-warn)]/30 p-3 text-sm text-[color:var(--color-accent-warn)]">
+          {error}
+        </p>
+      )}
+
+      {view === "orders" ? (
+        <NewOrdersView onError={setError} />
+      ) : (
+        <HistoryView onError={setError} />
+      )}
+    </div>
+  );
+}
+
+// ========== 新規注文ビュー ==========
+
+function NewOrdersView({ onError }: { onError: (msg: string | null) => void }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateFilter, setDateFilter] = useState<string>(todayISO());
-  const [autoFollowToday, setAutoFollowToday] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const prevOrderCountRef = useRef<number | null>(null);
 
-  // 経過時刻更新 + 日付自動更新 (30秒おき)
+  // 経過時刻更新 + 日付自動ロールオーバー (30秒おき)
   useEffect(() => {
     const interval = setInterval(() => {
       setNow(Date.now());
-      if (autoFollowToday) {
-        const today = todayISO();
-        setDateFilter((prev) => (prev !== today ? today : prev));
-      }
+      const today = todayISO();
+      setDateFilter((prev) => (prev !== today ? today : prev));
     }, 30000);
     return () => clearInterval(interval);
-  }, [autoFollowToday]);
+  }, []);
 
   useEffect(() => {
     prevOrderCountRef.current = null;
-
     const start = new Date(`${dateFilter}T00:00:00`);
     const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
 
@@ -103,225 +158,262 @@ export default function AdminOrdersPage() {
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const newOrders = snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Omit<Order, "id">),
-        }));
+        const all = snap.docs.map(
+          (d) => ({ id: d.id, ...(d.data() as Omit<Order, "id">) })
+        );
+        // 新規注文ビューには pending / preparing のみ表示
+        const active = all.filter(
+          (o) => o.status === "pending" || o.status === "preparing"
+        );
 
-        if (prevOrderCountRef.current !== null && newOrders.length > prevOrderCountRef.current) {
+        if (
+          prevOrderCountRef.current !== null &&
+          all.length > prevOrderCountRef.current
+        ) {
           playNotificationSound();
         }
-        prevOrderCountRef.current = newOrders.length;
-        setOrders(newOrders);
+        prevOrderCountRef.current = all.length;
+        setOrders(active);
         setLoading(false);
       },
       (e) => {
-        setError(e.message);
+        onError(e.message);
         setLoading(false);
       }
     );
     return unsub;
-  }, [dateFilter]);
+  }, [dateFilter, onError]);
 
-  const grouped = useMemo(() => {
-    const g: Record<ColumnStatus, Order[]> = { pending: [], preparing: [], completed: [] };
-    for (const o of orders) {
-      if (o.status in g) g[o.status as ColumnStatus].push(o);
-    }
-    return g;
-  }, [orders]);
+  const toggleCheck = useCallback(
+    async (order: Order, itemIdx: number) => {
+      onError(null);
+      const prev = order.checkedItems ?? [];
+      const next = prev.includes(itemIdx)
+        ? prev.filter((i) => i !== itemIdx)
+        : [...prev, itemIdx];
 
-  const todayTotal = useMemo(() => {
-    return orders.reduce(
-      (sum, o) => sum + o.items.reduce((s, i) => s + i.price * i.quantity, 0),
-      0
+      const allChecked = next.length >= order.items.length;
+
+      // optimistic
+      setOrders((os) =>
+        allChecked
+          ? os.filter((o) => o.id !== order.id)
+          : os.map((o) =>
+              o.id === order.id ? { ...o, checkedItems: next } : o
+            )
+      );
+
+      try {
+        if (allChecked) {
+          await updateDoc(doc(db, "orders", order.id), {
+            checkedItems: next,
+            status: "completed",
+            updatedAt: serverTimestamp(),
+          });
+        } else {
+          await updateDoc(doc(db, "orders", order.id), {
+            checkedItems: next,
+            updatedAt: serverTimestamp(),
+          });
+        }
+      } catch (e) {
+        // rollback
+        setOrders((os) =>
+          os.find((o) => o.id === order.id)
+            ? os.map((o) =>
+                o.id === order.id
+                  ? { ...o, checkedItems: prev, status: order.status }
+                  : o
+              )
+            : [...os, { ...order, checkedItems: prev }]
+        );
+        onError(e instanceof Error ? e.message : "更新に失敗しました。");
+      }
+    },
+    [onError]
+  );
+
+  const deleteOrder = useCallback(
+    async (id: string) => {
+      onError(null);
+      try {
+        await deleteDoc(doc(db, "orders", id));
+      } catch (e) {
+        onError(e instanceof Error ? e.message : "削除に失敗しました。");
+      }
+    },
+    [onError]
+  );
+
+  if (loading) return <PageLoader />;
+
+  if (orders.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-[color:var(--color-text-muted)]">新規注文はありません</p>
+      </div>
     );
-  }, [orders]);
-
-  async function updateStatus(id: string, status: OrderStatus) {
-    setError(null);
-    try {
-      await updateDoc(doc(db, "orders", id), { status, updatedAt: serverTimestamp() });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "更新に失敗しました。");
-    }
-  }
-
-  async function deleteOrder(id: string) {
-    setError(null);
-    try {
-      await deleteDoc(doc(db, "orders", id));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "削除に失敗しました。");
-    }
   }
 
   return (
-    <div className="h-full">
-      {/* ヘッダー */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-white">注文管理</h1>
-          <p className="text-sm text-neutral-500 mt-0.5">
-            本日の注文: {orders.length}件 / 売上: ¥{todayTotal.toLocaleString()}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            type="date"
-            value={dateFilter}
-            onChange={(e) => {
-              setDateFilter(e.target.value);
-              setAutoFollowToday(e.target.value === todayISO());
-            }}
-            className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+    <div className="flex-1 overflow-y-auto">
+      <p className="mb-3 text-xs text-[color:var(--color-text-muted)]">
+        未完了: {orders.length}件
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {orders.map((order) => (
+          <ActiveOrderCard
+            key={order.id}
+            order={order}
+            now={now}
+            onToggle={toggleCheck}
+            onDelete={deleteOrder}
           />
-          {!autoFollowToday && (
-            <button
-              onClick={() => {
-                setDateFilter(todayISO());
-                setAutoFollowToday(true);
-              }}
-              className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs text-white font-bold hover:bg-orange-600 transition-colors"
-            >
-              今日に戻る
-            </button>
-          )}
-          {autoFollowToday && (
-            <span className="text-[10px] text-neutral-500" title="日付が変わると自動で今日に切り替わります">
-              ● 自動更新中
-            </span>
-          )}
-        </div>
+        ))}
       </div>
-
-      {error && (
-        <p className="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 p-3 text-sm text-red-400">{error}</p>
-      )}
-
-      {loading ? (
-        <PageLoader />
-      ) : (
-        <div className="grid grid-cols-3 gap-4" style={{ height: "calc(100vh - 160px)" }}>
-          {COLUMNS.map((col) => (
-            <div key={col.key} className="flex flex-col min-h-0">
-              {/* カラムヘッダー */}
-              <div className={`rounded-t-xl bg-neutral-800 border-t-4 ${col.accent} px-4 py-3 flex items-center justify-between`}>
-                <span className="text-sm font-bold text-white">{col.label}</span>
-                <span className={`${col.badge} text-white text-xs font-bold px-2.5 py-1 rounded-full min-w-[28px] text-center`}>
-                  {grouped[col.key].length}
-                </span>
-              </div>
-              {/* カラムコンテンツ */}
-              <div className="flex-1 bg-neutral-800/30 rounded-b-xl border border-neutral-800 border-t-0 p-2 space-y-2 overflow-y-auto">
-                {grouped[col.key].length === 0 ? (
-                  <p className="text-xs text-neutral-600 text-center py-12">注文なし</p>
-                ) : (
-                  grouped[col.key].map((order) => (
-                    <OrderCard key={order.id} order={order} now={now} onUpdateStatus={updateStatus} onDelete={deleteOrder} />
-                  ))
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
 
-function OrderCard({
+// ---------- 新規注文カード ----------
+
+function ActiveOrderCard({
   order,
   now,
-  onUpdateStatus,
+  onToggle,
   onDelete,
 }: {
   order: Order;
   now: number;
-  onUpdateStatus: (id: string, status: OrderStatus) => void;
+  onToggle: (order: Order, idx: number) => void;
   onDelete: (id: string) => void;
 }) {
   const [showCancel, setShowCancel] = useState(false);
   const total = order.items.reduce((s, i) => s + i.price * i.quantity, 0);
   const created = order.createdAt?.toDate?.();
   const elapsed = created ? timeAgo(created) : "";
+  const checked = new Set(order.checkedItems ?? []);
+  const progress = `${checked.size}/${order.items.length}`;
 
-  // 5分以上未対応は赤くハイライト
-  const isUrgent = order.status === "pending" && created && (now - created.getTime()) > 5 * 60 * 1000;
+  const isUrgent =
+    order.status === "pending" &&
+    created &&
+    now - created.getTime() > 5 * 60 * 1000;
 
   return (
-    <div className={`rounded-xl p-3 transition-colors ${
-      isUrgent
-        ? "bg-red-500/10 border border-red-500/30"
-        : "bg-neutral-900 border border-neutral-800"
-    }`}>
-      <div className="flex items-start justify-between mb-2">
-        <div>
-          <span className="text-base font-bold text-white">T{order.tableNumber}</span>
-          <p className={`text-[11px] mt-0.5 ${isUrgent ? "text-red-400 font-medium" : "text-neutral-500"}`}>
+    <div
+      className={`rounded-xl p-4 transition-colors ${
+        isUrgent
+          ? "bg-[color:var(--color-accent-warn)]/10 border-2 border-[color:var(--color-accent-warn)]"
+          : "bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] shadow-sm"
+      }`}
+    >
+      {/* テーブル番号 + 経過 + 進捗 */}
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <span className="inline-flex items-center justify-center min-w-[56px] h-12 px-3 rounded-lg bg-[color:var(--color-accent-char)] text-white text-2xl font-black leading-none">
+          T{order.tableNumber}
+        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-[color:var(--color-text-muted)]">{progress}</span>
+          <span
+            className={`inline-flex items-center rounded-lg text-lg font-bold leading-none ${
+              isUrgent
+                ? "px-3 py-2 bg-[color:var(--color-accent-warn)] text-white"
+                : "px-2 py-1 text-[color:var(--color-text-primary)]"
+            }`}
+          >
             {elapsed}
-          </p>
+          </span>
         </div>
-        <span className="text-sm font-bold text-white">¥{total.toLocaleString()}</span>
       </div>
 
-      <ul className="text-xs space-y-0.5 mb-2">
-        {order.items.map((item, idx) => (
-          <li key={`${item.menuId}-${idx}`} className="flex justify-between text-neutral-400">
-            <span>{item.name} x{item.quantity}</span>
-          </li>
-        ))}
-      </ul>
-
+      {/* 備考 */}
       {order.customerNote && (
-        <p className="mb-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 px-2 py-1.5 text-[11px] text-yellow-400">
-          {order.customerNote}
-        </p>
+        <div className="mb-3 rounded-lg border-l-4 border-[color:var(--color-accent-warn)] bg-[color:var(--color-accent-warn)]/10 px-3 py-2">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-[color:var(--color-accent-warn)]">
+            備考
+          </p>
+          <p className="text-base leading-snug text-[color:var(--color-text-primary)]">
+            {order.customerNote}
+          </p>
+        </div>
       )}
 
-      <div className="flex gap-1.5">
-        {order.status === "pending" && (
-          <>
-            <button
-              onClick={() => onUpdateStatus(order.id, "preparing")}
-              className="flex-1 rounded-lg bg-blue-600 px-2 py-2 text-xs text-white font-bold hover:bg-blue-700 transition-colors"
-            >
-              調理開始
-            </button>
-            <button
-              onClick={() => setShowCancel(true)}
-              className="rounded-lg border border-neutral-700 px-2 py-2 text-xs text-neutral-400 hover:bg-neutral-800 transition-colors"
-            >
-              取消
-            </button>
-          </>
-        )}
-        {order.status === "preparing" && (
-          <>
-            <button
-              onClick={() => onUpdateStatus(order.id, "completed")}
-              className="flex-1 rounded-lg bg-green-600 px-2 py-2 text-xs text-white font-bold hover:bg-green-700 transition-colors"
-            >
-              提供完了
-            </button>
-            <button
-              onClick={() => onUpdateStatus(order.id, "pending")}
-              className="rounded-lg border border-neutral-700 px-2 py-2 text-xs text-neutral-400 hover:bg-neutral-800 transition-colors"
-              title="新規注文に戻す"
-            >
-              ← 戻す
-            </button>
-          </>
-        )}
-        {order.status === "completed" && (
-          <button
-            onClick={() => onUpdateStatus(order.id, "preparing")}
-            className="flex-1 rounded-lg border border-neutral-700 px-2 py-2 text-xs text-neutral-300 hover:bg-neutral-800 transition-colors"
-            title="調理中に戻す"
-          >
-            ← 調理中に戻す
-          </button>
-        )}
+      {/* 商品チェックリスト */}
+      <ul className="mb-3 space-y-1">
+        {order.items.map((item, idx) => {
+          const done = checked.has(idx);
+          return (
+            <li key={`${item.menuId}-${idx}`}>
+              <button
+                type="button"
+                onClick={() => onToggle(order, idx)}
+                className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${
+                  done
+                    ? "bg-[color:var(--color-accent-negi)]/10"
+                    : "bg-[color:var(--color-bg-subtle)] hover:bg-[color:var(--color-bg-subtle)]/80"
+                }`}
+              >
+                {/* チェックボックス */}
+                <span
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-2 transition-colors ${
+                    done
+                      ? "border-[color:var(--color-accent-negi)] bg-[color:var(--color-accent-negi)]"
+                      : "border-[color:var(--color-border-strong)]"
+                  }`}
+                >
+                  {done && (
+                    <svg
+                      className="h-4 w-4 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={3}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  )}
+                </span>
+                <span
+                  className={`flex-1 text-lg leading-tight ${
+                    done
+                      ? "line-through text-[color:var(--color-text-muted)]"
+                      : "text-[color:var(--color-text-primary)]"
+                  }`}
+                >
+                  {item.name}
+                </span>
+                <span
+                  className={`whitespace-nowrap text-xl font-bold ${
+                    done
+                      ? "text-[color:var(--color-text-muted)]"
+                      : "text-[color:var(--color-accent-char)]"
+                  }`}
+                >
+                  ×{item.quantity}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+
+      {/* 取消 + 合計 */}
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setShowCancel(true)}
+          className="rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+        >
+          取消
+        </button>
+        <p className="text-[11px] text-[color:var(--color-text-muted)]">
+          ¥{total.toLocaleString()}
+        </p>
       </div>
 
       <ConfirmDialog
@@ -336,6 +428,138 @@ function OrderCard({
         }}
         onCancel={() => setShowCancel(false)}
       />
+    </div>
+  );
+}
+
+// ========== 履歴ビュー ==========
+
+function HistoryView({ onError }: { onError: (msg: string | null) => void }) {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // completed + paid を新しい順に購読
+    const q = query(
+      collection(db, "orders"),
+      where("status", "in", ["completed", "paid"]),
+      orderBy("createdAt", "desc")
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setOrders(
+          snap.docs.map(
+            (d) => ({ id: d.id, ...(d.data() as Omit<Order, "id">) })
+          )
+        );
+        setLoading(false);
+      },
+      (e) => {
+        onError(e.message);
+        setLoading(false);
+      }
+    );
+    return unsub;
+  }, [onError]);
+
+  // 日付ごとにグループ化
+  const grouped = useMemo(() => {
+    const map = new Map<string, Order[]>();
+    for (const o of orders) {
+      const key = dateLabel(o.createdAt);
+      const arr = map.get(key) ?? [];
+      arr.push(o);
+      map.set(key, arr);
+    }
+    return Array.from(map.entries());
+  }, [orders]);
+
+  if (loading) return <PageLoader />;
+
+  if (orders.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-[color:var(--color-text-muted)]">履歴はまだありません</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto space-y-6">
+      {grouped.map(([date, dayOrders]) => {
+        const dayTotal = dayOrders.reduce(
+          (sum, o) =>
+            sum + o.items.reduce((s, i) => s + i.price * i.quantity, 0),
+          0
+        );
+        return (
+          <section key={date}>
+            <div className="sticky top-0 z-10 flex items-baseline justify-between bg-[color:var(--color-bg-base)] pb-2 pt-1">
+              <h2 className="text-base font-bold text-[color:var(--color-text-primary)]">
+                {date}
+              </h2>
+              <span className="text-xs text-[color:var(--color-text-muted)]">
+                {dayOrders.length}件 / ¥{dayTotal.toLocaleString()}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {dayOrders.map((order) => (
+                <HistoryOrderCard key={order.id} order={order} />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------- 履歴カード ----------
+
+function HistoryOrderCard({ order }: { order: Order }) {
+  const total = order.items.reduce((s, i) => s + i.price * i.quantity, 0);
+  const created = order.createdAt?.toDate?.();
+
+  return (
+    <div className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-4 shadow-sm">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center justify-center min-w-[40px] h-8 px-2 rounded-md bg-[color:var(--color-accent-soy)] text-white text-sm font-bold leading-none">
+            T{order.tableNumber}
+          </span>
+          <span
+            className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+              order.status === "paid"
+                ? "bg-[color:var(--color-accent-negi)]/15 text-[color:var(--color-accent-negi)]"
+                : "bg-[color:var(--color-bg-subtle)] text-[color:var(--color-text-muted)]"
+            }`}
+          >
+            {order.status === "paid" ? "精算済" : "提供済"}
+          </span>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-[color:var(--color-text-muted)]">
+            {created ? timeStr(created) : ""}
+          </p>
+          <p className="text-sm font-bold text-[color:var(--color-text-primary)] tabular-nums">
+            ¥{total.toLocaleString()}
+          </p>
+        </div>
+      </div>
+      <ul className="text-sm text-[color:var(--color-text-primary)] space-y-0.5">
+        {order.items.map((item, i) => (
+          <li key={i} className="flex justify-between">
+            <span>{item.name}</span>
+            <span className="text-[color:var(--color-text-muted)]">×{item.quantity}</span>
+          </li>
+        ))}
+      </ul>
+      {order.customerNote && (
+        <p className="mt-2 text-xs text-[color:var(--color-text-muted)] border-t border-[color:var(--color-border)] pt-2">
+          備考: {order.customerNote}
+        </p>
+      )}
     </div>
   );
 }
