@@ -131,12 +131,6 @@ function OrderStatusContent() {
           </div>
         )}
 
-        <Link
-          href={backHref}
-          className="block w-full text-center py-3 text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-primary)] transition-colors"
-        >
-          {backLabel}
-        </Link>
       </main>
     </div>
   );
