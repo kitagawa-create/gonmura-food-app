@@ -60,17 +60,20 @@ export default function OrderPage() {
     };
   }, [items, imageMap]);
 
-  if (items.length === 0) {
+  if (items.length === 0 && !showComplete) {
     return (
       <div className="relative min-h-screen bg-[color:var(--color-bg-base)] flex flex-col items-center justify-center px-4">
-        <BackButton href="/menu" label="メニューに戻る" className="absolute top-3 left-3" />
-        <p className="text-[color:var(--color-text-muted)] text-lg mb-4">カートが空です</p>
-        <Link
-          href="/menu"
-          className="inline-flex items-center gap-2 rounded-xl bg-[color:var(--color-accent-char)] px-6 py-3 text-white font-bold hover:opacity-90 transition-opacity"
+        <button
+          type="button"
+          onClick={() => router.push("/menu")}
+          className="absolute top-3 left-3 inline-flex items-center justify-center min-w-[44px] min-h-[44px] px-3 rounded-full bg-[color:var(--color-bg-card)] text-[color:var(--color-text-primary)] border border-[color:var(--color-border)] text-sm font-medium hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+          aria-label="メニューに戻る"
         >
-          メニューに戻る
-        </Link>
+          <svg aria-hidden="true" viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12.5 4.5L6 11l6.5 6.5" />
+          </svg>
+        </button>
+        <p className="text-[color:var(--color-text-muted)] text-lg">カートが空です</p>
       </div>
     );
   }
