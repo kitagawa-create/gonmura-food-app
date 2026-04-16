@@ -233,9 +233,9 @@ export default function MenuPage() {
   }
 
   return (
-    <div className="h-[100dvh] bg-[color:var(--color-bg-base)] flex flex-col sm:grid sm:grid-cols-[1fr_240px] md:grid-cols-[1fr_280px] lg:grid-cols-[1fr_360px]">
-      {/* メインカラム (メニュー側) */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+    <div className="h-[100dvh] bg-[color:var(--color-bg-base)] flex flex-col sm:grid sm:grid-cols-[minmax(0,1fr)_240px] md:grid-cols-[minmax(0,1fr)_280px] lg:grid-cols-[minmax(0,1fr)_360px]">
+      {/* メインカラム (メニュー側)。min-w-0 で画像 intrinsic 幅による左カラム伸長を防ぐ。 */}
+      <div className="flex min-w-0 min-h-0 flex-1 flex-col overflow-y-auto">
       {/* ヘッダー */}
       <header className="sticky top-0 z-10 bg-[color:var(--color-bg-card)] border-b border-[color:var(--color-border)]">
         <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
@@ -304,7 +304,7 @@ export default function MenuPage() {
             このカテゴリにはメニューがありません
           </p>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {filteredMenus.map((menu) => {
               const sold = menu.isSoldOut === true;
               return (
