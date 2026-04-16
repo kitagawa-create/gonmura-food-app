@@ -55,15 +55,13 @@ export default function OrderHistoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[color:var(--color-bg-base)] pb-8">
-      <header className="sticky top-0 z-10 bg-[color:var(--color-bg-card)] border-b border-[color:var(--color-border)]">
-        <div className="px-3 sm:px-4 py-2 flex items-center gap-2">
-          <BackButton href="/menu" label="メニューに戻る" size="sm" />
-          <h1 className="text-lg font-bold text-[color:var(--color-text-primary)]">注文履歴</h1>
-        </div>
-      </header>
+    <div className="relative min-h-screen bg-[color:var(--color-bg-base)] pb-8">
+      <div className="absolute top-3 left-3 z-10 flex items-center gap-2">
+        <BackButton href="/menu" label="メニューに戻る" size="sm" />
+        <h1 className="text-base font-bold text-[color:var(--color-text-primary)]">注文履歴</h1>
+      </div>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <main className="px-3 sm:px-4 pt-14 pb-4">
         {orders.length === 0 ? (
           <p className="text-[color:var(--color-text-muted)] text-center py-12">
             まだ注文がありません

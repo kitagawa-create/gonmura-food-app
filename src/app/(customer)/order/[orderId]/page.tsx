@@ -75,15 +75,13 @@ function OrderStatusContent() {
   );
 
   return (
-    <div className="min-h-screen bg-[color:var(--color-bg-base)] pb-8">
-      <header className="bg-[color:var(--color-bg-card)] border-b border-[color:var(--color-border)]">
-        <div className="px-3 sm:px-4 py-2 flex items-center gap-2">
-          <BackButton href={backHref} label={backLabel} size="sm" />
-          <h1 className="text-lg font-bold text-[color:var(--color-text-primary)]">注文状況</h1>
-        </div>
-      </header>
+    <div className="relative min-h-screen bg-[color:var(--color-bg-base)] pb-8">
+      <div className="absolute top-3 left-3 z-10 flex items-center gap-2">
+        <BackButton href={backHref} label={backLabel} size="sm" />
+        <h1 className="text-base font-bold text-[color:var(--color-text-primary)]">注文状況</h1>
+      </div>
 
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-4">
+      <main className="px-3 sm:px-4 pt-14 pb-4 space-y-4">
         <div className="bg-[color:var(--color-bg-card)] rounded-xl border border-[color:var(--color-border)] p-6 text-center">
           <p className="text-sm text-[color:var(--color-text-muted)] mb-3">
             テーブル {order.tableNumber}
