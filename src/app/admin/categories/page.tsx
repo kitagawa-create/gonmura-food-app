@@ -298,17 +298,23 @@ function CategoryRow({
 }) {
   const [name, setName] = useState(category.name);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     setName(category.name);
     setNameError(null);
+    setEditing(false);
   }, [category]);
 
   const trimmed = name.trim();
   const dirty = trimmed !== category.name.trim();
 
   function handleSave() {
-    if (!dirty || !trimmed) return;
+    if (!dirty || !trimmed) {
+      setEditing(false);
+      setName(category.name);
+      return;
+    }
     const dup = findDuplicate(trimmed, category.id);
     if (dup) {
       setNameError(dup);
@@ -316,6 +322,7 @@ function CategoryRow({
     }
     setNameError(null);
     onRename(trimmed);
+    setEditing(false);
   }
 
   return (
@@ -347,21 +354,40 @@ function CategoryRow({
         >
           ⠿
         </span>
-        <input
-          className="flex-1 rounded border border-[color:var(--color-border)] bg-[color:var(--color-bg-base)] px-2 py-1 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
-          value={name}
-          onChange={(e) => {
-            setName(e.target.value);
-            if (nameError) setNameError(null);
-          }}
-        />
-        <button
-          disabled={!dirty || !trimmed || nameError !== null}
-          onClick={handleSave}
-          className="rounded-lg bg-[color:var(--color-accent-char)] px-2 py-1 text-xs text-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-[color:var(--color-accent-char-hover)] transition-colors"
-        >
-          保存
-        </button>
+        {editing ? (
+          <input
+            autoFocus
+            className="flex-1 rounded border border-[color:var(--color-accent-char)] bg-[color:var(--color-bg-base)] px-2 py-1 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              if (nameError) setNameError(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSave();
+              if (e.key === "Escape") { setEditing(false); setName(category.name); }
+            }}
+          />
+        ) : (
+          <span className="flex-1 px-2 py-1 text-sm text-[color:var(--color-text-primary)]">
+            {category.name}
+          </span>
+        )}
+        {editing ? (
+          <button
+            onClick={handleSave}
+            className="rounded-lg bg-[color:var(--color-accent-char)] px-2 py-1 text-xs text-white hover:bg-[color:var(--color-accent-char-hover)] transition-colors"
+          >
+            保存
+          </button>
+        ) : (
+          <button
+            onClick={() => setEditing(true)}
+            className="rounded-lg border border-[color:var(--color-border)] px-2 py-1 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+          >
+            編集
+          </button>
+        )}
         <button
           onClick={onDelete}
           className="rounded-lg bg-[color:var(--color-accent-warn)] px-2 py-1 text-xs text-white hover:opacity-90 transition-colors"
