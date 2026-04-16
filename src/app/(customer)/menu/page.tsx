@@ -143,23 +143,14 @@ export default function MenuPage() {
   const extrasSubtotal = extraLines.reduce((s, l) => s + l.menu.price * l.quantity, 0);
   const modalTotal = ramenSubtotal + extrasSubtotal;
 
-  // --- スワイプでカテゴリ切替 ---
-  const touchRef = useRef<{ x: number; y: number } | null>(null);
+  // --- スワイプ / マウスドラッグでカテゴリ切替 ---
+  const pointerRef = useRef<{ x: number; y: number } | null>(null);
+  const SWIPE_THRESHOLD = 30; // px — 感度高め
 
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    const t = e.touches[0];
-    touchRef.current = { x: t.clientX, y: t.clientY };
-  }, []);
-
-  const handleTouchEnd = useCallback(
-    (e: React.TouchEvent) => {
-      if (!touchRef.current || categories.length === 0 || !activeCategory) return;
-      const t = e.changedTouches[0];
-      const dx = t.clientX - touchRef.current.x;
-      const dy = t.clientY - touchRef.current.y;
-      touchRef.current = null;
-      // 横方向が縦方向より大きく、50px 以上の場合のみスワイプ判定
-      if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return;
+  const swipeToCategory = useCallback(
+    (dx: number, dy: number) => {
+      if (categories.length === 0 || !activeCategory) return;
+      if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy)) return;
       const idx = categories.findIndex((c) => c.id === activeCategory);
       if (idx < 0) return;
       if (dx < 0 && idx < categories.length - 1) {
@@ -169,6 +160,40 @@ export default function MenuPage() {
       }
     },
     [categories, activeCategory]
+  );
+
+  // タッチ (スマホ / タブレット)
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const t = e.touches[0];
+    pointerRef.current = { x: t.clientX, y: t.clientY };
+  }, []);
+
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      if (!pointerRef.current) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - pointerRef.current.x;
+      const dy = t.clientY - pointerRef.current.y;
+      pointerRef.current = null;
+      swipeToCategory(dx, dy);
+    },
+    [swipeToCategory]
+  );
+
+  // マウスドラッグ (PC)
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    pointerRef.current = { x: e.clientX, y: e.clientY };
+  }, []);
+
+  const handleMouseUp = useCallback(
+    (e: React.MouseEvent) => {
+      if (!pointerRef.current) return;
+      const dx = e.clientX - pointerRef.current.x;
+      const dy = e.clientY - pointerRef.current.y;
+      pointerRef.current = null;
+      swipeToCategory(dx, dy);
+    },
+    [swipeToCategory]
   );
 
   if (loading || tableNumber === null) {
@@ -234,11 +259,13 @@ export default function MenuPage() {
         </div>
       </header>
 
-      {/* メニュー一覧 (左右スワイプでカテゴリ移動) */}
+      {/* メニュー一覧 (左右スワイプ / マウスドラッグでカテゴリ移動) */}
       <main
         className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-6"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
+        onMouseDown={handleMouseDown}
+        onMouseUp={handleMouseUp}
       >
         {filteredMenus.length === 0 ? (
           <p className="text-[color:var(--color-text-muted)] text-center py-12">
