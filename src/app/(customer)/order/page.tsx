@@ -29,6 +29,15 @@ export default function OrderPage() {
   const [imageMap, setImageMap] = useState<Record<string, string>>({});
   const router = useRouter();
 
+  // 注文完了後 3 秒でメニューに自動遷移
+  useEffect(() => {
+    if (!showComplete) return;
+    const timer = setTimeout(() => {
+      window.location.href = "/menu";
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [showComplete]);
+
   // カート内商品の画像URLを取得 (CartItem に imageUrl を持たせず、表示用にだけ取得)
   useEffect(() => {
     const ids = items.map((i) => i.menuId);
@@ -309,16 +318,12 @@ export default function OrderPage() {
             <h2 className="text-lg font-bold text-[color:var(--color-text-primary)] mb-1">
               注文を送信しました
             </h2>
-            <p className="text-sm text-[color:var(--color-text-muted)] mb-5">
+            <p className="text-sm text-[color:var(--color-text-muted)]">
               調理が完了するまでしばらくお待ちください
             </p>
-            <button
-              type="button"
-              onClick={() => router.push("/menu")}
-              className="w-full rounded-xl bg-[color:var(--color-accent-char)] py-3 text-sm font-bold text-white hover:opacity-90 transition-opacity"
-            >
-              メニューに戻る
-            </button>
+            <p className="text-xs text-[color:var(--color-text-muted)] mt-3">
+              3秒後にメニューに戻ります…
+            </p>
           </div>
         </div>
       )}
