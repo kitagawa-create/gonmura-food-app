@@ -4,18 +4,12 @@ import { withSentryConfig } from "@sentry/nextjs";
 const nextConfig: NextConfig = {
   headers: async () => [
     {
-      // 管理画面: CDN キャッシュを無効化 (デプロイ即反映のため)
-      source: "/admin/:path*",
+      // 全ページ: CDN キャッシュを無効化 (デプロイ即反映)
+      // _next/static はハッシュ付きなのでブラウザキャッシュに任せる
+      source: "/((?!_next/static|_next/image|favicon.ico).*)",
       headers: [
         { key: "Cache-Control", value: "no-store, must-revalidate" },
         { key: "CDN-Cache-Control", value: "no-store" },
-      ],
-    },
-    {
-      // 顧客側も短めのキャッシュに
-      source: "/((?!_next/static|_next/image|favicon.ico).*)",
-      headers: [
-        { key: "CDN-Cache-Control", value: "s-maxage=60, stale-while-revalidate=30" },
       ],
     },
   ],
