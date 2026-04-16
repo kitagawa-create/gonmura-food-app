@@ -141,7 +141,7 @@ function LineChart({
             x2={W - padR}
             y1={padT + innerH * p}
             y2={padT + innerH * p}
-            stroke="#e5dace"
+            stroke="#e2e8f0"
             strokeDasharray="3 3"
           />
         ))}
@@ -164,7 +164,7 @@ function LineChart({
                   cy={y}
                   r={active ? 5 : hoverIdx === i ? 4 : 2.5}
                   fill={s.color}
-                  stroke={active ? "#2e1a0f" : undefined}
+                  stroke={active ? "#1a2332" : undefined}
                   strokeWidth={active ? 2 : 0}
                 />
               );
@@ -179,7 +179,7 @@ function LineChart({
             x2={xs(hoverIdx)}
             y1={padT}
             y2={padT + innerH}
-            stroke="#c9b8a3"
+            stroke="#cbd5e1"
             strokeWidth={1}
           />
         )}
@@ -193,7 +193,7 @@ function LineChart({
               y={height - 10}
               textAnchor="middle"
               fontSize={10}
-              fill="#6b5648"
+              fill="#6b7b8d"
             >
               {l}
             </text>
@@ -696,7 +696,7 @@ export default function AdminSalesPage() {
                 series={[
                   {
                     name: "売上",
-                    color: "#c8633a",
+                    color: "#3b82f6",
                     values: visible.map((b) => b.revenue),
                     formatValue: yen,
                   },
