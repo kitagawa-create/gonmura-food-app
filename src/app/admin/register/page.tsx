@@ -102,7 +102,7 @@ function DonutChart({ percent }: { percent: number }) {
         y="70"
         textAnchor="middle"
         dominantBaseline="central"
-        fill="#2e1a0f"
+        fill="#1a2332"
         fontSize="22"
         fontWeight="700"
       >
