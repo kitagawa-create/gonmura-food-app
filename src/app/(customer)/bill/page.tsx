@@ -85,10 +85,10 @@ export default function BillPage() {
         {/* レシート: 外側 padding 撤去、各セクションが px-6 + 全幅 dashed divider */}
         <div className="w-full max-w-sm md:max-w-md lg:max-w-lg bg-[color:var(--color-bg-card)] rounded-2xl border border-[color:var(--color-border)] overflow-hidden">
           <div className="text-center px-6 pt-6 pb-4">
-            <h1 className="text-2xl font-bold text-[color:var(--color-text-primary)]">
-              Gonmura Food
+            <h1 className="text-3xl font-bold text-[color:var(--color-text-primary)]">
+              お会計
             </h1>
-            <p className="text-sm text-[color:var(--color-text-muted)] mt-1">お会計</p>
+            <p className="text-xs text-[color:var(--color-text-muted)] mt-1">Gonmura Food</p>
           </div>
 
           <div className="text-sm text-[color:var(--color-text-muted)] px-6 py-3 border-t border-dashed border-[color:var(--color-border)]">
@@ -145,9 +145,12 @@ export default function BillPage() {
             </span>
           </div>
 
-          <div className="px-6 py-4 border-t border-dashed border-[color:var(--color-border)] text-center">
-            <p className="text-sm font-medium text-[color:var(--color-text-muted)]">
-              この画面をレジにてご提示ください
+          <div className="px-6 py-5 border-t border-dashed border-[color:var(--color-border)] text-center space-y-1">
+            <p className="text-sm font-bold text-[color:var(--color-text-primary)]">
+              番号札をお持ちの上、レジまでお越しください
+            </p>
+            <p className="text-xs text-[color:var(--color-text-muted)]">
+              ご利用ありがとうございました
             </p>
           </div>
 
