@@ -18,6 +18,7 @@ import { useAdminRole } from "@/components/admin/AdminContext";
 type Period = "daily" | "weekly" | "monthly";
 type Analysis = "sales" | "menu" | "price";
 const MAX_MENU_SERIES = 5;
+// Blue theme palette
 const MENU_COLORS = [
   "#3b82f6",
   "#22c55e",

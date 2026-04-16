@@ -84,6 +84,7 @@ function DonutChart({ percent }: { percent: number }) {
   return (
     <svg width="140" height="140" viewBox="0 0 140 140">
       <g transform="rotate(-90 70 70)">
+        {/* Blue theme donut */}
         <circle cx="70" cy="70" r={radius} stroke="#e2e8f0" strokeWidth="14" fill="none" />
         <circle
           cx="70"
