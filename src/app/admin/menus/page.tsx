@@ -298,7 +298,7 @@ export default function AdminMenusPage() {
 
   return (
     <div className="w-full">
-      <div className="sticky top-0 z-20 -mx-3 md:-mx-6 -mt-3 md:-mt-6 px-3 md:px-6 pt-2 pb-2 mb-4 bg-[color:var(--color-bg-base)] border-b border-[color:var(--color-border)]">
+      <div className="sticky top-0 z-20 -mx-3 md:-mx-6 px-3 md:px-6 pt-3 md:pt-6 pb-2 mb-4 bg-[color:var(--color-bg-base)] border-b border-[color:var(--color-border)]">
         <div className="mb-3 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-[color:var(--color-text-primary)]">メニュー管理</h1>
           {role === "owner" && (
