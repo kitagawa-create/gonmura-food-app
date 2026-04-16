@@ -77,7 +77,7 @@ function OrderStatusContent() {
   return (
     <div className="min-h-screen bg-[color:var(--color-bg-base)] pb-8">
       <header className="bg-[color:var(--color-bg-card)] border-b border-[color:var(--color-border)]">
-        <div className="max-w-3xl mx-auto px-3 sm:px-6 lg:px-8 py-2 flex items-center gap-2">
+        <div className="px-3 sm:px-4 py-2 flex items-center gap-2">
           <BackButton href={backHref} label={backLabel} size="sm" />
           <h1 className="text-lg font-bold text-[color:var(--color-text-primary)]">注文状況</h1>
         </div>
