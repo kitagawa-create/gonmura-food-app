@@ -489,7 +489,11 @@ function HistoryView({ onError }: { onError: (msg: string | null) => void }) {
         <input
           type="date"
           value={dateSearch}
-          onChange={(e) => setDateSearch(e.target.value)}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (/^\d{4}-\d{2}-\d{2}$/.test(v)) setDateSearch(v);
+          }}
+          onKeyDown={(e) => e.preventDefault()}
           className="bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
         />
         <button
