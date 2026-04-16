@@ -327,6 +327,21 @@ export default function AdminSalesPage() {
     return m;
   }, [menus]);
 
+  // menuId → 表示名。現行 menus を優先し、注文スナップショットで歴史的な名前も拾う。
+  // どちらにも無い menuId が残るとグラフ凡例で生ID表示になってしまうため両方を混ぜる。
+  const menuNameMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const o of orders) {
+      for (const it of flattenForReceipt(o.items)) {
+        if (it.name) m.set(it.menuId, it.name);
+      }
+    }
+    for (const menu of menus) {
+      if (menu.name) m.set(menu.id, menu.name);
+    }
+    return m;
+  }, [orders, menus]);
+
   const buckets: Bucket[] = useMemo(() => {
     const map = new Map<string, Bucket>();
     for (const o of orders) {
@@ -395,7 +410,7 @@ export default function AdminSalesPage() {
       }
     }
     return selected.map((mid, i) => {
-      const label = menuOptions.find((m) => m.menuId === mid)?.name ?? mid;
+      const label = menuNameMap.get(mid) ?? menuOptions.find((m) => m.menuId === mid)?.name ?? mid;
       const bmap = perMenuBuckets.get(mid) ?? new Map();
       return {
         name: label,
