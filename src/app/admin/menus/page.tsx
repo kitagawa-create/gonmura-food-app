@@ -481,19 +481,21 @@ export default function AdminMenusPage() {
                             : "border-[color:var(--color-border)]"
                       } ${isMoveTarget ? "cursor-pointer" : ""} ${isDragging ? "opacity-40" : ""}`}
                     >
-                      {(!m.isAvailable || m.isSoldOut) && (
-                        <div className="absolute right-2 top-2 flex flex-col items-end gap-1">
-                          {!m.isAvailable && (
-                            <span className="rounded-full bg-[color:var(--color-text-muted)] px-2 py-0.5 text-[10px] font-bold text-white">
-                              非公開中
-                            </span>
-                          )}
-                          {m.isSoldOut && (
-                            <span className="rounded-full bg-[color:var(--color-accent-warn)] px-2 py-0.5 text-[10px] font-bold text-white">
-                              売り切れ中
-                            </span>
-                          )}
-                        </div>
+                      {/* 鉛筆アイコン編集ボタン（右上） */}
+                      {role === "owner" && (
+                        <button
+                          onClick={() => {
+                            setEditing(m);
+                            setShowForm(true);
+                          }}
+                          className="absolute right-2 top-2 rounded-lg border border-[color:var(--color-border)] p-1.5 text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+                          aria-label="編集"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                          </svg>
+                        </button>
                       )}
                       <div className="flex gap-3">
                         {m.imageUrl && (
@@ -504,7 +506,7 @@ export default function AdminMenusPage() {
                           />
                         )}
                         <div className="min-w-0 flex-1">
-                          <h3 className="truncate font-semibold text-[color:var(--color-text-primary)]">{m.name}</h3>
+                          <h3 className="truncate font-semibold text-[color:var(--color-text-primary)] pr-8">{m.name}</h3>
                           <p className="text-sm text-[color:var(--color-accent-char)]">¥{m.price}</p>
                           <p className="mt-1 text-xs text-[color:var(--color-text-muted)]">
                             {m.categoryIds
@@ -516,20 +518,25 @@ export default function AdminMenusPage() {
                               {m.description}
                             </p>
                           )}
+                          {/* 非公開・売り切れバッジ */}
+                          {(!m.isAvailable || m.isSoldOut) && (
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                              {!m.isAvailable && (
+                                <span className="rounded-full bg-[color:var(--color-text-muted)] px-2 py-0.5 text-[10px] font-bold text-white">
+                                  非公開中
+                                </span>
+                              )}
+                              {m.isSoldOut && (
+                                <span className="rounded-full bg-[color:var(--color-accent-warn)] px-2 py-0.5 text-[10px] font-bold text-white">
+                                  売り切れ中
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
+                      {/* 下部ボタン行: 非公開・売り切れ左寄せ、削除右端 */}
                       <div className="mt-3 flex flex-wrap items-center gap-2">
-                        {role === "owner" && (
-                          <button
-                            onClick={() => {
-                              setEditing(m);
-                              setShowForm(true);
-                            }}
-                            className="rounded-lg border border-[color:var(--color-border)] px-3 py-1 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
-                          >
-                            編集
-                          </button>
-                        )}
                         <button
                           onClick={() => {
                             if (m.isAvailable) {
@@ -547,7 +554,6 @@ export default function AdminMenusPage() {
                         >
                           {m.isAvailable ? "非公開にする" : "公開する"}
                         </button>
-                        {/* 売り切れトグル: 非公開とは独立。warn 色で別系統と分かるように */}
                         <button
                           onClick={() => {
                             if (!m.isSoldOut) {
@@ -568,7 +574,7 @@ export default function AdminMenusPage() {
                         {role === "owner" && !orderedMenuIds.has(m.id) && (
                           <button
                             onClick={() => setDeleteTarget(m)}
-                            className="rounded-lg bg-[color:var(--color-accent-warn)] px-3 py-1 text-xs text-white hover:opacity-90 transition-colors"
+                            className="ml-auto rounded-lg bg-[color:var(--color-accent-warn)] px-3 py-1 text-xs text-white hover:opacity-90 transition-colors"
                           >
                             削除
                           </button>
