@@ -543,6 +543,11 @@ export default function AdminSalesPage() {
   const startDayMax = getDaysInMonth(startYear, startMonth);
   const endDayMax = getDaysInMonth(endYear, endMonth);
 
+  const todayDate = new Date();
+  const todayYear = todayDate.getFullYear();
+  const todayMonth = todayDate.getMonth() + 1;
+  const todayDay = todayDate.getDate();
+
   const sectionTitle =
     analysis === "sales" ? "売上推移"
     : analysis === "menu" ? "メニュー別売数"
@@ -583,18 +588,20 @@ export default function AdminSalesPage() {
           onChange={(e) => setStartMonth(Number(e.target.value))}
           className={selectCls}
         >
-          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-            <option key={m} value={m}>{m}月</option>
-          ))}
+          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
+            const disabled = startYear === todayYear && m > todayMonth;
+            return <option key={m} value={m} disabled={disabled}>{m}月</option>;
+          })}
         </select>
         <select
           value={startDay}
           onChange={(e) => setStartDay(Number(e.target.value))}
           className={selectCls}
         >
-          {Array.from({ length: startDayMax }, (_, i) => i + 1).map((d) => (
-            <option key={d} value={d}>{d}日</option>
-          ))}
+          {Array.from({ length: startDayMax }, (_, i) => i + 1).map((d) => {
+            const disabled = startYear === todayYear && startMonth === todayMonth && d > todayDay;
+            return <option key={d} value={d} disabled={disabled}>{d}日</option>;
+          })}
         </select>
 
         <span className="text-xs text-[color:var(--color-text-muted)] px-1">〜</span>
@@ -613,18 +620,20 @@ export default function AdminSalesPage() {
           onChange={(e) => setEndMonth(Number(e.target.value))}
           className={selectCls}
         >
-          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-            <option key={m} value={m}>{m}月</option>
-          ))}
+          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
+            const disabled = endYear === todayYear && m > todayMonth;
+            return <option key={m} value={m} disabled={disabled}>{m}月</option>;
+          })}
         </select>
         <select
           value={endDay}
           onChange={(e) => setEndDay(Number(e.target.value))}
           className={selectCls}
         >
-          {Array.from({ length: endDayMax }, (_, i) => i + 1).map((d) => (
-            <option key={d} value={d}>{d}日</option>
-          ))}
+          {Array.from({ length: endDayMax }, (_, i) => i + 1).map((d) => {
+            const disabled = endYear === todayYear && endMonth === todayMonth && d > todayDay;
+            return <option key={d} value={d} disabled={disabled}>{d}日</option>;
+          })}
         </select>
       </div>
 

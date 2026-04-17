@@ -796,6 +796,7 @@ function HistoryView({
               setTableFilter(null);
             }
           }}
+          max={todayISO()}
           onKeyDown={(e) => e.preventDefault()}
           className="bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
         />
