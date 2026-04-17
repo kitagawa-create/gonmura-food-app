@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
-import type { Order } from "@/types";
+import type { Order, OrderItem } from "@/types";
+
+type OrderWithItems = Order & { items: OrderItem[] };
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import { BackButton } from "@/components/ui/BackButton";
 import { flattenForReceipt } from "@/lib/order-utils";
@@ -12,7 +14,7 @@ import Link from "next/link";
 
 export default function BillPage() {
   const { tableNumber } = useCart();
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<OrderWithItems[]>([]);
   // tableNumber が最初から無いなら fetch しないので loading=false で開始
   const [loading, setLoading] = useState(() => tableNumber !== null);
 
@@ -26,9 +28,19 @@ export default function BillPage() {
         where("status", "in", ["pending", "completed"])
       );
       const snap = await getDocs(q);
-      const data = snap.docs
+      const orderDocs = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }) as Order)
         .sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0));
+      const data: OrderWithItems[] = await Promise.all(
+        orderDocs.map(async (order) => {
+          const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+          const items: OrderItem[] = itemsSnap.docs.map((d) => ({
+            id: d.id,
+            ...(d.data() as Omit<OrderItem, "id">),
+          }));
+          return { ...order, items };
+        })
+      );
       setOrders(data);
       setLoading(false);
     }

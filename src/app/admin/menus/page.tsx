@@ -80,14 +80,15 @@ export default function AdminMenusPage() {
       try {
         const snap = await getDocs(collection(db, "orders"));
         const ids = new Set<string>();
-        for (const d of snap.docs) {
-          const items = d.data().items as { menuId: string }[];
-          if (items) {
-            for (const item of items) {
-              ids.add(item.menuId);
+        await Promise.all(
+          snap.docs.map(async (d) => {
+            const itemsSnap = await getDocs(collection(db, "orders", d.id, "items"));
+            for (const itemDoc of itemsSnap.docs) {
+              const menuId = (itemDoc.data() as { menuId: string }).menuId;
+              if (menuId) ids.add(menuId);
             }
-          }
-        }
+          })
+        );
         setOrderedMenuIds(ids);
       } finally {
         setOrderedLoaded(true);

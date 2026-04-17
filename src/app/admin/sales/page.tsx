@@ -12,10 +12,12 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Category, Customer, Menu, Order } from "@/types";
+import type { Category, Customer, Menu, Order, OrderItem } from "@/types";
 import { useAdminRole } from "@/components/admin/AdminContext";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { comboLineTotal, flattenForReceipt } from "@/lib/order-utils";
+
+type OrderWithItems = Order & { items: OrderItem[] };
 
 type Period = "daily" | "weekly" | "monthly";
 type Analysis = "sales" | "menu" | "dow";
@@ -44,7 +46,7 @@ function shortLabel(key: string, period: Period): string {
   const [, m, d] = key.split("-");
   return `${Number(m)}/${Number(d)}`;
 }
-function orderTotal(o: Order): number {
+function orderTotal(o: OrderWithItems): number {
   return o.items.reduce((s, i) => s + comboLineTotal(i), 0);
 }
 
@@ -275,7 +277,7 @@ function KpiCard({
 export default function AdminSalesPage() {
   const role = useAdminRole();
   const router = useRouter();
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [menus, setMenus] = useState<Menu[]>([]);
@@ -313,7 +315,15 @@ export default function AdminSalesPage() {
           getDocs(query(collection(db, "orders"), where("status", "==", "paid"))),
           getDocs(query(collection(db, "customers"), where("status", "==", "paid"))),
         ]);
-        setOrders(ordersSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Order));
+        const orderDocs = ordersSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Order);
+        const ordersWithItems: OrderWithItems[] = await Promise.all(
+          orderDocs.map(async (order) => {
+            const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+            const items: OrderItem[] = itemsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<OrderItem, "id">) }));
+            return { ...order, items };
+          })
+        );
+        setOrders(ordersWithItems);
         setCustomers(customersSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Customer));
       } finally {
         setLoading(false);

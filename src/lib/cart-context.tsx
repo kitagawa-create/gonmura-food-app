@@ -17,6 +17,7 @@ type CartItemInput = {
   name: string;
   price: number;
   toppings?: CartItemTopping[];
+  note?: string;
 };
 
 type CartContextType = {
@@ -151,6 +152,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           price: input.price,
           quantity: qty,
           toppings: input.toppings && input.toppings.length > 0 ? input.toppings : undefined,
+          ...(input.note ? { note: input.note } : {}),
         },
       ];
     });

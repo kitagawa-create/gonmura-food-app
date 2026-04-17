@@ -1,16 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { collection, getDocs, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
-import type { Order } from "@/types";
+import type { Order, OrderItem } from "@/types";
+
+type OrderWithItems = Order & { items: OrderItem[] };
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import { BackButton } from "@/components/ui/BackButton";
 import { comboLineTotal } from "@/lib/order-utils";
 export default function OrderHistoryPage() {
   const { tableNumber } = useCart();
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(() => tableNumber !== null);
 
   useEffect(() => {
@@ -23,11 +25,22 @@ export default function OrderHistoryPage() {
     );
 
     const unsub = onSnapshot(q, (snap) => {
-      const data = snap.docs
+      const orderDocs = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }) as Order)
         .sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
-      setOrders(data);
-      setLoading(false);
+      Promise.all(
+        orderDocs.map(async (order) => {
+          const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+          const items: OrderItem[] = itemsSnap.docs.map((d) => ({
+            id: d.id,
+            ...(d.data() as Omit<OrderItem, "id">),
+          }));
+          return { ...order, items };
+        })
+      ).then((data) => {
+        setOrders(data);
+        setLoading(false);
+      });
     });
     return () => unsub();
   }, [tableNumber]);

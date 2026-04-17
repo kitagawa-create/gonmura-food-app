@@ -15,18 +15,51 @@ import {
   serverTimestamp,
   updateDoc,
   where,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Category, Menu, Order } from "@/types";
+import type { Category, Menu, Order, OrderItemTopping } from "@/types";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { comboLineTotal } from "@/lib/order-utils";
+
+// ---------- ローカル型 ----------
+
+type OrderItem = {
+  id: string;
+  menuId: string;
+  name: string;
+  price: number;
+  quantity: number;
+  toppings?: OrderItemTopping[];
+  note?: string;
+  checked?: boolean;
+};
+
+type OrderWithItems = Omit<Order, "items" | "checkedItems"> & { items: OrderItem[] };
+
+// ---------- helpers ----------
+
+async function loadOrdersWithItems(
+  orderDocs: Array<Omit<Order, "items" | "checkedItems">>
+): Promise<OrderWithItems[]> {
+  return Promise.all(
+    orderDocs.map(async (order) => {
+      const itemsSnap = await getDocs(
+        collection(db, "orders", order.id, "items")
+      );
+      const items: OrderItem[] = itemsSnap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<OrderItem, "id">),
+      }));
+      return { ...order, items };
+    })
+  );
+}
 
 const TIME_FORMATTER = new Intl.DateTimeFormat("ja-JP", {
   hour: "2-digit",
   minute: "2-digit",
 });
-
-// ---------- helpers ----------
 
 function todayISO(): string {
   const d = new Date();
@@ -129,7 +162,6 @@ export default function AdminOrdersPage() {
 }
 
 // menus + categories から「トッピング」カテゴリに属する menuId の Set を取得。
-// 描画毎ではなく一度だけ fetch し useMemo で Set 化する (パフォーマンス要件)。
 function useToppingMenuIds(): Set<string> {
   const [menus, setMenus] = useState<Menu[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -177,11 +209,12 @@ function NewOrdersView({
   onError: (msg: string | null) => void;
   toppingMenuIds: Set<string>;
 }) {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateFilter, setDateFilter] = useState<string>(todayISO());
   const [now, setNow] = useState(() => Date.now());
   const prevOrderCountRef = useRef<number | null>(null);
+  const loadedOrderIdsRef = useRef<Set<string>>(new Set());
 
   // 経過時刻更新 + 日付自動ロールオーバー (30秒おき)
   useEffect(() => {
@@ -195,6 +228,7 @@ function NewOrdersView({
 
   useEffect(() => {
     prevOrderCountRef.current = null;
+    loadedOrderIdsRef.current = new Set();
     const start = new Date(`${dateFilter}T00:00:00`);
     const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
 
@@ -211,10 +245,7 @@ function NewOrdersView({
         const all = snap.docs.map(
           (d) => ({ id: d.id, ...(d.data() as Omit<Order, "id">) })
         );
-        // 新規注文ビューには pending のみ表示
-        const active = all.filter(
-          (o) => o.status === "pending"
-        );
+        const active = all.filter((o) => o.status === "pending");
 
         if (
           prevOrderCountRef.current !== null &&
@@ -223,8 +254,27 @@ function NewOrdersView({
           playNotificationSound();
         }
         prevOrderCountRef.current = all.length;
-        setOrders(active);
-        setLoading(false);
+
+        // 新規登場オーダーのみ items を fetch（既存はチェック状態を保持）
+        const newOrders = active.filter((o) => !loadedOrderIdsRef.current.has(o.id));
+        loadOrdersWithItems(newOrders)
+          .then((newWithItems) => {
+            newOrders.forEach((o) => loadedOrderIdsRef.current.add(o.id));
+            setOrders((prev) => {
+              const prevMap = new Map(prev.map((o) => [o.id, o]));
+              return active.map(
+                (o) =>
+                  prevMap.get(o.id) ??
+                  newWithItems.find((n) => n.id === o.id) ??
+                  { ...o, items: [] }
+              );
+            });
+            setLoading(false);
+          })
+          .catch((e) => {
+            onError(e instanceof Error ? e.message : "取得に失敗しました。");
+            setLoading(false);
+          });
       },
       (e) => {
         onError(e.message);
@@ -235,29 +285,40 @@ function NewOrdersView({
   }, [dateFilter, onError]);
 
   const toggleCheck = useCallback(
-    async (order: Order, itemIdx: number) => {
+    async (order: OrderWithItems, itemId: string) => {
       onError(null);
-      const prev = order.checkedItems ?? [];
-      const next = prev.includes(itemIdx)
-        ? prev.filter((i) => i !== itemIdx)
-        : [...prev, itemIdx];
+      const item = order.items.find((i) => i.id === itemId);
+      if (!item) return;
+      const newChecked = !item.checked;
 
-      // optimistic (チェック更新のみ、完了遷移はしない)
       setOrders((os) =>
         os.map((o) =>
-          o.id === order.id ? { ...o, checkedItems: next } : o
+          o.id === order.id
+            ? {
+                ...o,
+                items: o.items.map((i) =>
+                  i.id === itemId ? { ...i, checked: newChecked } : i
+                ),
+              }
+            : o
         )
       );
 
       try {
-        await updateDoc(doc(db, "orders", order.id), {
-          checkedItems: next,
-          updatedAt: serverTimestamp(),
+        await updateDoc(doc(db, "orders", order.id, "items", itemId), {
+          checked: newChecked,
         });
       } catch (e) {
         setOrders((os) =>
           os.map((o) =>
-            o.id === order.id ? { ...o, checkedItems: prev } : o
+            o.id === order.id
+              ? {
+                  ...o,
+                  items: o.items.map((i) =>
+                    i.id === itemId ? { ...i, checked: item.checked } : i
+                  ),
+                }
+              : o
           )
         );
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
@@ -267,7 +328,7 @@ function NewOrdersView({
   );
 
   const completeOrder = useCallback(
-    async (order: Order) => {
+    async (order: OrderWithItems) => {
       onError(null);
       setOrders((os) => os.filter((o) => o.id !== order.id));
       try {
@@ -295,13 +356,11 @@ function NewOrdersView({
     [onError]
   );
 
-  // items[idx] を削除。最後の1件だった場合は注文自体を deleteDoc。
-  // checkedItems は idx を除外 + idx より後ろのインデックスを 1 つ詰める。
   const cancelItem = useCallback(
-    async (order: Order, idx: number) => {
+    async (order: OrderWithItems, itemId: string) => {
       onError(null);
-      const newItems = order.items.filter((_, i) => i !== idx);
-      if (newItems.length === 0) {
+      const remaining = order.items.filter((i) => i.id !== itemId);
+      if (remaining.length === 0) {
         try {
           await deleteDoc(doc(db, "orders", order.id));
         } catch (e) {
@@ -309,15 +368,11 @@ function NewOrdersView({
         }
         return;
       }
-      const newChecked = (order.checkedItems ?? [])
-        .filter((i) => i !== idx)
-        .map((i) => (i > idx ? i - 1 : i));
       try {
-        await updateDoc(doc(db, "orders", order.id), {
-          items: newItems,
-          checkedItems: newChecked,
-          updatedAt: serverTimestamp(),
-        });
+        await deleteDoc(doc(db, "orders", order.id, "items", itemId));
+        setOrders((os) =>
+          os.map((o) => (o.id === order.id ? { ...o, items: remaining } : o))
+        );
       } catch (e) {
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
       }
@@ -326,22 +381,24 @@ function NewOrdersView({
   );
 
   const bulkCheckAll = useCallback(
-    async (order: Order) => {
+    async (order: OrderWithItems) => {
       onError(null);
-      const allIndices = order.items.map((_, i) => i);
       setOrders((os) =>
-        os.map((o) => (o.id === order.id ? { ...o, checkedItems: allIndices } : o))
+        os.map((o) =>
+          o.id === order.id
+            ? { ...o, items: o.items.map((i) => ({ ...i, checked: true })) }
+            : o
+        )
       );
+      const batch = writeBatch(db);
+      for (const item of order.items) {
+        batch.update(doc(db, "orders", order.id, "items", item.id), { checked: true });
+      }
       try {
-        await updateDoc(doc(db, "orders", order.id), {
-          checkedItems: allIndices,
-          updatedAt: serverTimestamp(),
-        });
+        await batch.commit();
       } catch (e) {
         setOrders((os) =>
-          os.map((o) =>
-            o.id === order.id ? { ...o, checkedItems: order.checkedItems ?? [] } : o
-          )
+          os.map((o) => (o.id === order.id ? { ...o, items: order.items } : o))
         );
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
       }
@@ -350,21 +407,24 @@ function NewOrdersView({
   );
 
   const bulkUncheckAll = useCallback(
-    async (order: Order) => {
+    async (order: OrderWithItems) => {
       onError(null);
       setOrders((os) =>
-        os.map((o) => (o.id === order.id ? { ...o, checkedItems: [] } : o))
+        os.map((o) =>
+          o.id === order.id
+            ? { ...o, items: o.items.map((i) => ({ ...i, checked: false })) }
+            : o
+        )
       );
+      const batch = writeBatch(db);
+      for (const item of order.items) {
+        batch.update(doc(db, "orders", order.id, "items", item.id), { checked: false });
+      }
       try {
-        await updateDoc(doc(db, "orders", order.id), {
-          checkedItems: [],
-          updatedAt: serverTimestamp(),
-        });
+        await batch.commit();
       } catch (e) {
         setOrders((os) =>
-          os.map((o) =>
-            o.id === order.id ? { ...o, checkedItems: order.checkedItems ?? [] } : o
-          )
+          os.map((o) => (o.id === order.id ? { ...o, items: order.items } : o))
         );
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
       }
@@ -420,28 +480,28 @@ function ActiveOrderCard({
   onBulkCheck,
   onBulkUncheck,
 }: {
-  order: Order;
+  order: OrderWithItems;
   now: number;
   toppingMenuIds: Set<string>;
-  onToggle: (order: Order, idx: number) => void;
-  onComplete: (order: Order) => void;
+  onToggle: (order: OrderWithItems, itemId: string) => void;
+  onComplete: (order: OrderWithItems) => void;
   onDelete: (id: string) => void;
-  onCancelItem: (order: Order, idx: number) => void;
-  onBulkCheck: (order: Order) => void;
-  onBulkUncheck: (order: Order) => void;
+  onCancelItem: (order: OrderWithItems, itemId: string) => void;
+  onBulkCheck: (order: OrderWithItems) => void;
+  onBulkUncheck: (order: OrderWithItems) => void;
 }) {
   const [showCancel, setShowCancel] = useState(false);
-  const [cancelItemIdx, setCancelItemIdx] = useState<number | null>(null);
+  const [cancelItemId, setCancelItemId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [autoCompleteCountdown, setAutoCompleteCountdown] = useState<number | null>(null);
   const total = order.items.reduce((s, i) => s + comboLineTotal(i), 0);
   const created = order.createdAt?.toDate?.();
   const elapsed = created ? timeAgo(created) : "";
-  const checked = new Set(order.checkedItems ?? []);
-  const allDone = checked.size >= order.items.length;
-  const progress = `${checked.size}/${order.items.length}`;
+  const allDone = order.items.length > 0 && order.items.every((i) => i.checked);
+  const checkedCount = order.items.filter((i) => i.checked).length;
+  const progress = `${checkedCount}/${order.items.length}`;
 
-  // 全チェック時に5秒後自動で提供完了。編集中(取消操作の途中)は停止。
+  // 全チェック時に5秒後自動で提供完了。編集中は停止。
   useEffect(() => {
     if (!allDone || editMode) {
       setAutoCompleteCountdown(null);
@@ -460,13 +520,14 @@ function ActiveOrderCard({
     };
   }, [allDone, editMode, order, onComplete]);
 
-  // 10分以上経過した pending 注文は赤枠 + 赤バッジで強調。
   const isUrgent =
     order.status === "pending" &&
     !!created &&
     now - created.getTime() > 10 * 60 * 1000;
 
-  const cancelTarget = cancelItemIdx !== null ? order.items[cancelItemIdx] : null;
+  const cancelTarget = cancelItemId !== null
+    ? order.items.find((i) => i.id === cancelItemId) ?? null
+    : null;
   const isLastItem = order.items.length === 1;
 
   return (
@@ -534,25 +595,24 @@ function ActiveOrderCard({
         <button
           type="button"
           onClick={() => onBulkUncheck(order)}
-          disabled={checked.size === 0}
+          disabled={checkedCount === 0}
           className="flex-1 rounded-lg border border-[color:var(--color-border)] px-2 py-1.5 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] disabled:cursor-not-allowed disabled:opacity-30 transition-colors"
         >
           全取り消し
         </button>
       </div>
+
       {/* 商品チェックリスト */}
       <ul className="mb-3 space-y-1">
-        {order.items.map((item, idx) => {
-          const done = checked.has(idx);
-          // 新スキーマ: item.toppings に含まれる → コンボ1杯としてネスト表示
-          // 旧スキーマ: toppings 未設定 → menuId ベースの heuristic で 1 行分インデント
+        {order.items.map((item) => {
+          const done = item.checked === true;
           const hasNestedToppings = !!item.toppings && item.toppings.length > 0;
           const isLegacyTopping = !hasNestedToppings && toppingMenuIds.has(item.menuId);
           return (
-            <li key={`${item.menuId}-${idx}`} className="flex items-stretch gap-1">
+            <li key={item.id} className="flex items-stretch gap-1">
               <button
                 type="button"
-                onClick={() => onToggle(order, idx)}
+                onClick={() => onToggle(order, item.id)}
                 className={`flex-1 rounded-lg px-3 py-2.5 text-left transition-colors ${
                   done
                     ? "bg-[color:var(--color-accent-negi)]/10"
@@ -560,7 +620,6 @@ function ActiveOrderCard({
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  {/* チェックボックス */}
                   <span
                     className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-2 transition-colors ${
                       done
@@ -608,7 +667,6 @@ function ActiveOrderCard({
                     ×{item.quantity}
                   </span>
                 </div>
-                {/* ネストトッピング: チェックなしで一覧表示 (コンボ全体のチェックで共に提供扱い) */}
                 {hasNestedToppings && (
                   <ul className="mt-1 ml-10 space-y-0.5">
                     {item.toppings!.map((t) => (
@@ -635,7 +693,7 @@ function ActiveOrderCard({
               {editMode && (
                 <button
                   type="button"
-                  onClick={() => setCancelItemIdx(idx)}
+                  onClick={() => setCancelItemId(item.id)}
                   aria-label={`${item.name} をキャンセル`}
                   className="shrink-0 w-9 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] text-lg text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-accent-warn)]/10 hover:text-[color:var(--color-accent-warn)] transition-colors"
                 >
@@ -686,8 +744,8 @@ function ActiveOrderCard({
       />
 
       <ConfirmDialog
-        open={cancelItemIdx !== null}
-        title={`商品をキャンセル`}
+        open={cancelItemId !== null}
+        title="商品をキャンセル"
         message={
           cancelTarget
             ? `${cancelTarget.name} ×${cancelTarget.quantity}（¥${comboLineTotal(cancelTarget).toLocaleString()}）をキャンセルしますか？${isLastItem ? "これが最後の商品のため注文自体が削除されます。" : ""}`
@@ -696,10 +754,10 @@ function ActiveOrderCard({
         confirmLabel={isLastItem ? "注文を削除" : "キャンセルする"}
         confirmColor="red"
         onConfirm={() => {
-          if (cancelItemIdx !== null) onCancelItem(order, cancelItemIdx);
-          setCancelItemIdx(null);
+          if (cancelItemId !== null) onCancelItem(order, cancelItemId);
+          setCancelItemId(null);
         }}
-        onCancel={() => setCancelItemIdx(null)}
+        onCancel={() => setCancelItemId(null)}
       />
     </div>
   );
@@ -714,22 +772,25 @@ function HistoryView({
   onError: (msg: string | null) => void;
   toppingMenuIds: Set<string>;
 }) {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateSearch, setDateSearch] = useState<string>(todayISO());
   const [tableFilter, setTableFilter] = useState<number | null>(null);
 
-  // completed → pending に戻す。paid は register のドーナツ集計が壊れるため不可。
   const revertOrder = useCallback(
-    async (order: Order) => {
+    async (order: OrderWithItems) => {
       onError(null);
       if (order.status === "paid") return;
       try {
-        await updateDoc(doc(db, "orders", order.id), {
+        const batch = writeBatch(db);
+        batch.update(doc(db, "orders", order.id), {
           status: "pending",
-          checkedItems: [],
           updatedAt: serverTimestamp(),
         });
+        for (const item of order.items) {
+          batch.update(doc(db, "orders", order.id, "items", item.id), { checked: false });
+        }
+        await batch.commit();
       } catch (e) {
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
       }
@@ -752,12 +813,18 @@ function HistoryView({
     const unsub = onSnapshot(
       q,
       (snap) => {
-        setOrders(
-          snap.docs.map(
-            (d) => ({ id: d.id, ...(d.data() as Omit<Order, "id">) })
-          )
+        const orderDocs = snap.docs.map(
+          (d) => ({ id: d.id, ...(d.data() as Omit<Order, "id">) })
         );
-        setLoading(false);
+        loadOrdersWithItems(orderDocs)
+          .then((withItems) => {
+            setOrders(withItems);
+            setLoading(false);
+          })
+          .catch((e) => {
+            onError(e instanceof Error ? e.message : "取得に失敗しました。");
+            setLoading(false);
+          });
       },
       (e) => {
         onError(e.message);
@@ -781,6 +848,9 @@ function HistoryView({
     () => (tableFilter !== null ? orders.filter((o) => o.tableNumber === tableFilter) : orders),
     [orders, tableFilter]
   );
+
+  // totalAmount は filteredOrders ベースで再計算
+  void totalAmount;
 
   return (
     <div className="flex-1 overflow-y-auto -mr-3 md:-mr-6 pr-3 md:pr-6">
@@ -857,9 +927,9 @@ function HistoryOrderCard({
   toppingMenuIds,
   onRevert,
 }: {
-  order: Order;
+  order: OrderWithItems;
   toppingMenuIds: Set<string>;
-  onRevert: (order: Order) => void;
+  onRevert: (order: OrderWithItems) => void;
 }) {
   const [showRevert, setShowRevert] = useState(false);
   const total = order.items.reduce((s, i) => s + comboLineTotal(i), 0);
@@ -893,11 +963,11 @@ function HistoryOrderCard({
         </div>
       </div>
       <ul className="text-sm text-[color:var(--color-text-primary)] space-y-0.5">
-        {order.items.map((item, i) => {
+        {order.items.map((item) => {
           const hasNestedToppings = !!item.toppings && item.toppings.length > 0;
           const isLegacyTopping = !hasNestedToppings && toppingMenuIds.has(item.menuId);
           return (
-            <li key={i}>
+            <li key={item.id}>
               <div className={`flex justify-between ${isLegacyTopping ? "pl-4" : ""}`}>
                 <span>
                   {isLegacyTopping && (
@@ -933,7 +1003,6 @@ function HistoryOrderCard({
         </p>
       )}
 
-      {/* 新規に戻す (paid は register ドーナツ集計が壊れるため非表示) */}
       {!isPaid && (
         <div className="mt-3 flex justify-end">
           <button

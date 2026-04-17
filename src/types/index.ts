@@ -46,6 +46,7 @@ export type OrderItemTopping = {
 };
 
 export type OrderItem = {
+  id: string;
   menuId: string;
   name: string;
   /** 注文時点のスナップショット。整数（円）。単品価格 (トッピング分は含まない) */
@@ -56,6 +57,8 @@ export type OrderItem = {
   toppings?: OrderItemTopping[];
   /** 注文時スナップショット */
   note?: string;
+  /** チェック状態（旧 checkedItems 配列を置き換え） */
+  checked?: boolean;
 };
 
 export type CustomerStatus = "active" | "paid";
@@ -75,7 +78,6 @@ export type AdminRole = "owner" | "staff";
 
 export type Order = {
   id: string;
-  items: OrderItem[];
   status: OrderStatus;
   /** 整数。1以上 */
   tableNumber: number;
@@ -84,10 +86,15 @@ export type Order = {
   guestCount?: number;
   /** customers コレクションへの参照 */
   customerId?: string;
-  /** チェック済み商品のインデックス (0-based)。全チェック後「提供完了」ボタンで completed に遷移 */
-  checkedItems?: number[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
+};
+
+export type TableConfig = {
+  id: string;
+  /** 整数。1〜30 */
+  number: number;
+  name: string;
 };
 
 export type Admin = {

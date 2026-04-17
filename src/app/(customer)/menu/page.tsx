@@ -32,6 +32,7 @@ export default function MenuPage() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [selectedMenu, setSelectedMenu] = useState<Menu | null>(null);
   const [selectedQuantity, setSelectedQuantity] = useState(1);
+  const [selectedNote, setSelectedNote] = useState("");
   // ラーメンモーダルのトッピング/サイド選択 (menuId → quantity)
   const [extraQty, setExtraQty] = useState<Record<string, number>>({});
   const [showPinDialog, setShowPinDialog] = useState(false);
@@ -41,7 +42,7 @@ export default function MenuPage() {
   const [tableChangeError, setTableChangeError] = useState("");
   const [newTableInput, setNewTableInput] = useState<string>("");
   const [showGuestCountDialog, setShowGuestCountDialog] = useState(false);
-  const [guestCountInput, setGuestCountInput] = useState<number>(2);
+  const [guestCountInput, setGuestCountInput] = useState<number>(1);
   const [hasUnpaidOrders, setHasUnpaidOrders] = useState(false);
   const [ordersLoaded, setOrdersLoaded] = useState(false);
   const { addItem, totalItems, tableNumber, setTableNumber, clearCart, resetSession, guestCount, setGuestCount } =
@@ -418,7 +419,7 @@ export default function MenuPage() {
       </div>
       {/* カート (sm+ は右カラム 100dvh / sm 未満は下段 max 45dvh) */}
       <aside className="shrink-0 max-h-[45dvh] overflow-hidden border-t border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] sm:max-h-none sm:border-t-0 sm:border-l">
-        <CartPanel />
+        <CartPanel hasOrders={hasUnpaidOrders} />
       </aside>
 
       {/* 商品詳細モーダル */}
@@ -428,6 +429,7 @@ export default function MenuPage() {
           onClick={() => {
             setSelectedMenu(null);
             setExtraQty({});
+            setSelectedNote("");
           }}
         >
           <div
@@ -559,6 +561,21 @@ export default function MenuPage() {
                   </section>
                 )}
 
+                {/* 備考欄 */}
+                <div>
+                  <label className="block text-sm font-bold text-[color:var(--color-text-primary)] mb-1">
+                    備考・アレルギー
+                  </label>
+                  <textarea
+                    value={selectedNote}
+                    onChange={(e) => setSelectedNote(e.target.value)}
+                    placeholder="例: 辛め、ネギ抜き、アレルギー情報など"
+                    maxLength={100}
+                    rows={2}
+                    className="w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-subtle)] px-3 py-2 text-sm text-[color:var(--color-text-primary)] placeholder-[color:var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)] resize-none"
+                  />
+                </div>
+
               </div>
             </div>
 
@@ -589,6 +606,7 @@ export default function MenuPage() {
                         name: selectedMenu.name,
                         price: selectedMenu.price,
                         toppings: toppings.length > 0 ? toppings : undefined,
+                        ...(selectedNote.trim() ? { note: selectedNote.trim() } : {}),
                       },
                       1
                     );
@@ -599,12 +617,14 @@ export default function MenuPage() {
                         menuId: selectedMenu.id,
                         name: selectedMenu.name,
                         price: selectedMenu.price,
+                        ...(selectedNote.trim() ? { note: selectedNote.trim() } : {}),
                       },
                       selectedQuantity
                     );
                   }
                   setSelectedMenu(null);
                   setExtraQty({});
+                  setSelectedNote("");
                 }}
                 className="flex-[2] py-3 rounded-xl bg-[color:var(--color-accent-char)] text-white font-bold hover:opacity-90 transition-opacity"
               >

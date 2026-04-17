@@ -85,6 +85,18 @@ service cloud.firestore {
         && request.resource.data.name.size() <= 10;
     }
 
+    match /orders/{orderId}/items/{itemId} {
+      allow create: if request.resource.data.keys().hasAll(['menuId', 'name', 'price', 'quantity'])
+        && request.resource.data.menuId is string
+        && request.resource.data.name is string
+        && request.resource.data.price is int
+        && request.resource.data.price >= 0
+        && request.resource.data.quantity is int
+        && request.resource.data.quantity >= 1;
+      allow read: if true;
+      allow update, delete: if isStaff();
+    }
+
     match /admins/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;
     }

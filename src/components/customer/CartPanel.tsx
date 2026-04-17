@@ -11,6 +11,7 @@ import {
   serverTimestamp,
   setDoc,
   where,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
@@ -18,7 +19,7 @@ import { trackEvent } from "@/lib/analytics";
 import { FadeImage } from "@/components/ui/FadeImage";
 import { comboUnitPrice } from "@/lib/order-utils";
 
-export function CartPanel() {
+export function CartPanel({ hasOrders }: { hasOrders: boolean }) {
   const {
     items,
     updateQuantity,
@@ -134,13 +135,26 @@ export function CartPanel() {
       }
 
       const orderRef = doc(collection(db, "orders"));
-      await setDoc(orderRef, {
-        // OrderItem には lineId を含めない (顧客向け識別子ではなくカート内で merge 用)
-        items: items.map((item) => ({
+      const batch = writeBatch(db);
+
+      batch.set(orderRef, {
+        status: "pending",
+        tableNumber,
+        customerId,
+        customerNote: "",
+        ...(guestCount != null ? { guestCount } : {}),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      for (const item of items) {
+        const itemRef = doc(collection(db, "orders", orderRef.id, "items"));
+        batch.set(itemRef, {
           menuId: item.menuId,
           name: item.name,
           price: item.price,
           quantity: item.quantity,
+          checked: false,
           ...(item.note ? { note: item.note } : {}),
           ...(item.toppings && item.toppings.length > 0
             ? {
@@ -152,14 +166,10 @@ export function CartPanel() {
                 })),
               }
             : {}),
-        })),
-        status: "pending",
-        tableNumber,
-        customerId,
-        ...(guestCount != null ? { guestCount } : {}),
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
+        });
+      }
+
+      await batch.commit();
 
       trackEvent("purchase", {
         table_number: tableNumber,
@@ -303,7 +313,13 @@ export function CartPanel() {
           </button>
           <Link
             href="/bill"
-            className="block w-full rounded-xl bg-[color:var(--color-accent-warn)] py-2.5 text-center text-sm font-bold text-white hover:opacity-90 transition-opacity"
+            aria-disabled={!hasOrders}
+            tabIndex={hasOrders ? undefined : -1}
+            className={`block w-full rounded-xl py-2.5 text-center text-sm font-bold text-white transition-opacity ${
+              hasOrders
+                ? "bg-[color:var(--color-accent-warn)] hover:opacity-90"
+                : "bg-[color:var(--color-text-muted)] pointer-events-none opacity-50 cursor-not-allowed"
+            }`}
           >
             お会計
           </Link>
