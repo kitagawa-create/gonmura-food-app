@@ -701,7 +701,7 @@ export default function AdminSalesPage() {
                       {DOW_LABELS.map((d, i) => (
                         <th
                           key={d}
-                          className={`w-12 py-1 text-center font-medium ${i >= 5 ? "text-[color:var(--color-accent-warn)]" : "text-[color:var(--color-text-primary)]"}`}
+                          className="w-12 py-1 text-center font-medium text-[color:var(--color-text-primary)]"
                         >
                           {d}
                         </th>
