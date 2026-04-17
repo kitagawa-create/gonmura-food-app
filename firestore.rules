@@ -74,6 +74,17 @@ service cloud.firestore {
       allow update, delete: if isStaff();
     }
 
+    match /tables/{tableId} {
+      allow read: if true;
+      allow write: if isOwner()
+        && request.resource.data.number is int
+        && request.resource.data.number >= 1
+        && request.resource.data.number <= 50
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 1
+        && request.resource.data.name.size() <= 10;
+    }
+
     match /admins/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;
     }

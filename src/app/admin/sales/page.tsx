@@ -308,13 +308,16 @@ export default function AdminSalesPage() {
 
   useEffect(() => {
     async function fetchData() {
-      const [ordersSnap, customersSnap] = await Promise.all([
-        getDocs(query(collection(db, "orders"), where("status", "==", "paid"))),
-        getDocs(query(collection(db, "customers"), where("status", "==", "paid"))),
-      ]);
-      setOrders(ordersSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Order));
-      setCustomers(customersSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Customer));
-      setLoading(false);
+      try {
+        const [ordersSnap, customersSnap] = await Promise.all([
+          getDocs(query(collection(db, "orders"), where("status", "==", "paid"))),
+          getDocs(query(collection(db, "customers"), where("status", "==", "paid"))),
+        ]);
+        setOrders(ordersSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Order));
+        setCustomers(customersSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Customer));
+      } finally {
+        setLoading(false);
+      }
     }
     fetchData();
   }, []);
