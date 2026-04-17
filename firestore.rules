@@ -14,19 +14,41 @@ service cloud.firestore {
     }
 
     function validTableNumber(n) {
-      return (n is int && n >= 1 && n <= 30)
-          || (n is string && n.matches('^([1-9]|[12][0-9]|30)$'));
+      return (n is int && n >= 1 && n <= 50)
+          || (n is string && n.matches('^([1-9]|[1-4][0-9]|50)$'));
+    }
+
+    function validCategoryName(s) {
+      return s is string && s.size() >= 1 && s.size() <= 20;
+    }
+
+    function validMenuName(s) {
+      return s is string && s.size() >= 1 && s.size() <= 30;
+    }
+
+    function validDescription(s) {
+      return s is string && s.size() <= 200;
+    }
+
+    function validNote(s) {
+      return s is string && s.size() <= 100;
     }
 
     match /categories/{categoryId} {
       allow read: if true;
-      allow write: if isOwner();
+      allow write: if isOwner()
+        && validCategoryName(request.resource.data.name);
     }
 
     match /menus/{menuId} {
       allow read: if true;
-      allow create, delete: if isOwner();
-      allow update: if isOwner()
+      allow create: if isOwner()
+        && validMenuName(request.resource.data.name)
+        && validDescription(request.resource.data.description);
+      allow delete: if isOwner();
+      allow update: if (isOwner()
+            && validMenuName(request.resource.data.name)
+            && validDescription(request.resource.data.description))
         || (isStaff()
             && request.resource.data.diff(resource.data).affectedKeys()
                 .hasOnly(["isAvailable", "isSoldOut", "updatedAt"]));
@@ -34,7 +56,9 @@ service cloud.firestore {
 
     match /orders/{orderId} {
       allow create: if request.resource.data.keys().hasAll(['tableNumber'])
-                    && validTableNumber(request.resource.data.tableNumber);
+                    && validTableNumber(request.resource.data.tableNumber)
+                    && (!('customerNote' in request.resource.data)
+                        || validNote(request.resource.data.customerNote));
       allow read: if true;
       allow update: if isStaff();
       allow delete: if isStaff();

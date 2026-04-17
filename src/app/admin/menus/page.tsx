@@ -721,6 +721,7 @@ function MenuFormModal({
           <Field label="名前">
             <input
               required
+              maxLength={30}
               className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -729,6 +730,7 @@ function MenuFormModal({
           <Field label="説明">
             <textarea
               rows={3}
+              maxLength={200}
               className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
               value={form.description}
               onChange={(e) =>

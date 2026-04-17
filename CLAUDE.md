@@ -91,7 +91,7 @@ paid への変更は管理者のみ（レジ画面から）
 ## Security Rules (firestore.rules)
 - categories: 誰でも読める、owner のみ書ける
 - menus: 誰でも読める / create・delete は owner / update は owner、staff は isAvailable + isSoldOut + updatedAt のみ可
-- orders: 誰でも作成・読める（tableNumber バリデーション 1-30）、更新・削除は staff 以上（owner も可）
+- orders: 誰でも作成・読める（tableNumber バリデーション 1-50）、更新・削除は staff 以上（owner も可）
 - admins: 自分のuidのドキュメントのみ読める
 - storage menus/: 誰でも読める、認証済みユーザーのみ書ける
 - 管理者ロールは admins/{uid}.role: "owner" | "staff"。role 未設定は staff 扱い

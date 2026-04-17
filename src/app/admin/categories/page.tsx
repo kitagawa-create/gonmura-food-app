@@ -223,6 +223,7 @@ export default function AdminCategoriesPage() {
           <label className="mb-1 block text-xs text-[color:var(--color-text-muted)]">名前</label>
           <input
             className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
+            maxLength={20}
             value={newName}
             onChange={(e) => {
               setNewName(e.target.value);
@@ -418,6 +419,7 @@ function CategoryRow({
           <input
             autoFocus
             className="flex-1 rounded border border-[color:var(--color-accent-char)] bg-[color:var(--color-bg-base)] px-2 py-1 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
+            maxLength={20}
             value={name}
             onChange={(e) => {
               setName(e.target.value);

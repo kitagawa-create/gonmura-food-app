@@ -19,12 +19,15 @@ import { comboLineTotal, flattenForReceipt } from "@/lib/order-utils";
 
 type Period = "daily" | "weekly" | "monthly";
 type Analysis = "sales" | "menu" | "price";
-type DateRange = "7d" | "30d" | "90d" | "thisMonth" | "lastMonth" | "thisYear" | "all";
 
+const BLUE = "#3b82f6";
 const COLORS = [
   "#3b82f6", "#22c55e", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#ef4444",
 ];
 
+function getDaysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
+}
 function formatDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -48,41 +51,6 @@ function shortLabel(key: string, period: Period): string {
 }
 function orderTotal(o: Order): number {
   return o.items.reduce((s, i) => s + comboLineTotal(i), 0);
-}
-function dateRangeInterval(range: DateRange): { start: Date; end: Date } {
-  const now = new Date();
-  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-  if (range === "7d") {
-    const s = new Date(todayEnd);
-    s.setDate(s.getDate() - 6);
-    s.setHours(0, 0, 0, 0);
-    return { start: s, end: todayEnd };
-  }
-  if (range === "30d") {
-    const s = new Date(todayEnd);
-    s.setDate(s.getDate() - 29);
-    s.setHours(0, 0, 0, 0);
-    return { start: s, end: todayEnd };
-  }
-  if (range === "90d") {
-    const s = new Date(todayEnd);
-    s.setDate(s.getDate() - 89);
-    s.setHours(0, 0, 0, 0);
-    return { start: s, end: todayEnd };
-  }
-  if (range === "thisMonth") {
-    return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: todayEnd };
-  }
-  if (range === "lastMonth") {
-    return {
-      start: new Date(now.getFullYear(), now.getMonth() - 1, 1),
-      end: new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999),
-    };
-  }
-  if (range === "thisYear") {
-    return { start: new Date(now.getFullYear(), 0, 1), end: todayEnd };
-  }
-  return { start: new Date(0), end: todayEnd };
 }
 
 type Bucket = { key: string; label: string; revenue: number; count: number };
@@ -157,7 +125,6 @@ function LineChart({
             strokeDasharray="3 3"
           />
         ))}
-
         {annotations?.map((ann) => (
           <g key={ann.idx}>
             <line
@@ -169,17 +136,11 @@ function LineChart({
               strokeDasharray="4 3"
               strokeWidth={1.5}
             />
-            <text
-              x={xs(ann.idx) + 4}
-              y={padT + 10}
-              fontSize={9}
-              fill="#ef4444"
-            >
+            <text x={xs(ann.idx) + 4} y={padT + 10} fontSize={9} fill="#ef4444">
               {ann.label}
             </text>
           </g>
         ))}
-
         {series.map((s, idx) => (
           <g key={s.name}>
             <path
@@ -205,7 +166,6 @@ function LineChart({
             })}
           </g>
         ))}
-
         {hoverIdx !== null && (
           <line
             x1={xs(hoverIdx)}
@@ -216,7 +176,6 @@ function LineChart({
             strokeWidth={1}
           />
         )}
-
         {labels.map((l, i) =>
           i % xTickEvery === 0 || i === n - 1 ? (
             <text
@@ -231,11 +190,9 @@ function LineChart({
             </text>
           ) : null
         )}
-
         {labels.map((_, i) => {
           const left = i === 0 ? padL : (xs(i) + xs(i - 1)) / 2;
-          const right =
-            i === n - 1 ? W - padR : (xs(i) + xs(i + 1)) / 2;
+          const right = i === n - 1 ? W - padR : (xs(i) + xs(i + 1)) / 2;
           return (
             <rect
               key={i}
@@ -251,7 +208,6 @@ function LineChart({
           );
         })}
       </svg>
-
       {hoverIdx !== null && (
         <div className="pointer-events-none absolute top-2 right-2 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)]/95 px-3 py-2 text-xs shadow-lg backdrop-blur-sm">
           <div className="text-[color:var(--color-text-muted)] mb-1">
@@ -347,14 +303,32 @@ export default function AdminSalesPage() {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("daily");
   const [analysis, setAnalysis] = useState<Analysis>("sales");
-  const [dateRange, setDateRange] = useState<DateRange>("30d");
   const [priceMenuId, setPriceMenuId] = useState<string>("");
   const [detailKey, setDetailKey] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
+  // 日付範囲 (今月1日〜今日をデフォルト)
+  const [startYear, setStartYear] = useState(() => new Date().getFullYear());
+  const [startMonth, setStartMonth] = useState(() => new Date().getMonth() + 1);
+  const [startDay, setStartDay] = useState<number>(1);
+  const [endYear, setEndYear] = useState(() => new Date().getFullYear());
+  const [endMonth, setEndMonth] = useState(() => new Date().getMonth() + 1);
+  const [endDay, setEndDay] = useState(() => new Date().getDate());
+
+  // 月変更時に日を上限でクランプ
+  useEffect(() => {
+    const max = getDaysInMonth(startYear, startMonth);
+    if (startDay > max) setStartDay(max);
+  }, [startYear, startMonth, startDay]);
+
+  useEffect(() => {
+    const max = getDaysInMonth(endYear, endMonth);
+    if (endDay > max) setEndDay(max);
+  }, [endYear, endMonth, endDay]);
+
   useEffect(() => {
     setDetailKey(null);
-  }, [period, analysis, dateRange]);
+  }, [period, analysis, startYear, startMonth, startDay, endYear, endMonth, endDay]);
 
   useEffect(() => {
     if (role !== "owner") router.replace("/admin/orders");
@@ -396,6 +370,22 @@ export default function AdminSalesPage() {
     };
   }, []);
 
+  // 年ドロップダウン用: 最古の注文年〜今年
+  const availableYears = useMemo(() => {
+    const now = new Date();
+    const dates = orders
+      .map((o) => o.createdAt?.toDate?.())
+      .filter(Boolean) as Date[];
+    const minYear =
+      dates.length > 0
+        ? Math.min(...dates.map((d) => d.getFullYear()))
+        : now.getFullYear();
+    return Array.from(
+      { length: now.getFullYear() - minYear + 1 },
+      (_, i) => minYear + i
+    );
+  }, [orders]);
+
   const menuNameMap = useMemo(() => {
     const m = new Map<string, string>();
     for (const o of orders) {
@@ -415,13 +405,21 @@ export default function AdminSalesPage() {
     return m;
   }, [menus]);
 
+  const isDateRangeValid = useMemo(() => {
+    const start = new Date(startYear, startMonth - 1, startDay);
+    const end = new Date(endYear, endMonth - 1, endDay);
+    return start <= end;
+  }, [startYear, startMonth, startDay, endYear, endMonth, endDay]);
+
   const filteredOrders = useMemo(() => {
-    const { start, end } = dateRangeInterval(dateRange);
+    if (!isDateRangeValid) return [];
+    const start = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0);
+    const end = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
     return orders.filter((o) => {
       const d = o.createdAt?.toDate?.();
       return !!d && d >= start && d <= end;
     });
-  }, [orders, dateRange]);
+  }, [orders, isDateRangeValid, startYear, startMonth, startDay, endYear, endMonth, endDay]);
 
   const buckets: Bucket[] = useMemo(() => {
     const map = new Map<string, Bucket>();
@@ -445,32 +443,25 @@ export default function AdminSalesPage() {
   const kpi = useMemo(() => {
     const revenue = filteredOrders.reduce((s, o) => s + orderTotal(o), 0);
     const count = filteredOrders.length;
-    const qty = filteredOrders.reduce((s, o) => {
-      return (
-        s +
-        o.items.reduce((a, i) => {
-          const top = (i.toppings ?? []).reduce(
-            (t, tt) => t + tt.quantity * i.quantity,
-            0
-          );
-          return a + i.quantity + top;
-        }, 0)
-      );
-    }, 0);
-    return {
-      revenue,
-      count,
-      atv: count === 0 ? 0 : Math.round(revenue / count),
-      avgQty: count === 0 ? 0 : Math.round((qty / count) * 10) / 10,
-    };
+    const tableAtv = count === 0 ? 0 : Math.round(revenue / count);
+    // 客単価: guestCount のある注文だけで算出
+    const withGuests = filteredOrders.filter((o) => (o.guestCount ?? 0) > 0);
+    const totalGuests = withGuests.reduce((s, o) => s + (o.guestCount as number), 0);
+    const guestRevenue = withGuests.reduce((s, o) => s + orderTotal(o), 0);
+    const guestAtv = totalGuests === 0 ? null : Math.round(guestRevenue / totalGuests);
+    return { revenue, count, tableAtv, guestAtv, guestBase: withGuests.length };
   }, [filteredOrders]);
 
-  // メニュー棒グラフ用データ（全商品）
+  // メニュー棒グラフデータ (全商品・青単色)
   const menuBarItems = useMemo(() => {
     const map = new Map<string, { menuId: string; name: string; qty: number }>();
     for (const o of filteredOrders) {
       for (const it of flattenForReceipt(o.items)) {
-        const e = map.get(it.menuId) ?? { menuId: it.menuId, name: it.name, qty: 0 };
+        const e = map.get(it.menuId) ?? {
+          menuId: it.menuId,
+          name: it.name,
+          qty: 0,
+        };
         e.qty += it.quantity;
         e.name = menuNameMap.get(it.menuId) ?? it.name;
         map.set(it.menuId, e);
@@ -482,14 +473,10 @@ export default function AdminSalesPage() {
         (menuCategoryMap.get(m.menuId) ?? []).includes(categoryFilter)
       );
     }
-    return all.map((m, i) => ({
-      label: m.name,
-      value: m.qty,
-      color: COLORS[i % COLORS.length],
-    }));
+    return all.map((m) => ({ label: m.name, value: m.qty, color: BLUE }));
   }, [filteredOrders, categoryFilter, menuCategoryMap, menuNameMap]);
 
-  // 価格変更のあるメニュー（全期間で検出）
+  // 価格変更のあるメニュー (全期間で検出)
   const priceChangedMenus = useMemo(() => {
     const map = new Map<
       string,
@@ -553,7 +540,6 @@ export default function AdminSalesPage() {
       }));
   }, [analysis, priceMenuId, filteredOrders, period, buckets, visibleKeys]);
 
-  // 価格変更アノテーション（期間内で新価格が初登場したバケットに縦線）
   const priceAnnotations: Annotation[] = useMemo(() => {
     if (analysis !== "price" || !priceMenuId || buckets.length === 0) return [];
     const firstBucket = new Map<number, string>();
@@ -578,9 +564,13 @@ export default function AdminSalesPage() {
     });
   }, [analysis, priceMenuId, filteredOrders, period, buckets]);
 
-  // 価格変更前後の平均販売数
   const priceBeforeAfter = useMemo(() => {
-    if (analysis !== "price" || !priceMenuId || priceAnnotations.length === 0 || priceSeries.length === 0)
+    if (
+      analysis !== "price" ||
+      !priceMenuId ||
+      priceAnnotations.length === 0 ||
+      priceSeries.length === 0
+    )
       return null;
     const changeIdx = priceAnnotations[priceAnnotations.length - 1].idx;
     const totalPerBucket = buckets.map((_, i) =>
@@ -591,15 +581,11 @@ export default function AdminSalesPage() {
     const beforeAvg =
       beforeSlice.length === 0
         ? 0
-        : Math.round(
-            beforeSlice.reduce((s, v) => s + v, 0) / beforeSlice.length
-          );
+        : Math.round(beforeSlice.reduce((s, v) => s + v, 0) / beforeSlice.length);
     const afterAvg =
       afterSlice.length === 0
         ? 0
-        : Math.round(
-            afterSlice.reduce((s, v) => s + v, 0) / afterSlice.length
-          );
+        : Math.round(afterSlice.reduce((s, v) => s + v, 0) / afterSlice.length);
     const diff =
       beforeAvg === 0
         ? null
@@ -607,10 +593,12 @@ export default function AdminSalesPage() {
     return { beforeAvg, afterAvg, diff };
   }, [analysis, priceMenuId, priceAnnotations, priceSeries, buckets]);
 
-  // テーブル別売上
   const tableBreakdown = useMemo(() => {
     if (analysis !== "sales") return [];
-    const map = new Map<number, { table: number; count: number; revenue: number }>();
+    const map = new Map<
+      number,
+      { table: number; count: number; revenue: number }
+    >();
     for (const o of filteredOrders) {
       const t = o.tableNumber;
       const e = map.get(t) ?? { table: t, count: 0, revenue: 0 };
@@ -626,7 +614,6 @@ export default function AdminSalesPage() {
       }));
   }, [analysis, filteredOrders]);
 
-  // 期間詳細ドリルダウン
   const detail = useMemo(() => {
     if (!detailKey) return null;
     const filtered = filteredOrders.filter((o) => {
@@ -637,10 +624,17 @@ export default function AdminSalesPage() {
     const count = filtered.length;
     const revenue = filtered.reduce((s, o) => s + orderTotal(o), 0);
     const atv = count === 0 ? 0 : Math.round(revenue / count);
-    const menuMap = new Map<string, { name: string; qty: number; revenue: number }>();
+    const menuMap = new Map<
+      string,
+      { name: string; qty: number; revenue: number }
+    >();
     for (const o of filtered) {
       for (const it of flattenForReceipt(o.items)) {
-        const e = menuMap.get(it.menuId) ?? { name: it.name, qty: 0, revenue: 0 };
+        const e = menuMap.get(it.menuId) ?? {
+          name: it.name,
+          qty: 0,
+          revenue: 0,
+        };
         e.qty += it.quantity;
         e.revenue += it.price * it.quantity;
         menuMap.set(it.menuId, e);
@@ -658,10 +652,12 @@ export default function AdminSalesPage() {
   if (loading) return <PageLoader />;
 
   const yen = (v: number) => `¥${v.toLocaleString()}`;
-  const rangeLabel =
-    buckets.length === 0
-      ? ""
-      : `${buckets[0].label} 〜 ${buckets[buckets.length - 1].label}`;
+
+  const selectCls =
+    "bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-2 py-1 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]";
+
+  const startDayMax = getDaysInMonth(startYear, startMonth);
+  const endDayMax = getDaysInMonth(endYear, endMonth);
 
   return (
     <div className="w-full flex flex-col gap-3 h-[calc(100dvh-24px)] md:h-[calc(100dvh-48px)]">
@@ -669,47 +665,122 @@ export default function AdminSalesPage() {
         title="売上分析"
         className="relative z-30 shrink-0"
         rightSlot={
-          <>
-            <select
-              value={analysis}
-              onChange={(e) => setAnalysis(e.target.value as Analysis)}
-              className="bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
-            >
-              <option value="sales">売上推移</option>
-              <option value="menu">メニュー別売数</option>
-              <option value="price">価格変更推移</option>
-            </select>
-            <select
-              value={dateRange}
-              onChange={(e) => setDateRange(e.target.value as DateRange)}
-              className="bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
-            >
-              <option value="7d">過去7日</option>
-              <option value="30d">過去30日</option>
-              <option value="90d">過去90日</option>
-              <option value="thisMonth">今月</option>
-              <option value="lastMonth">先月</option>
-              <option value="thisYear">今年</option>
-              <option value="all">全期間</option>
-            </select>
-            <select
-              value={period}
-              onChange={(e) => setPeriod(e.target.value as Period)}
-              className="bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
-            >
-              <option value="daily">日別</option>
-              <option value="weekly">週別</option>
-              <option value="monthly">月別</option>
-            </select>
-          </>
+          <select
+            value={analysis}
+            onChange={(e) => setAnalysis(e.target.value as Analysis)}
+            className={selectCls}
+          >
+            <option value="sales">売上推移</option>
+            <option value="menu">メニュー別売数</option>
+            <option value="price">価格変更推移</option>
+          </select>
         }
       />
 
+      {/* 期間 + 集計単位 */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 shrink-0 bg-[color:var(--color-bg-card)] rounded-xl border border-[color:var(--color-border)] px-4 py-2.5 shadow-sm">
+        <span className="text-xs text-[color:var(--color-text-muted)]">開始</span>
+        <select
+          value={startYear}
+          onChange={(e) => setStartYear(Number(e.target.value))}
+          className={selectCls}
+        >
+          {availableYears.map((y) => (
+            <option key={y} value={y}>
+              {y}年
+            </option>
+          ))}
+        </select>
+        <select
+          value={startMonth}
+          onChange={(e) => setStartMonth(Number(e.target.value))}
+          className={selectCls}
+        >
+          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+            <option key={m} value={m}>
+              {m}月
+            </option>
+          ))}
+        </select>
+        <select
+          value={startDay}
+          onChange={(e) => setStartDay(Number(e.target.value))}
+          className={selectCls}
+        >
+          {Array.from({ length: startDayMax }, (_, i) => i + 1).map((d) => (
+            <option key={d} value={d}>
+              {d}日
+            </option>
+          ))}
+        </select>
+
+        <span className="text-xs text-[color:var(--color-text-muted)] px-1">〜</span>
+
+        <select
+          value={endYear}
+          onChange={(e) => setEndYear(Number(e.target.value))}
+          className={selectCls}
+        >
+          {availableYears.map((y) => (
+            <option key={y} value={y}>
+              {y}年
+            </option>
+          ))}
+        </select>
+        <select
+          value={endMonth}
+          onChange={(e) => setEndMonth(Number(e.target.value))}
+          className={selectCls}
+        >
+          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+            <option key={m} value={m}>
+              {m}月
+            </option>
+          ))}
+        </select>
+        <select
+          value={endDay}
+          onChange={(e) => setEndDay(Number(e.target.value))}
+          className={selectCls}
+        >
+          {Array.from({ length: endDayMax }, (_, i) => i + 1).map((d) => (
+            <option key={d} value={d}>
+              {d}日
+            </option>
+          ))}
+        </select>
+
+        <div className="ml-auto">
+          <select
+            value={period}
+            onChange={(e) => setPeriod(e.target.value as Period)}
+            className={selectCls}
+          >
+            <option value="daily">日別</option>
+            <option value="weekly">週別</option>
+            <option value="monthly">月別</option>
+          </select>
+        </div>
+      </div>
+
+      {/* KPI: 合計売上 / 注文数 / テーブル単価 / 客単価 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 shrink-0">
-        <KpiCard label="合計売上" value={yen(kpi.revenue)} sub={rangeLabel} />
+        <KpiCard label="合計売上" value={yen(kpi.revenue)} />
         <KpiCard label="注文数" value={`${kpi.count.toLocaleString()}件`} />
-        <KpiCard label="客単価" value={yen(kpi.atv)} />
-        <KpiCard label="平均品数" value={`${kpi.avgQty}点/注文`} />
+        <KpiCard
+          label="テーブル単価"
+          value={yen(kpi.tableAtv)}
+          sub="注文あたり"
+        />
+        <KpiCard
+          label="客単価"
+          value={kpi.guestAtv !== null ? yen(kpi.guestAtv) : "−"}
+          sub={
+            kpi.guestAtv !== null
+              ? `${kpi.guestBase}件から算出`
+              : "人数データなし"
+          }
+        />
       </div>
 
       <section className="rounded-xl bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] p-4 flex flex-col flex-1 min-h-0 overflow-hidden shadow-sm">
@@ -790,8 +861,12 @@ export default function AdminSalesPage() {
           </div>
         )}
 
-        {/* データなし */}
-        {filteredOrders.length === 0 ? (
+        {/* 期間エラー */}
+        {!isDateRangeValid ? (
+          <p className="text-sm text-[color:var(--color-accent-warn)] py-10 text-center">
+            開始日が終了日より後になっています
+          </p>
+        ) : filteredOrders.length === 0 ? (
           <p className="text-sm text-[color:var(--color-text-muted)] py-10 text-center">
             この期間のデータがありません
           </p>
@@ -876,7 +951,7 @@ export default function AdminSalesPage() {
                 series={[
                   {
                     name: "売上",
-                    color: "#3b82f6",
+                    color: BLUE,
                     values: buckets.map((b) => b.revenue),
                     formatValue: yen,
                   },
@@ -924,7 +999,7 @@ export default function AdminSalesPage() {
                       </p>
                     </div>
                     <div>
-                      <p className="text-[color:var(--color-text-muted)]">客単価</p>
+                      <p className="text-[color:var(--color-text-muted)]">テーブル単価</p>
                       <p className="text-[color:var(--color-text-primary)] font-bold tabular-nums">
                         {yen(detail.atv)}
                       </p>
@@ -975,18 +1050,10 @@ export default function AdminSalesPage() {
                       <table className="w-full text-xs tabular-nums">
                         <thead className="text-[color:var(--color-text-muted)] sticky top-0 bg-[color:var(--color-bg-card)]">
                           <tr>
-                            <th className="text-left font-normal py-1.5">
-                              テーブル
-                            </th>
-                            <th className="text-right font-normal py-1.5 w-16">
-                              注文数
-                            </th>
-                            <th className="text-right font-normal py-1.5 w-24">
-                              合計売上
-                            </th>
-                            <th className="text-right font-normal py-1.5 w-24">
-                              テーブル単価
-                            </th>
+                            <th className="text-left font-normal py-1.5">テーブル</th>
+                            <th className="text-right font-normal py-1.5 w-16">注文数</th>
+                            <th className="text-right font-normal py-1.5 w-24">合計売上</th>
+                            <th className="text-right font-normal py-1.5 w-24">テーブル単価</th>
                           </tr>
                         </thead>
                         <tbody>
