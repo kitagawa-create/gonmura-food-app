@@ -183,7 +183,7 @@ function LineChart({
         })}
       </svg>
       {hoverIdx !== null && (
-        <div className="pointer-events-none absolute top-2 right-2 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)]/95 px-3 py-2 text-xs shadow-lg backdrop-blur-sm">
+        <div className="pointer-events-none absolute top-2 right-2 rounded-lg border border-black/20 bg-[color:var(--color-bg-card)]/95 px-3 py-2 text-xs shadow-lg backdrop-blur-sm">
           <div className="text-[color:var(--color-text-muted)] mb-1">
             {labels[hoverIdx]}
           </div>
@@ -261,7 +261,7 @@ function KpiCard({
   sub?: string;
 }) {
   return (
-    <div className="rounded-xl bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] p-3 shadow-sm">
+    <div className="rounded-xl bg-[color:var(--color-bg-card)] border border-black/20 p-3 shadow-sm">
       <p className="text-xs text-[color:var(--color-text-muted)]">{label}</p>
       <p className="text-xl font-bold text-[color:var(--color-text-primary)] tabular-nums mt-0.5">
         {value}
@@ -523,7 +523,7 @@ export default function AdminSalesPage() {
   const yen = (v: number) => `¥${v.toLocaleString()}`;
 
   const selectCls =
-    "bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-2 py-1 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]";
+    "bg-[color:var(--color-bg-base)] border border-black/20 rounded-lg px-2 py-1 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]";
 
   const startDayMax = getDaysInMonth(startYear, startMonth);
   const endDayMax = getDaysInMonth(endYear, endMonth);
@@ -552,7 +552,7 @@ export default function AdminSalesPage() {
       />
 
       {/* 期間 */}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 shrink-0 bg-[color:var(--color-bg-card)] rounded-xl border border-[color:var(--color-border)] px-4 py-2.5 shadow-sm">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 shrink-0 bg-[color:var(--color-bg-card)] rounded-xl border border-black/20 px-4 py-2.5 shadow-sm">
         <span className="text-xs text-[color:var(--color-text-muted)]">開始</span>
         <select
           value={startYear}
@@ -631,7 +631,7 @@ export default function AdminSalesPage() {
         />
       </div>
 
-      <section className="rounded-xl bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] p-4 flex flex-col flex-1 min-h-0 overflow-hidden shadow-sm">
+      <section className="rounded-xl bg-[color:var(--color-bg-card)] border border-black/20 p-4 flex flex-col flex-1 min-h-0 overflow-hidden shadow-sm">
         <h2 className="text-lg font-bold text-[color:var(--color-text-primary)] mb-3 shrink-0">
           {sectionTitle}
         </h2>
@@ -697,16 +697,16 @@ export default function AdminSalesPage() {
                 <table className="text-xs tabular-nums border-collapse min-w-full">
                   <thead>
                     <tr>
-                      <th className="sticky left-0 bg-[color:var(--color-bg-card)] w-10 py-1 text-center font-normal text-[color:var(--color-text-muted)] border border-[color:var(--color-border)]">時</th>
+                      <th className="sticky left-0 bg-[color:var(--color-bg-card)] w-10 py-1 text-center font-normal text-[color:var(--color-text-muted)] border border-black/20">時</th>
                       {DOW_LABELS.map((d) => (
                         <th
                           key={d}
-                          className="w-12 py-1 text-center font-medium text-[color:var(--color-text-primary)] border border-[color:var(--color-border)]"
+                          className="w-12 py-1 text-center font-medium text-[color:var(--color-text-primary)] border border-black/20"
                         >
                           {d}
                         </th>
                       ))}
-                      <th className="w-12 py-1 text-center font-normal text-[color:var(--color-text-muted)] border border-[color:var(--color-border)]">計</th>
+                      <th className="w-12 py-1 text-center font-normal text-[color:var(--color-text-muted)] border border-black/20">計</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -714,13 +714,13 @@ export default function AdminSalesPage() {
                       const rowTotal = row.reduce((s, v) => s + v, 0);
                       return (
                         <tr key={h}>
-                          <td className="sticky left-0 bg-[color:var(--color-bg-card)] text-center text-[color:var(--color-text-muted)] py-0.5 pr-1 border border-[color:var(--color-border)]">
+                          <td className="sticky left-0 bg-[color:var(--color-bg-card)] text-center text-[color:var(--color-text-muted)] py-0.5 pr-1 border border-black/20">
                             {h}
                           </td>
                           {row.map((val, d) => (
                             <td
                               key={d}
-                              className="text-center py-0.5 border border-[color:var(--color-border)]"
+                              className="text-center py-0.5 border border-black/20"
                               style={{
                                 backgroundColor:
                                   val === 0
@@ -732,20 +732,20 @@ export default function AdminSalesPage() {
                               {val > 0 ? val : ""}
                             </td>
                           ))}
-                          <td className="text-center font-medium text-[color:var(--color-text-muted)] py-0.5 border border-[color:var(--color-border)]">
+                          <td className="text-center font-medium text-[color:var(--color-text-muted)] py-0.5 border border-black/20">
                             {rowTotal > 0 ? rowTotal : ""}
                           </td>
                         </tr>
                       );
                     })}
                     <tr>
-                      <td className="sticky left-0 bg-[color:var(--color-bg-card)] text-center text-[color:var(--color-text-muted)] py-1 border border-[color:var(--color-border)]">計</td>
+                      <td className="sticky left-0 bg-[color:var(--color-bg-card)] text-center text-[color:var(--color-text-muted)] py-1 border border-black/20">計</td>
                       {colTotals.map((t, i) => (
-                        <td key={i} className="text-center font-medium text-[color:var(--color-text-primary)] py-1 border border-[color:var(--color-border)]">
+                        <td key={i} className="text-center font-medium text-[color:var(--color-text-primary)] py-1 border border-black/20">
                           {t > 0 ? t : ""}
                         </td>
                       ))}
-                      <td className="text-center font-bold text-[color:var(--color-text-primary)] py-1 border border-[color:var(--color-border)]">
+                      <td className="text-center font-bold text-[color:var(--color-text-primary)] py-1 border border-black/20">
                         {colTotals.reduce((s, v) => s + v, 0)}
                       </td>
                     </tr>
@@ -785,7 +785,7 @@ export default function AdminSalesPage() {
             <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
               {detail ? (
                 /* 期間詳細ドリルダウン */
-                <div className="flex-1 min-h-0 rounded-lg bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] p-3 flex flex-col overflow-hidden">
+                <div className="flex-1 min-h-0 rounded-lg bg-[color:var(--color-bg-subtle)] border border-black/20 p-3 flex flex-col overflow-hidden">
                   <div className="flex items-center justify-between mb-2 shrink-0">
                     <h3 className="text-sm font-bold text-[color:var(--color-text-primary)]">
                       {detail.label} の詳細
