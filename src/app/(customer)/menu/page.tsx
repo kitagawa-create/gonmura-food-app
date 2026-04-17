@@ -43,9 +43,11 @@ export default function MenuPage() {
   const [showGuestCountDialog, setShowGuestCountDialog] = useState(false);
   const [guestCountInput, setGuestCountInput] = useState<number>(2);
   const [hasUnpaidOrders, setHasUnpaidOrders] = useState(false);
+  const [ordersLoaded, setOrdersLoaded] = useState(false);
   const { addItem, totalItems, tableNumber, setTableNumber, clearCart, resetSession, guestCount, setGuestCount } =
     useCart();
   const router = useRouter();
+  const prevHasUnpaidRef = useRef<boolean | undefined>(undefined);
 
   useEffect(() => {
     if (tableNumber === null) {
@@ -60,6 +62,8 @@ export default function MenuPage() {
   }, [tableNumber, router]);
 
   useEffect(() => {
+    setOrdersLoaded(false);
+    prevHasUnpaidRef.current = undefined;
     if (tableNumber === null) {
       setHasUnpaidOrders(false);
       return;
@@ -69,9 +73,17 @@ export default function MenuPage() {
       where("tableNumber", "==", tableNumber),
       where("status", "in", ["pending", "completed"])
     );
-    const unsub = onSnapshot(q, (snap) => setHasUnpaidOrders(!snap.empty));
+    const unsub = onSnapshot(q, (snap) => {
+      const hasUnpaid = !snap.empty;
+      if (prevHasUnpaidRef.current === true && !hasUnpaid) {
+        resetSession();
+      }
+      prevHasUnpaidRef.current = hasUnpaid;
+      setHasUnpaidOrders(hasUnpaid);
+      setOrdersLoaded(true);
+    });
     return unsub;
-  }, [tableNumber]);
+  }, [tableNumber, resetSession]);
 
   // 公開中のメニューを購読 (isAvailable 即時反映)
   useEffect(() => {
@@ -144,14 +156,15 @@ export default function MenuPage() {
     }
   }, [selectedMenu]);
 
-  // 客数未設定なら人数選択ダイアログを表示
+  // 初回セッション or 全精算後: orders読み込み済み・未払いなし・客数未設定のとき表示
   useEffect(() => {
     if (tableNumber === null) return;
-    if (guestCount === null) {
-      setGuestCountInput(2);
-      setShowGuestCountDialog(true);
-    }
-  }, [tableNumber, guestCount]);
+    if (!ordersLoaded) return;
+    if (guestCount !== null) return;
+    if (hasUnpaidOrders) return;
+    setGuestCountInput(2);
+    setShowGuestCountDialog(true);
+  }, [tableNumber, guestCount, ordersLoaded, hasUnpaidOrders]);
 
   const filteredMenus = activeCategory
     ? menus
