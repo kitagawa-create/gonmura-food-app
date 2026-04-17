@@ -5,11 +5,11 @@ import { collection, getDocs, query, where, onSnapshot } from "firebase/firestor
 import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
 import type { Order, OrderItem } from "@/types";
-
-type OrderWithItems = Order & { items: OrderItem[] };
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import { BackButton } from "@/components/ui/BackButton";
 import { comboLineTotal } from "@/lib/order-utils";
+
+type OrderWithItems = Order & { items: OrderItem[] };
 export default function OrderHistoryPage() {
   const { tableNumber } = useCart();
   const [orders, setOrders] = useState<OrderWithItems[]>([]);

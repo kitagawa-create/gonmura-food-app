@@ -5,12 +5,12 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
 import type { Order, OrderItem } from "@/types";
-
-type OrderWithItems = Order & { items: OrderItem[] };
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import { BackButton } from "@/components/ui/BackButton";
 import { flattenForReceipt } from "@/lib/order-utils";
 import Link from "next/link";
+
+type OrderWithItems = Order & { items: OrderItem[] };
 
 export default function BillPage() {
   const { tableNumber } = useCart();
