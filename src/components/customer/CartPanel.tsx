@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   collection,
   doc,
@@ -22,12 +23,13 @@ export function CartPanel() {
     items,
     updateQuantity,
     removeItem,
+    updateItemNote,
     totalAmount,
     totalItems,
     clearCart,
     tableNumber,
   } = useCart();
-  const [customerNote, setCustomerNote] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<{ lineId: string; name: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showComplete, setShowComplete] = useState(false);
   const [unavailableNames, setUnavailableNames] = useState<string[]>([]);
@@ -116,6 +118,7 @@ export function CartPanel() {
           name: item.name,
           price: item.price,
           quantity: item.quantity,
+          ...(item.note ? { note: item.note } : {}),
           ...(item.toppings && item.toppings.length > 0
             ? {
                 toppings: item.toppings.map((t) => ({
@@ -129,7 +132,6 @@ export function CartPanel() {
         })),
         status: "pending",
         tableNumber,
-        customerNote,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
@@ -142,7 +144,6 @@ export function CartPanel() {
 
       setShowComplete(true);
       setSubmitting(false);
-      setCustomerNote("");
       clearCart();
     } catch {
       alert("注文の送信に失敗しました。もう一度お試しください。");
@@ -197,7 +198,7 @@ export function CartPanel() {
                       <div className="flex shrink-0 items-center gap-1">
                         <button
                           type="button"
-                          onClick={() => updateQuantity(item.lineId, item.quantity - 1)}
+                          onClick={() => item.quantity === 1 ? setDeleteTarget({ lineId: item.lineId, name: item.name }) : updateQuantity(item.lineId, item.quantity - 1)}
                           aria-label="数量を減らす"
                           className="flex h-6 w-6 items-center justify-center rounded-full border border-[color:var(--color-border)] text-sm text-[color:var(--color-text-primary)] hover:opacity-80 transition-opacity"
                         >
@@ -217,7 +218,7 @@ export function CartPanel() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => removeItem(item.lineId)}
+                        onClick={() => setDeleteTarget({ lineId: item.lineId, name: item.name })}
                         aria-label={`${item.name}を削除`}
                         className="shrink-0 p-1 text-[color:var(--color-text-muted)] hover:text-[color:var(--color-accent-warn)] transition-colors"
                       >
@@ -240,26 +241,23 @@ export function CartPanel() {
                         ))}
                       </ul>
                     )}
+                    {/* 商品ごとの備考 */}
+                    <div className="mt-1.5 ml-14">
+                      <input
+                        type="text"
+                        value={item.note ?? ""}
+                        onChange={(e) => updateItemNote(item.lineId, e.target.value)}
+                        placeholder={`「${item.name}」への備考（アレルギー等）`}
+                        maxLength={100}
+                        className="w-full rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-bg-subtle)] px-2 py-1 text-[11px] text-[color:var(--color-text-primary)] placeholder-[color:var(--color-text-muted)] focus:outline-none focus:ring-1 focus:ring-[color:var(--color-accent-char)]"
+                      />
+                    </div>
                   </li>
                 );
               })}
             </ul>
           )}
 
-          {/* 備考欄 (常時表示) */}
-          <div className="border-t border-[color:var(--color-border)] px-3 py-3">
-            <label className="mb-1 block text-xs font-medium text-[color:var(--color-text-primary)]">
-              備考（任意）
-            </label>
-            <textarea
-              value={customerNote}
-              onChange={(e) => setCustomerNote(e.target.value)}
-              placeholder="アレルギーや要望があれば"
-              rows={2}
-              maxLength={500}
-              className="w-full resize-none rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-bg-subtle)] px-2 py-1.5 text-xs text-[color:var(--color-text-primary)] placeholder-[color:var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-soy)]"
-            />
-          </div>
         </div>
 
         {/* フッター (固定) */}
@@ -278,6 +276,12 @@ export function CartPanel() {
           >
             {submitting ? "送信中..." : "注文を確定する"}
           </button>
+          <Link
+            href="/bill"
+            className="block w-full rounded-xl bg-[color:var(--color-accent-warn)] py-2.5 text-center text-sm font-bold text-white hover:opacity-90 transition-opacity"
+          >
+            お会計
+          </Link>
         </div>
       </div>
 
@@ -332,6 +336,45 @@ export function CartPanel() {
             <p className="text-sm text-[color:var(--color-text-muted)]">
               調理が完了するまでしばらくお待ちください
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* 削除確認ダイアログ */}
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setDeleteTarget(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="mb-2 text-lg font-bold text-[color:var(--color-text-primary)]">
+              商品を削除
+            </h2>
+            <p className="mb-5 text-sm text-[color:var(--color-text-muted)]">
+              「{deleteTarget.name}」をカートから削除しますか？
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="flex-1 rounded-xl border border-[color:var(--color-border)] py-3 text-sm font-medium text-[color:var(--color-text-primary)] hover:opacity-80 transition-opacity"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  removeItem(deleteTarget.lineId);
+                  setDeleteTarget(null);
+                }}
+                className="flex-1 rounded-xl bg-[color:var(--color-accent-warn)] py-3 text-sm font-bold text-white hover:opacity-90 transition-opacity"
+              >
+                削除する
+              </button>
+            </div>
           </div>
         </div>
       )}

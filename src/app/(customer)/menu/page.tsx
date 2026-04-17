@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, query, where, getDocs, orderBy, onSnapshot } from "firebase/firestore";
+import { collection, query, where, getDocs, orderBy, onSnapshot, updateDoc, doc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Menu, Category, CartItemTopping } from "@/types";
 import { useCart } from "@/lib/cart-context";
@@ -38,8 +38,12 @@ export default function MenuPage() {
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState("");
   const [showTableChange, setShowTableChange] = useState(false);
-  const [newTableInput, setNewTableInput] = useState("");
   const [tableChangeError, setTableChangeError] = useState("");
+  const [availableTables, setAvailableTables] = useState<{ id: string; name: string; number: number }[]>([]);
+  const [selectedTableId, setSelectedTableId] = useState<string>("");
+  const [showGuestCountDialog, setShowGuestCountDialog] = useState(false);
+  const [tableDocId, setTableDocId] = useState<string | null>(null);
+  const [guestCountInput, setGuestCountInput] = useState<number>(2);
   const [hasUnpaidOrders, setHasUnpaidOrders] = useState(false);
   const { addItem, totalItems, tableNumber, setTableNumber, clearCart } =
     useCart();
@@ -131,6 +135,63 @@ export default function MenuPage() {
       setExtraQty({});
     }
   }, [menus, selectedMenu]);
+
+  // 商品モーダル表示中は背景スクロールを無効化
+  useEffect(() => {
+    if (selectedMenu) {
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = '';
+      };
+    }
+  }, [selectedMenu]);
+
+  // テーブルの guestCount が null なら人数選択ダイアログを表示
+  useEffect(() => {
+    if (tableNumber === null) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const snap = await getDocs(
+          query(collection(db, "tables"), where("number", "==", tableNumber))
+        );
+        if (cancelled || snap.empty) return;
+        const tableDoc = snap.docs[0];
+        const data = tableDoc.data() as { guestCount?: number | null };
+        if (data.guestCount === null || data.guestCount === undefined) {
+          setTableDocId(tableDoc.id);
+          setGuestCountInput(2);
+          setShowGuestCountDialog(true);
+        }
+      } catch {
+        // tables コレクションがない場合はダイアログを出さない
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [tableNumber]);
+
+  // showTableChange が true になったときにテーブル一覧を取得
+  useEffect(() => {
+    if (!showTableChange) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const snap = await getDocs(query(collection(db, "tables"), orderBy("number", "asc")));
+        if (cancelled) return;
+        const tlist = snap.docs.map((d) => ({
+          id: d.id,
+          name: d.data().name as string,
+          number: d.data().number as number,
+        }));
+        setAvailableTables(tlist);
+        const current = tlist.find((t) => t.number === tableNumber);
+        setSelectedTableId(current?.id ?? (tlist[0]?.id ?? ""));
+      } catch {
+        setAvailableTables([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [showTableChange, tableNumber]);
 
   const filteredMenus = activeCategory
     ? menus
@@ -262,15 +323,9 @@ export default function MenuPage() {
           <div className="flex items-center gap-3">
             <Link
               href="/order/history"
-              className="text-xs text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-primary)] transition-colors"
-            >
-              注文履歴
-            </Link>
-            <Link
-              href="/bill"
               className="text-xs bg-[color:var(--color-bg-subtle)] text-[color:var(--color-text-primary)] border border-[color:var(--color-border)] px-3 py-1.5 rounded-full hover:opacity-80 transition-opacity"
             >
-              お会計
+              注文履歴
             </Link>
           </div>
         </div>
@@ -408,11 +463,15 @@ export default function MenuPage() {
           >
             <div className="overflow-y-auto">
               {selectedMenu.imageUrl && (
-                <FadeImage
-                  src={selectedMenu.imageUrl}
-                  alt={selectedMenu.name}
-                  className="w-full h-48 md:h-56 lg:h-64"
-                />
+                <div className="relative w-full shrink-0 overflow-hidden" style={{ paddingTop: "75%" }}>
+                  <div className="absolute inset-0">
+                    <FadeImage
+                      src={selectedMenu.imageUrl}
+                      alt={selectedMenu.name}
+                      className="w-full h-full"
+                    />
+                  </div>
+                </div>
               )}
               <div className="p-5 space-y-5">
                 <div>
@@ -606,7 +665,6 @@ export default function MenuPage() {
                   return;
                 }
                 setShowPinDialog(false);
-                setNewTableInput(tableNumber !== null ? String(tableNumber) : "");
                 setTableChangeError("");
                 setShowTableChange(true);
               }}
@@ -660,71 +718,118 @@ export default function MenuPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-lg font-bold text-[color:var(--color-text-primary)] mb-4">
-              テーブル番号を変更
+              テーブルを選択
             </h2>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const num = parseInt(newTableInput, 10);
-                if (isNaN(num) || num <= 0) {
-                  setTableChangeError("正しいテーブル番号を入力してください");
-                  return;
-                }
-                if (num === tableNumber) {
+            {availableTables.length === 0 ? (
+              <p className="text-sm text-[color:var(--color-text-muted)] mb-4">テーブル情報を読み込み中...</p>
+            ) : (
+              <select
+                value={selectedTableId}
+                onChange={(e) => setSelectedTableId(e.target.value)}
+                className="w-full bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-base text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)] mb-4"
+              >
+                {availableTables.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}（テーブル {t.number}）
+                  </option>
+                ))}
+              </select>
+            )}
+            {tableChangeError && (
+              <p className="text-sm text-[color:var(--color-accent-warn)] text-center mb-3">
+                {tableChangeError}
+              </p>
+            )}
+            {totalItems > 0 && (
+              <p className="text-xs text-[color:var(--color-accent-warn)] text-center mb-3">
+                現在のカート ({totalItems}点) は破棄されます
+              </p>
+            )}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowTableChange(false)}
+                className="flex-1 min-h-[44px] rounded-xl border border-[color:var(--color-border)] text-[color:var(--color-text-primary)] font-medium hover:opacity-80 transition-opacity"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const selected = availableTables.find((t) => t.id === selectedTableId);
+                  if (!selected) return;
+                  if (selected.number === tableNumber) {
+                    setShowTableChange(false);
+                    return;
+                  }
+                  if (totalItems > 0) {
+                    const ok = window.confirm(`現在のカート (${totalItems}点) は破棄されます。よろしいですか？`);
+                    if (!ok) return;
+                  }
+                  clearCart();
+                  setTableNumber(selected.number);
                   setShowTableChange(false);
-                  return;
-                }
-                if (totalItems > 0) {
-                  const ok = window.confirm(
-                    `現在のカート (${totalItems}点) は破棄されます。よろしいですか？`
-                  );
-                  if (!ok) return;
-                }
-                clearCart();
-                setTableNumber(num);
-                setShowTableChange(false);
-              }}
-              className="space-y-4"
-            >
-              <input
-                type="number"
-                min="1"
-                required
-                autoFocus
-                value={newTableInput}
-                onChange={(e) => {
-                  setNewTableInput(e.target.value);
-                  setTableChangeError("");
                 }}
-                placeholder="新しいテーブル番号"
-                className="w-full bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-center text-2xl text-[color:var(--color-text-primary)] placeholder-[color:var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-soy)]"
-              />
-              {tableChangeError && (
-                <p className="text-sm text-[color:var(--color-accent-warn)] text-center">
-                  {tableChangeError}
-                </p>
-              )}
-              {totalItems > 0 && (
-                <p className="text-xs text-[color:var(--color-accent-warn)] text-center">
-                  現在のカート ({totalItems}点) は破棄されます
-                </p>
-              )}
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowTableChange(false)}
-                  className="flex-1 min-h-[44px] rounded-xl border border-[color:var(--color-border)] text-[color:var(--color-text-primary)] font-medium hover:opacity-80 transition-opacity"
-                >
-                  キャンセル
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 min-h-[44px] rounded-xl bg-[color:var(--color-accent-char)] text-white font-bold hover:opacity-90 transition-opacity"
-                >
-                  変更する
-                </button>
-              </div>
-            </form>
+                className="flex-1 min-h-[44px] rounded-xl bg-[color:var(--color-accent-char)] text-white font-bold hover:opacity-90 transition-opacity"
+              >
+                変更する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* 人数選択ダイアログ（精算後の新規セッション開始時） */}
+      {showGuestCountDialog && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
+          <div
+            className="w-full max-w-sm rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="mb-2 text-xl font-bold text-[color:var(--color-text-primary)] text-center">
+              いらっしゃいませ
+            </h2>
+            <p className="mb-5 text-sm text-[color:var(--color-text-muted)] text-center">
+              何名様でしょうか？
+            </p>
+            <div className="flex items-center justify-center gap-6 mb-2">
+              <button
+                type="button"
+                onClick={() => setGuestCountInput((n) => Math.max(1, n - 1))}
+                className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-[color:var(--color-border)] text-2xl font-bold text-[color:var(--color-text-primary)] hover:opacity-80 transition-opacity"
+              >
+                −
+              </button>
+              <span className="w-16 text-center text-4xl font-black text-[color:var(--color-text-primary)] tabular-nums">
+                {guestCountInput}
+              </span>
+              <button
+                type="button"
+                onClick={() => setGuestCountInput((n) => Math.min(20, n + 1))}
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-[color:var(--color-accent-char)] text-white text-2xl font-bold hover:opacity-90 transition-opacity"
+              >
+                +
+              </button>
+            </div>
+            <p className="text-center text-sm text-[color:var(--color-text-muted)] mb-5">名様</p>
+            <button
+              type="button"
+              onClick={async () => {
+                if (tableDocId) {
+                  try {
+                    await updateDoc(doc(db, "tables", tableDocId), {
+                      guestCount: guestCountInput,
+                      sessionStartedAt: serverTimestamp(),
+                    });
+                  } catch {
+                    // エラーでも続行
+                  }
+                }
+                setShowGuestCountDialog(false);
+              }}
+              className="w-full rounded-xl bg-[color:var(--color-accent-char)] py-3 text-base font-bold text-white hover:opacity-90 transition-opacity"
+            >
+              決定
+            </button>
           </div>
         </div>
       )}

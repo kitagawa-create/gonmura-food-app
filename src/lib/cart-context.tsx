@@ -25,6 +25,7 @@ type CartContextType = {
   addItem: (item: CartItemInput, quantity?: number) => void;
   removeItem: (lineId: string) => void;
   updateQuantity: (lineId: string, quantity: number) => void;
+  updateItemNote: (lineId: string, note: string) => void;
   clearCart: () => void;
   totalAmount: number;
   totalItems: number;
@@ -56,6 +57,7 @@ function rehydrateItems(raw: unknown): CartItem[] {
       price: Number(x.price ?? 0),
       quantity: Math.max(1, Math.trunc(Number(x.quantity ?? 1))),
       toppings: Array.isArray(x.toppings) ? x.toppings : undefined,
+      ...(typeof x.note === 'string' && x.note ? { note: x.note } : {}),
     }))
     .filter((x) => x.menuId);
 }
@@ -150,6 +152,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     );
   }, []);
 
+  const updateItemNote = useCallback((lineId: string, note: string) => {
+    setItems((prev) =>
+      prev.map((i) => (i.lineId === lineId ? { ...i, note: note || undefined } : i))
+    );
+  }, []);
+
   const clearCart = useCallback(() => setItems([]), []);
 
   // コンボ価格 = (ラーメン単価 + Σトッピング単価×個数) × 杯数
@@ -170,6 +178,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         addItem,
         removeItem,
         updateQuantity,
+        updateItemNote,
         clearCart,
         totalAmount,
         totalItems,

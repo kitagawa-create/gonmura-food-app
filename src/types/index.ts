@@ -54,6 +54,8 @@ export type OrderItem = {
   quantity: number;
   /** ラーメンコンボのみ。このコンボに付くトッピング一覧 (quantity は1杯あたり) */
   toppings?: OrderItemTopping[];
+  /** 注文時スナップショット */
+  note?: string;
 };
 
 export type OrderStatus = "pending" | "completed" | "paid";
@@ -101,4 +103,17 @@ export type CartItem = {
   name: string;
   /** ラーメンコンボのみ */
   toppings?: CartItemTopping[];
+  /** 商品ごとの備考（アレルギー等） */
+  note?: string;
+};
+
+export type Table = {
+  id: string;
+  name: string;
+  /** テーブル番号（整数、1以上）。Order.tableNumber と対応 */
+  number: number;
+  /** 現在の客数。null = 精算後の新規セッション待機中 */
+  guestCount: number | null;
+  sessionStartedAt: Timestamp | null;
+  createdAt: Timestamp;
 };

@@ -325,6 +325,53 @@ function NewOrdersView({
     [onError]
   );
 
+  const bulkCheckAll = useCallback(
+    async (order: Order) => {
+      onError(null);
+      const allIndices = order.items.map((_, i) => i);
+      setOrders((os) =>
+        os.map((o) => (o.id === order.id ? { ...o, checkedItems: allIndices } : o))
+      );
+      try {
+        await updateDoc(doc(db, "orders", order.id), {
+          checkedItems: allIndices,
+          updatedAt: serverTimestamp(),
+        });
+      } catch (e) {
+        setOrders((os) =>
+          os.map((o) =>
+            o.id === order.id ? { ...o, checkedItems: order.checkedItems ?? [] } : o
+          )
+        );
+        onError(e instanceof Error ? e.message : "更新に失敗しました。");
+      }
+    },
+    [onError]
+  );
+
+  const bulkUncheckAll = useCallback(
+    async (order: Order) => {
+      onError(null);
+      setOrders((os) =>
+        os.map((o) => (o.id === order.id ? { ...o, checkedItems: [] } : o))
+      );
+      try {
+        await updateDoc(doc(db, "orders", order.id), {
+          checkedItems: [],
+          updatedAt: serverTimestamp(),
+        });
+      } catch (e) {
+        setOrders((os) =>
+          os.map((o) =>
+            o.id === order.id ? { ...o, checkedItems: order.checkedItems ?? [] } : o
+          )
+        );
+        onError(e instanceof Error ? e.message : "更新に失敗しました。");
+      }
+    },
+    [onError]
+  );
+
   if (loading) return <PageLoader />;
 
   if (orders.length === 0) {
@@ -351,6 +398,8 @@ function NewOrdersView({
             onComplete={completeOrder}
             onDelete={deleteOrder}
             onCancelItem={cancelItem}
+            onBulkCheck={bulkCheckAll}
+            onBulkUncheck={bulkUncheckAll}
           />
         ))}
       </div>
@@ -368,6 +417,8 @@ function ActiveOrderCard({
   onComplete,
   onDelete,
   onCancelItem,
+  onBulkCheck,
+  onBulkUncheck,
 }: {
   order: Order;
   now: number;
@@ -376,6 +427,8 @@ function ActiveOrderCard({
   onComplete: (order: Order) => void;
   onDelete: (id: string) => void;
   onCancelItem: (order: Order, idx: number) => void;
+  onBulkCheck: (order: Order) => void;
+  onBulkUncheck: (order: Order) => void;
 }) {
   const [showCancel, setShowCancel] = useState(false);
   const [cancelItemIdx, setCancelItemIdx] = useState<number | null>(null);
@@ -468,6 +521,25 @@ function ActiveOrderCard({
         </div>
       )}
 
+      {/* 一括操作 */}
+      <div className="mb-2 flex gap-2">
+        <button
+          type="button"
+          onClick={() => onBulkCheck(order)}
+          disabled={allDone}
+          className="flex-1 rounded-lg border border-[color:var(--color-border)] px-2 py-1.5 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] disabled:cursor-not-allowed disabled:opacity-30 transition-colors"
+        >
+          全チェック
+        </button>
+        <button
+          type="button"
+          onClick={() => onBulkUncheck(order)}
+          disabled={checked.size === 0}
+          className="flex-1 rounded-lg border border-[color:var(--color-border)] px-2 py-1.5 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] disabled:cursor-not-allowed disabled:opacity-30 transition-colors"
+        >
+          全取り消し
+        </button>
+      </div>
       {/* 商品チェックリスト */}
       <ul className="mb-3 space-y-1">
         {order.items.map((item, idx) => {
@@ -645,6 +717,7 @@ function HistoryView({
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateSearch, setDateSearch] = useState<string>(todayISO());
+  const [tableFilter, setTableFilter] = useState<number | null>(null);
 
   // completed → pending に戻す。paid は register のドーナツ集計が壊れるため不可。
   const revertOrder = useCallback(
@@ -699,8 +772,19 @@ function HistoryView({
     [orders]
   );
 
+  const availableTables = useMemo(
+    () => [...new Set(orders.map((o) => o.tableNumber))].sort((a, b) => a - b),
+    [orders]
+  );
+
+  const filteredOrders = useMemo(
+    () => (tableFilter !== null ? orders.filter((o) => o.tableNumber === tableFilter) : orders),
+    [orders, tableFilter]
+  );
+
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto" style={{ direction: "rtl" }}>
+      <div style={{ direction: "ltr" }}>
       {/* 日付検索 */}
       <div className="flex items-center gap-3 mb-4">
         <input
@@ -708,7 +792,10 @@ function HistoryView({
           value={dateSearch}
           onChange={(e) => {
             const v = e.target.value;
-            if (/^\d{4}-\d{2}-\d{2}$/.test(v)) setDateSearch(v);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+              setDateSearch(v);
+              setTableFilter(null);
+            }
           }}
           onKeyDown={(e) => e.preventDefault()}
           className="bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
@@ -720,20 +807,36 @@ function HistoryView({
         >
           今日
         </button>
+        <select
+          value={tableFilter ?? ""}
+          onChange={(e) =>
+            setTableFilter(e.target.value === "" ? null : Number(e.target.value))
+          }
+          className="bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
+        >
+          <option value="">全テーブル</option>
+          {availableTables.map((n) => (
+            <option key={n} value={n}>
+              T{n}
+            </option>
+          ))}
+        </select>
         <span className="text-xs text-[color:var(--color-text-muted)]">
-          {orders.length}件 / ¥{totalAmount.toLocaleString()}
+          {filteredOrders.length}件
+          {tableFilter !== null && ` / 全${orders.length}件`}
+          {" "}/ ¥{filteredOrders.reduce((s, o) => s + o.items.reduce((ss, i) => ss + comboLineTotal(i), 0), 0).toLocaleString()}
         </span>
       </div>
 
       {loading ? (
         <PageLoader />
-      ) : orders.length === 0 ? (
+      ) : filteredOrders.length === 0 ? (
         <div className="flex items-center justify-center py-16">
           <p className="text-[color:var(--color-text-muted)]">この日の履歴はありません</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-          {orders.map((order) => (
+          {filteredOrders.map((order) => (
             <HistoryOrderCard
               key={order.id}
               order={order}
@@ -743,6 +846,7 @@ function HistoryView({
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -43,5 +43,17 @@ service cloud.firestore {
     match /admins/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;
     }
+
+    // tables: 誰でも読める（顧客側プルダウン用）
+    // guestCount/sessionStartedAt は顧客側（未認証）から更新するため update を全員許可
+    // create/delete は owner のみ
+    match /tables/{tableId} {
+      allow read: if true;
+      allow create, delete: if isOwner();
+      allow update: if isStaff() || (
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(["guestCount", "sessionStartedAt"])
+      );
+    }
   }
 }

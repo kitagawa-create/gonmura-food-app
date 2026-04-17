@@ -55,6 +55,10 @@ export default function AdminMenusPage() {
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Menu | null>(null);
+  const [toggleConfirm, setToggleConfirm] = useState<{
+    menu: Menu;
+    type: "available" | "soldout";
+  } | null>(null);
   const [activeTab, setActiveTab] = useState<string>("all");
   const [deleting, setDeleting] = useState(false);
   const [orderedMenuIds, setOrderedMenuIds] = useState<Set<string>>(new Set());
@@ -527,7 +531,13 @@ export default function AdminMenusPage() {
                           </button>
                         )}
                         <button
-                          onClick={() => handleToggleAvailable(m)}
+                          onClick={() => {
+                            if (m.isAvailable) {
+                              setToggleConfirm({ menu: m, type: "available" });
+                            } else {
+                              handleToggleAvailable(m);
+                            }
+                          }}
                           aria-pressed={!m.isAvailable}
                           className={`rounded-lg border px-3 py-1 text-xs transition-colors ${
                             !m.isAvailable
@@ -539,7 +549,13 @@ export default function AdminMenusPage() {
                         </button>
                         {/* 売り切れトグル: 非公開とは独立。warn 色で別系統と分かるように */}
                         <button
-                          onClick={() => handleToggleSoldOut(m)}
+                          onClick={() => {
+                            if (!m.isSoldOut) {
+                              setToggleConfirm({ menu: m, type: "soldout" });
+                            } else {
+                              handleToggleSoldOut(m);
+                            }
+                          }}
                           aria-pressed={!!m.isSoldOut}
                           className={`rounded-lg border px-3 py-1 text-xs transition-colors ${
                             m.isSoldOut
@@ -590,6 +606,32 @@ export default function AdminMenusPage() {
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
         loading={deleting}
+      />
+
+      <ConfirmDialog
+        open={toggleConfirm !== null}
+        title={
+          toggleConfirm?.type === "available"
+            ? `「${toggleConfirm.menu.name}」を非公開にする`
+            : `「${toggleConfirm?.menu.name}」を売り切れにする`
+        }
+        message={
+          toggleConfirm?.type === "available"
+            ? "このメニューをお客様から非表示にします。注文できなくなります。"
+            : "このメニューを売り切れに設定します。お客様は注文できなくなります。"
+        }
+        confirmLabel={toggleConfirm?.type === "available" ? "非公開にする" : "売り切れにする"}
+        confirmColor="red"
+        onConfirm={() => {
+          if (!toggleConfirm) return;
+          if (toggleConfirm.type === "available") {
+            handleToggleAvailable(toggleConfirm.menu);
+          } else {
+            handleToggleSoldOut(toggleConfirm.menu);
+          }
+          setToggleConfirm(null);
+        }}
+        onCancel={() => setToggleConfirm(null)}
       />
     </div>
   );

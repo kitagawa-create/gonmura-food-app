@@ -12,6 +12,7 @@ import {
   orderBy,
   doc,
   updateDoc,
+  getDocs,
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -23,6 +24,7 @@ type TableBill = {
   tableNumber: number;
   orders: Order[];
   totalAmount: number;
+  firstOrderAt: Date | null;
 };
 
 type Tab = "unpaid" | "paid";
@@ -49,7 +51,12 @@ function groupByTable(orders: Order[]): TableBill[] {
       (sum, o) => sum + o.items.reduce((s, i) => s + comboLineTotal(i), 0),
       0
     );
-    tableBills.push({ tableNumber, orders: tableOrders, totalAmount });
+    const firstOrderAt = tableOrders.reduce<Date | null>((earliest, o) => {
+      const d = o.createdAt?.toDate?.();
+      if (!d) return earliest;
+      return earliest === null || d < earliest ? d : earliest;
+    }, null);
+    tableBills.push({ tableNumber, orders: tableOrders, totalAmount, firstOrderAt });
   }
 
   tableBills.sort((a, b) => a.tableNumber - b.tableNumber);
@@ -129,6 +136,7 @@ export default function AdminRegisterPage() {
   const [goal, setGoal] = useState<number>(DEFAULT_GOAL);
   const [goalInput, setGoalInput] = useState<string>("");
   const [editingGoal, setEditingGoal] = useState<boolean>(false);
+  const [tableGuestCounts, setTableGuestCounts] = useState<Map<number, number | null>>(new Map());
 
   // 目標金額の読み込み
   useEffect(() => {
@@ -184,6 +192,21 @@ export default function AdminRegisterPage() {
       setLoading(false);
     });
 
+    return unsub;
+  }, []);
+
+  // tables コレクション購読（客数取得）
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "tables"), (snap) => {
+      const map = new Map<number, number | null>();
+      snap.docs.forEach((d) => {
+        const data = d.data() as { number?: number; guestCount?: number | null };
+        if (typeof data.number === "number") {
+          map.set(data.number, data.guestCount ?? null);
+        }
+      });
+      setTableGuestCounts(map);
+    });
     return unsub;
   }, []);
 
@@ -245,6 +268,20 @@ export default function AdminRegisterPage() {
           status: "paid",
           updatedAt: serverTimestamp(),
         });
+      }
+      // 精算完了後にテーブルのセッションをリセット（次の客が人数選択できるように）
+      try {
+        const tablesSnap = await getDocs(
+          query(collection(db, "tables"), where("number", "==", payTarget.tableNumber))
+        );
+        for (const tableDoc of tablesSnap.docs) {
+          await updateDoc(doc(db, "tables", tableDoc.id), {
+            guestCount: null,
+            sessionStartedAt: null,
+          });
+        }
+      } catch {
+        // tables コレクションがなくても精算は成功とする
       }
       setPayTarget(null);
     } catch (e) {
@@ -402,10 +439,37 @@ export default function AdminRegisterPage() {
               >
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <h2 className="text-lg font-bold text-[color:var(--color-text-primary)]">テーブル {table.tableNumber}</h2>
-                    <p className="text-xs text-[color:var(--color-text-muted)]">{table.orders.length}件の注文</p>
+                    <h2 className="text-lg font-bold text-[color:var(--color-text-primary)]">
+                      テーブル {table.tableNumber}
+                    </h2>
+                    <p className="text-xs text-[color:var(--color-text-muted)]">
+                      {table.orders.length}件の注文
+                      {table.firstOrderAt && (
+                        <>
+                          {" · 入店 "}
+                          <span className="font-medium">
+                            {new Intl.DateTimeFormat("ja-JP", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            }).format(table.firstOrderAt)}
+                          </span>
+                        </>
+                      )}
+                    </p>
                   </div>
-                  <p className="text-xl font-bold text-[color:var(--color-accent-char)]">¥{table.totalAmount.toLocaleString()}</p>
+                  <div className="text-right">
+                    <p className="text-xl font-bold text-[color:var(--color-accent-char)]">
+                      ¥{table.totalAmount.toLocaleString()}
+                    </p>
+                    {(() => {
+                      const guestCount = tableGuestCounts.get(table.tableNumber);
+                      return guestCount != null && guestCount > 0 ? (
+                        <p className="text-xs text-[color:var(--color-text-muted)]">
+                          {guestCount}名 · 客単価 ¥{Math.floor(table.totalAmount / guestCount).toLocaleString()}
+                        </p>
+                      ) : null;
+                    })()}
+                  </div>
                 </div>
 
                 <ul className="mb-3 space-y-1 text-sm border-t border-[color:var(--color-border)] pt-3">
