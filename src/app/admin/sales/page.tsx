@@ -23,9 +23,6 @@ type Analysis = "sales" | "menu" | "dow";
 const BLUE = "#3b82f6";
 const DOW_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
 
-function getDaysInMonth(year: number, month: number): number {
-  return new Date(year, month, 0).getDate();
-}
 function formatDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -288,36 +285,22 @@ export default function AdminSalesPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   // 日付範囲 (今月1日〜今日をデフォルト)
-  const [startYear, setStartYear] = useState(() => new Date().getFullYear());
-  const [startMonth, setStartMonth] = useState(() => new Date().getMonth() + 1);
-  const [startDay, setStartDay] = useState<number>(1);
-  const [endYear, setEndYear] = useState(() => new Date().getFullYear());
-  const [endMonth, setEndMonth] = useState(() => new Date().getMonth() + 1);
-  const [endDay, setEndDay] = useState(() => new Date().getDate());
+  const [startDate, setStartDate] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+  });
+  const [endDate, setEndDate] = useState<string>(() => formatDate(new Date()));
 
   const period = useMemo<Period>(() => {
-    const start = new Date(startYear, startMonth - 1, startDay);
-    const end = new Date(endYear, endMonth - 1, endDay);
-    const days = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+    const days = Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000) + 1;
     if (days <= 14) return "daily";
     if (days <= 90) return "weekly";
     return "monthly";
-  }, [startYear, startMonth, startDay, endYear, endMonth, endDay]);
-
-  // 月変更時に日を上限でクランプ
-  useEffect(() => {
-    const max = getDaysInMonth(startYear, startMonth);
-    if (startDay > max) setStartDay(max);
-  }, [startYear, startMonth, startDay]);
-
-  useEffect(() => {
-    const max = getDaysInMonth(endYear, endMonth);
-    if (endDay > max) setEndDay(max);
-  }, [endYear, endMonth, endDay]);
+  }, [startDate, endDate]);
 
   useEffect(() => {
     setDetailKey(null);
-  }, [analysis, startYear, startMonth, startDay, endYear, endMonth, endDay]);
+  }, [analysis, startDate, endDate]);
 
   useEffect(() => {
     if (role !== "owner") router.replace("/admin/orders");
@@ -361,22 +344,6 @@ export default function AdminSalesPage() {
     };
   }, []);
 
-  // 年ドロップダウン用: 最古の注文年〜今年
-  const availableYears = useMemo(() => {
-    const now = new Date();
-    const dates = orders
-      .map((o) => o.createdAt?.toDate?.())
-      .filter(Boolean) as Date[];
-    const minYear =
-      dates.length > 0
-        ? Math.min(...dates.map((d) => d.getFullYear()))
-        : now.getFullYear();
-    return Array.from(
-      { length: now.getFullYear() - minYear + 1 },
-      (_, i) => minYear + i
-    );
-  }, [orders]);
-
   const menuNameMap = useMemo(() => {
     const m = new Map<string, string>();
     for (const o of orders) {
@@ -396,21 +363,17 @@ export default function AdminSalesPage() {
     return m;
   }, [menus]);
 
-  const isDateRangeValid = useMemo(() => {
-    const start = new Date(startYear, startMonth - 1, startDay);
-    const end = new Date(endYear, endMonth - 1, endDay);
-    return start <= end;
-  }, [startYear, startMonth, startDay, endYear, endMonth, endDay]);
+  const isDateRangeValid = useMemo(() => startDate <= endDate, [startDate, endDate]);
 
   const filteredOrders = useMemo(() => {
     if (!isDateRangeValid) return [];
-    const start = new Date(startYear, startMonth - 1, startDay, 0, 0, 0, 0);
-    const end = new Date(endYear, endMonth - 1, endDay, 23, 59, 59, 999);
+    const start = new Date(startDate + "T00:00:00");
+    const end = new Date(endDate + "T23:59:59.999");
     return orders.filter((o) => {
       const d = o.createdAt?.toDate?.();
       return !!d && d >= start && d <= end;
     });
-  }, [orders, isDateRangeValid, startYear, startMonth, startDay, endYear, endMonth, endDay]);
+  }, [orders, isDateRangeValid, startDate, endDate]);
 
   const buckets: Bucket[] = useMemo(() => {
     const map = new Map<string, Bucket>();
@@ -435,11 +398,7 @@ export default function AdminSalesPage() {
     const revenue = filteredOrders.reduce((s, o) => s + orderTotal(o), 0);
     const count = filteredOrders.length;
     const days = isDateRangeValid
-      ? Math.round(
-          (new Date(endYear, endMonth - 1, endDay).getTime() -
-            new Date(startYear, startMonth - 1, startDay).getTime()) /
-            86400000
-        ) + 1
+      ? Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000) + 1
       : 1;
     const dailyAvgRevenue = days > 0 ? Math.round(revenue / days) : 0;
     const dailyAvgCount = days > 0 ? Math.round((count / days) * 10) / 10 : 0;
@@ -460,7 +419,7 @@ export default function AdminSalesPage() {
     const totalGuestRevenue = sessions.reduce((s, sess) => s + sess.revenue, 0);
     const guestAtv = totalGuests === 0 ? null : Math.round(totalGuestRevenue / totalGuests);
     return { revenue, count, dailyAvgRevenue, dailyAvgCount, guestAtv };
-  }, [filteredOrders, customers, isDateRangeValid, startYear, startMonth, startDay, endYear, endMonth, endDay]);
+  }, [filteredOrders, customers, isDateRangeValid, startDate, endDate]);
 
   const menuBarItems = useMemo(() => {
     const map = new Map<string, { menuId: string; name: string; qty: number }>();
@@ -540,13 +499,7 @@ export default function AdminSalesPage() {
   const selectCls =
     "bg-[color:var(--color-bg-base)] border border-black rounded-lg px-2 py-1 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]";
 
-  const startDayMax = getDaysInMonth(startYear, startMonth);
-  const endDayMax = getDaysInMonth(endYear, endMonth);
-
-  const todayDate = new Date();
-  const todayYear = todayDate.getFullYear();
-  const todayMonth = todayDate.getMonth() + 1;
-  const todayDay = todayDate.getDate();
+  const todayISO = formatDate(new Date());
 
   const sectionTitle =
     analysis === "sales" ? "売上推移"
@@ -572,69 +525,25 @@ export default function AdminSalesPage() {
       />
 
       {/* 期間 */}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 shrink-0 bg-[color:var(--color-bg-card)] rounded-xl border border-black px-4 py-2.5 shadow-sm">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 shrink-0 bg-[color:var(--color-bg-card)] rounded-xl border border-black px-4 py-2.5 shadow-sm">
         <span className="text-xs text-[color:var(--color-text-muted)]">開始</span>
-        <select
-          value={startYear}
-          onChange={(e) => setStartYear(Number(e.target.value))}
+        <input
+          type="date"
+          value={startDate}
+          max={todayISO}
+          onChange={(e) => { if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) setStartDate(e.target.value); }}
+          onKeyDown={(e) => e.preventDefault()}
           className={selectCls}
-        >
-          {availableYears.map((y) => (
-            <option key={y} value={y}>{y}年</option>
-          ))}
-        </select>
-        <select
-          value={startMonth}
-          onChange={(e) => setStartMonth(Number(e.target.value))}
+        />
+        <span className="text-xs text-[color:var(--color-text-muted)]">〜</span>
+        <input
+          type="date"
+          value={endDate}
+          max={todayISO}
+          onChange={(e) => { if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) setEndDate(e.target.value); }}
+          onKeyDown={(e) => e.preventDefault()}
           className={selectCls}
-        >
-          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
-            const disabled = startYear === todayYear && m > todayMonth;
-            return <option key={m} value={m} disabled={disabled}>{m}月</option>;
-          })}
-        </select>
-        <select
-          value={startDay}
-          onChange={(e) => setStartDay(Number(e.target.value))}
-          className={selectCls}
-        >
-          {Array.from({ length: startDayMax }, (_, i) => i + 1).map((d) => {
-            const disabled = startYear === todayYear && startMonth === todayMonth && d > todayDay;
-            return <option key={d} value={d} disabled={disabled}>{d}日</option>;
-          })}
-        </select>
-
-        <span className="text-xs text-[color:var(--color-text-muted)] px-1">〜</span>
-
-        <select
-          value={endYear}
-          onChange={(e) => setEndYear(Number(e.target.value))}
-          className={selectCls}
-        >
-          {availableYears.map((y) => (
-            <option key={y} value={y}>{y}年</option>
-          ))}
-        </select>
-        <select
-          value={endMonth}
-          onChange={(e) => setEndMonth(Number(e.target.value))}
-          className={selectCls}
-        >
-          {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
-            const disabled = endYear === todayYear && m > todayMonth;
-            return <option key={m} value={m} disabled={disabled}>{m}月</option>;
-          })}
-        </select>
-        <select
-          value={endDay}
-          onChange={(e) => setEndDay(Number(e.target.value))}
-          className={selectCls}
-        >
-          {Array.from({ length: endDayMax }, (_, i) => i + 1).map((d) => {
-            const disabled = endYear === todayYear && endMonth === todayMonth && d > todayDay;
-            return <option key={d} value={d} disabled={disabled}>{d}日</option>;
-          })}
-        </select>
+        />
       </div>
 
       {/* KPI */}
