@@ -790,6 +790,8 @@ export default function MenuPage() {
               onClick={() => {
                 setGuestCount(guestCountInput);
                 setShowGuestCountDialog(false);
+                const osusume = categories.find((c) => c.name === "おすすめ") ?? categories[0];
+                if (osusume) setActiveCategory(osusume.id);
               }}
               className="w-full rounded-xl bg-[color:var(--color-accent-char)] py-3 text-base font-bold text-white hover:opacity-90 transition-opacity"
             >

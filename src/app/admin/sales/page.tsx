@@ -18,12 +18,10 @@ import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { comboLineTotal, flattenForReceipt } from "@/lib/order-utils";
 
 type Period = "daily" | "weekly" | "monthly";
-type Analysis = "sales" | "menu" | "price";
+type Analysis = "sales" | "menu" | "dow";
 
 const BLUE = "#3b82f6";
-const COLORS = [
-  "#3b82f6", "#22c55e", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#ef4444",
-];
+const DOW_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
 
 function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate();
@@ -60,24 +58,19 @@ type Series = {
   values: number[];
   formatValue: (v: number) => string;
 };
-type Annotation = { idx: number; label: string };
 
 function LineChart({
   labels,
   series,
   height = 240,
-  sharedScale = false,
   activeIdx = null,
   onPointClick,
-  annotations,
 }: {
   labels: string[];
   series: Series[];
   height?: number;
-  sharedScale?: boolean;
   activeIdx?: number | null;
   onPointClick?: (i: number) => void;
-  annotations?: Annotation[];
 }) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const padL = 12, padR = 12, padT = 16, padB = 28;
@@ -89,10 +82,7 @@ function LineChart({
 
   const xs = (i: number) =>
     n === 1 ? padL + innerW / 2 : padL + (i * innerW) / (n - 1);
-  const globalMax = Math.max(...series.flatMap((s) => s.values), 1);
-  const maxPerSeries = series.map((s) =>
-    sharedScale ? globalMax : Math.max(...s.values, 1)
-  );
+  const maxPerSeries = series.map((s) => Math.max(...s.values, 1));
 
   function seriesPath(values: number[], idx: number): string {
     const max = maxPerSeries[idx];
@@ -124,22 +114,6 @@ function LineChart({
             stroke="#e2e8f0"
             strokeDasharray="3 3"
           />
-        ))}
-        {annotations?.map((ann) => (
-          <g key={ann.idx}>
-            <line
-              x1={xs(ann.idx)}
-              x2={xs(ann.idx)}
-              y1={padT}
-              y2={padT + innerH}
-              stroke="#ef4444"
-              strokeDasharray="4 3"
-              strokeWidth={1.5}
-            />
-            <text x={xs(ann.idx) + 4} y={padT + 10} fontSize={9} fill="#ef4444">
-              {ann.label}
-            </text>
-          </g>
         ))}
         {series.map((s, idx) => (
           <g key={s.name}>
@@ -236,7 +210,7 @@ function LineChart({
 function BarChart({
   items,
 }: {
-  items: { label: string; value: number; color: string }[];
+  items: { label: string; value: number; color: string; sub?: string; format?: (v: number) => string }[];
 }) {
   if (items.length === 0) return null;
   const max = Math.max(...items.map((i) => i.value), 1);
@@ -260,9 +234,16 @@ function BarChart({
                 }}
               />
             </div>
-            <span className="w-14 shrink-0 text-right tabular-nums font-medium text-[color:var(--color-text-primary)]">
-              {item.value}個
-            </span>
+            <div className="w-24 shrink-0 text-right">
+              <span className="tabular-nums font-medium text-[color:var(--color-text-primary)]">
+                {item.format ? item.format(item.value) : `${item.value}個`}
+              </span>
+              {item.sub && (
+                <span className="block text-[10px] text-[color:var(--color-text-muted)]">
+                  {item.sub}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       ))}
@@ -301,9 +282,7 @@ export default function AdminSalesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [menus, setMenus] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState<Period>("daily");
   const [analysis, setAnalysis] = useState<Analysis>("sales");
-  const [priceMenuId, setPriceMenuId] = useState<string>("");
   const [detailKey, setDetailKey] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
@@ -314,6 +293,15 @@ export default function AdminSalesPage() {
   const [endYear, setEndYear] = useState(() => new Date().getFullYear());
   const [endMonth, setEndMonth] = useState(() => new Date().getMonth() + 1);
   const [endDay, setEndDay] = useState(() => new Date().getDate());
+
+  const period = useMemo<Period>(() => {
+    const start = new Date(startYear, startMonth - 1, startDay);
+    const end = new Date(endYear, endMonth - 1, endDay);
+    const days = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+    if (days <= 14) return "daily";
+    if (days <= 90) return "weekly";
+    return "monthly";
+  }, [startYear, startMonth, startDay, endYear, endMonth, endDay]);
 
   // 月変更時に日を上限でクランプ
   useEffect(() => {
@@ -328,7 +316,7 @@ export default function AdminSalesPage() {
 
   useEffect(() => {
     setDetailKey(null);
-  }, [period, analysis, startYear, startMonth, startDay, endYear, endMonth, endDay]);
+  }, [analysis, startYear, startMonth, startDay, endYear, endMonth, endDay]);
 
   useEffect(() => {
     if (role !== "owner") router.replace("/admin/orders");
@@ -443,25 +431,27 @@ export default function AdminSalesPage() {
   const kpi = useMemo(() => {
     const revenue = filteredOrders.reduce((s, o) => s + orderTotal(o), 0);
     const count = filteredOrders.length;
-    const tableAtv = count === 0 ? 0 : Math.round(revenue / count);
-    // 客単価: guestCount のある注文だけで算出
+    const days = isDateRangeValid
+      ? Math.round(
+          (new Date(endYear, endMonth - 1, endDay).getTime() -
+            new Date(startYear, startMonth - 1, startDay).getTime()) /
+            86400000
+        ) + 1
+      : 1;
+    const dailyAvgRevenue = days > 0 ? Math.round(revenue / days) : 0;
+    const dailyAvgCount = days > 0 ? Math.round((count / days) * 10) / 10 : 0;
     const withGuests = filteredOrders.filter((o) => (o.guestCount ?? 0) > 0);
     const totalGuests = withGuests.reduce((s, o) => s + (o.guestCount as number), 0);
     const guestRevenue = withGuests.reduce((s, o) => s + orderTotal(o), 0);
     const guestAtv = totalGuests === 0 ? null : Math.round(guestRevenue / totalGuests);
-    return { revenue, count, tableAtv, guestAtv, guestBase: withGuests.length };
-  }, [filteredOrders]);
+    return { revenue, count, dailyAvgRevenue, dailyAvgCount, guestAtv, guestBase: withGuests.length };
+  }, [filteredOrders, isDateRangeValid, startYear, startMonth, startDay, endYear, endMonth, endDay]);
 
-  // メニュー棒グラフデータ (全商品・青単色)
   const menuBarItems = useMemo(() => {
     const map = new Map<string, { menuId: string; name: string; qty: number }>();
     for (const o of filteredOrders) {
       for (const it of flattenForReceipt(o.items)) {
-        const e = map.get(it.menuId) ?? {
-          menuId: it.menuId,
-          name: it.name,
-          qty: 0,
-        };
+        const e = map.get(it.menuId) ?? { menuId: it.menuId, name: it.name, qty: 0 };
         e.qty += it.quantity;
         e.name = menuNameMap.get(it.menuId) ?? it.name;
         map.set(it.menuId, e);
@@ -476,129 +466,33 @@ export default function AdminSalesPage() {
     return all.map((m) => ({ label: m.name, value: m.qty, color: BLUE }));
   }, [filteredOrders, categoryFilter, menuCategoryMap, menuNameMap]);
 
-  // 価格変更のあるメニュー (全期間で検出)
-  const priceChangedMenus = useMemo(() => {
-    const map = new Map<
-      string,
-      { menuId: string; name: string; qty: number; prices: Set<number> }
-    >();
-    for (const o of orders) {
-      for (const it of flattenForReceipt(o.items)) {
-        const e = map.get(it.menuId) ?? {
-          menuId: it.menuId,
-          name: it.name,
-          qty: 0,
-          prices: new Set<number>(),
-        };
-        e.qty += it.quantity;
-        e.name = it.name;
-        e.prices.add(Math.trunc(it.price));
-        map.set(it.menuId, e);
-      }
-    }
-    return Array.from(map.values())
-      .filter((m) => m.prices.size >= 2)
-      .sort((a, b) => b.qty - a.qty);
-  }, [orders]);
-
-  useEffect(() => {
-    if (analysis !== "price") return;
-    if (priceChangedMenus.length === 0) {
-      if (priceMenuId) setPriceMenuId("");
-      return;
-    }
-    if (!priceChangedMenus.some((m) => m.menuId === priceMenuId)) {
-      setPriceMenuId(priceChangedMenus[0].menuId);
-    }
-  }, [analysis, priceMenuId, priceChangedMenus]);
-
-  const visibleKeys = useMemo(() => new Set(buckets.map((b) => b.key)), [buckets]);
-
-  const priceSeries: Series[] = useMemo(() => {
-    if (analysis !== "price" || !priceMenuId) return [];
-    const priceBuckets = new Map<number, Map<string, number>>();
+  // 曜日別売上・注文数 (月=0 〜 日=6)
+  const dowData = useMemo(() => {
+    const slots = Array.from({ length: 7 }, () => ({ revenue: 0, count: 0 }));
     for (const o of filteredOrders) {
-      const date = o.createdAt?.toDate?.();
-      if (!date) continue;
-      const key = bucketKey(date, period);
-      if (!visibleKeys.has(key)) continue;
-      for (const it of flattenForReceipt(o.items)) {
-        if (it.menuId !== priceMenuId) continue;
-        const price = Math.trunc(it.price);
-        const b = priceBuckets.get(price) ?? new Map<string, number>();
-        b.set(key, (b.get(key) ?? 0) + it.quantity);
-        priceBuckets.set(price, b);
-      }
+      const d = o.createdAt?.toDate?.();
+      if (!d) continue;
+      const dow = (d.getDay() + 6) % 7;
+      slots[dow].revenue += orderTotal(o);
+      slots[dow].count++;
     }
-    return Array.from(priceBuckets.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([price, bmap], i) => ({
-        name: `¥${price.toLocaleString()}`,
-        color: COLORS[i % COLORS.length],
-        values: buckets.map((b) => bmap.get(b.key) ?? 0),
-        formatValue: (v: number) => `${v}個`,
-      }));
-  }, [analysis, priceMenuId, filteredOrders, period, buckets, visibleKeys]);
+    return slots;
+  }, [filteredOrders]);
 
-  const priceAnnotations: Annotation[] = useMemo(() => {
-    if (analysis !== "price" || !priceMenuId || buckets.length === 0) return [];
-    const firstBucket = new Map<number, string>();
+  // 時間帯別注文数 (0〜23時)
+  const hourData = useMemo(() => {
+    const slots = Array.from({ length: 24 }, () => 0);
     for (const o of filteredOrders) {
-      const date = o.createdAt?.toDate?.();
-      if (!date) continue;
-      const key = bucketKey(date, period);
-      for (const it of flattenForReceipt(o.items)) {
-        if (it.menuId !== priceMenuId) continue;
-        const price = Math.trunc(it.price);
-        const existing = firstBucket.get(price);
-        if (!existing || key < existing) firstBucket.set(price, key);
-      }
+      const d = o.createdAt?.toDate?.();
+      if (!d) continue;
+      slots[d.getHours()]++;
     }
-    const sorted = Array.from(firstBucket.entries()).sort((a, b) =>
-      a[1].localeCompare(b[1])
-    );
-    return sorted.slice(1).flatMap(([price, bkey]) => {
-      const idx = buckets.findIndex((b) => b.key === bkey);
-      if (idx < 0) return [];
-      return [{ idx, label: `¥${price.toLocaleString()}に変更` }];
-    });
-  }, [analysis, priceMenuId, filteredOrders, period, buckets]);
-
-  const priceBeforeAfter = useMemo(() => {
-    if (
-      analysis !== "price" ||
-      !priceMenuId ||
-      priceAnnotations.length === 0 ||
-      priceSeries.length === 0
-    )
-      return null;
-    const changeIdx = priceAnnotations[priceAnnotations.length - 1].idx;
-    const totalPerBucket = buckets.map((_, i) =>
-      priceSeries.reduce((s, ser) => s + ser.values[i], 0)
-    );
-    const beforeSlice = totalPerBucket.slice(0, changeIdx);
-    const afterSlice = totalPerBucket.slice(changeIdx);
-    const beforeAvg =
-      beforeSlice.length === 0
-        ? 0
-        : Math.round(beforeSlice.reduce((s, v) => s + v, 0) / beforeSlice.length);
-    const afterAvg =
-      afterSlice.length === 0
-        ? 0
-        : Math.round(afterSlice.reduce((s, v) => s + v, 0) / afterSlice.length);
-    const diff =
-      beforeAvg === 0
-        ? null
-        : Math.round(((afterAvg - beforeAvg) / beforeAvg) * 100);
-    return { beforeAvg, afterAvg, diff };
-  }, [analysis, priceMenuId, priceAnnotations, priceSeries, buckets]);
+    return slots;
+  }, [filteredOrders]);
 
   const tableBreakdown = useMemo(() => {
     if (analysis !== "sales") return [];
-    const map = new Map<
-      number,
-      { table: number; count: number; revenue: number }
-    >();
+    const map = new Map<number, { table: number; count: number; revenue: number }>();
     for (const o of filteredOrders) {
       const t = o.tableNumber;
       const e = map.get(t) ?? { table: t, count: 0, revenue: 0 };
@@ -608,10 +502,7 @@ export default function AdminSalesPage() {
     }
     return Array.from(map.values())
       .sort((a, b) => b.revenue - a.revenue)
-      .map((e) => ({
-        ...e,
-        atv: e.count === 0 ? 0 : Math.round(e.revenue / e.count),
-      }));
+      .map((e) => ({ ...e, atv: e.count === 0 ? 0 : Math.round(e.revenue / e.count) }));
   }, [analysis, filteredOrders]);
 
   const detail = useMemo(() => {
@@ -624,27 +515,17 @@ export default function AdminSalesPage() {
     const count = filtered.length;
     const revenue = filtered.reduce((s, o) => s + orderTotal(o), 0);
     const atv = count === 0 ? 0 : Math.round(revenue / count);
-    const menuMap = new Map<
-      string,
-      { name: string; qty: number; revenue: number }
-    >();
+    const menuMap = new Map<string, { name: string; qty: number; revenue: number }>();
     for (const o of filtered) {
       for (const it of flattenForReceipt(o.items)) {
-        const e = menuMap.get(it.menuId) ?? {
-          name: it.name,
-          qty: 0,
-          revenue: 0,
-        };
+        const e = menuMap.get(it.menuId) ?? { name: it.name, qty: 0, revenue: 0 };
         e.qty += it.quantity;
         e.revenue += it.price * it.quantity;
         menuMap.set(it.menuId, e);
       }
     }
-    const breakdown = Array.from(menuMap.values()).sort(
-      (a, b) => b.revenue - a.revenue
-    );
-    const label =
-      buckets.find((b) => b.key === detailKey)?.label ?? detailKey;
+    const breakdown = Array.from(menuMap.values()).sort((a, b) => b.revenue - a.revenue);
+    const label = buckets.find((b) => b.key === detailKey)?.label ?? detailKey;
     return { label, count, revenue, atv, breakdown };
   }, [detailKey, filteredOrders, period, buckets]);
 
@@ -659,6 +540,11 @@ export default function AdminSalesPage() {
   const startDayMax = getDaysInMonth(startYear, startMonth);
   const endDayMax = getDaysInMonth(endYear, endMonth);
 
+  const sectionTitle =
+    analysis === "sales" ? "売上推移"
+    : analysis === "menu" ? "メニュー別売数"
+    : "曜日・時間帯";
+
   return (
     <div className="w-full flex flex-col gap-3 h-[calc(100dvh-24px)] md:h-[calc(100dvh-48px)]">
       <AdminPageHeader
@@ -672,12 +558,12 @@ export default function AdminSalesPage() {
           >
             <option value="sales">売上推移</option>
             <option value="menu">メニュー別売数</option>
-            <option value="price">価格変更推移</option>
+            <option value="dow">曜日・時間帯</option>
           </select>
         }
       />
 
-      {/* 期間 + 集計単位 */}
+      {/* 期間 */}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 shrink-0 bg-[color:var(--color-bg-card)] rounded-xl border border-[color:var(--color-border)] px-4 py-2.5 shadow-sm">
         <span className="text-xs text-[color:var(--color-text-muted)]">開始</span>
         <select
@@ -686,9 +572,7 @@ export default function AdminSalesPage() {
           className={selectCls}
         >
           {availableYears.map((y) => (
-            <option key={y} value={y}>
-              {y}年
-            </option>
+            <option key={y} value={y}>{y}年</option>
           ))}
         </select>
         <select
@@ -697,9 +581,7 @@ export default function AdminSalesPage() {
           className={selectCls}
         >
           {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-            <option key={m} value={m}>
-              {m}月
-            </option>
+            <option key={m} value={m}>{m}月</option>
           ))}
         </select>
         <select
@@ -708,9 +590,7 @@ export default function AdminSalesPage() {
           className={selectCls}
         >
           {Array.from({ length: startDayMax }, (_, i) => i + 1).map((d) => (
-            <option key={d} value={d}>
-              {d}日
-            </option>
+            <option key={d} value={d}>{d}日</option>
           ))}
         </select>
 
@@ -722,9 +602,7 @@ export default function AdminSalesPage() {
           className={selectCls}
         >
           {availableYears.map((y) => (
-            <option key={y} value={y}>
-              {y}年
-            </option>
+            <option key={y} value={y}>{y}年</option>
           ))}
         </select>
         <select
@@ -733,9 +611,7 @@ export default function AdminSalesPage() {
           className={selectCls}
         >
           {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-            <option key={m} value={m}>
-              {m}月
-            </option>
+            <option key={m} value={m}>{m}月</option>
           ))}
         </select>
         <select
@@ -744,33 +620,22 @@ export default function AdminSalesPage() {
           className={selectCls}
         >
           {Array.from({ length: endDayMax }, (_, i) => i + 1).map((d) => (
-            <option key={d} value={d}>
-              {d}日
-            </option>
+            <option key={d} value={d}>{d}日</option>
           ))}
         </select>
-
-        <div className="ml-auto">
-          <select
-            value={period}
-            onChange={(e) => setPeriod(e.target.value as Period)}
-            className={selectCls}
-          >
-            <option value="daily">日別</option>
-            <option value="weekly">週別</option>
-            <option value="monthly">月別</option>
-          </select>
-        </div>
       </div>
 
-      {/* KPI: 合計売上 / 注文数 / テーブル単価 / 客単価 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 shrink-0">
-        <KpiCard label="合計売上" value={yen(kpi.revenue)} />
-        <KpiCard label="注文数" value={`${kpi.count.toLocaleString()}件`} />
+      {/* KPI */}
+      <div className="grid grid-cols-3 gap-2 shrink-0">
         <KpiCard
-          label="テーブル単価"
-          value={yen(kpi.tableAtv)}
-          sub="注文あたり"
+          label="合計売上"
+          value={yen(kpi.revenue)}
+          sub={`1日平均 ${yen(kpi.dailyAvgRevenue)}`}
+        />
+        <KpiCard
+          label="注文数"
+          value={`${kpi.count.toLocaleString()}件`}
+          sub={`1日平均 ${kpi.dailyAvgCount}件`}
         />
         <KpiCard
           label="客単価"
@@ -784,30 +649,9 @@ export default function AdminSalesPage() {
       </div>
 
       <section className="rounded-xl bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] p-4 flex flex-col flex-1 min-h-0 overflow-hidden shadow-sm">
-        <div className="flex items-center justify-between mb-3 flex-wrap gap-2 shrink-0">
-          <h2 className="text-lg font-bold text-[color:var(--color-text-primary)]">
-            {analysis === "sales"
-              ? "売上推移"
-              : analysis === "menu"
-              ? "メニュー別売数"
-              : "価格変更推移"}
-          </h2>
-          {analysis === "price" && priceSeries.length > 0 && (
-            <div className="flex items-center gap-3 text-xs flex-wrap justify-end">
-              {priceSeries.map((s) => (
-                <div key={s.name} className="flex items-center gap-1.5">
-                  <span
-                    className="inline-block h-2 w-2 rounded-full"
-                    style={{ backgroundColor: s.color }}
-                  />
-                  <span className="text-[color:var(--color-text-muted)]">
-                    {s.name}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <h2 className="text-lg font-bold text-[color:var(--color-text-primary)] mb-3 shrink-0">
+          {sectionTitle}
+        </h2>
 
         {/* メニュー別: カテゴリフィルター */}
         {analysis === "menu" && categories.length > 0 && (
@@ -838,30 +682,7 @@ export default function AdminSalesPage() {
           </div>
         )}
 
-        {/* 価格変更: メニュー選択 */}
-        {analysis === "price" && (
-          <div className="mb-3 shrink-0">
-            {priceChangedMenus.length === 0 ? (
-              <p className="text-xs text-[color:var(--color-text-muted)]">
-                価格変更履歴のあるメニューがありません
-              </p>
-            ) : (
-              <select
-                value={priceMenuId}
-                onChange={(e) => setPriceMenuId(e.target.value)}
-                className="w-full md:w-auto bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
-              >
-                {priceChangedMenus.map((m) => (
-                  <option key={m.menuId} value={m.menuId}>
-                    {m.name}（{m.prices.size}価格）
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-        )}
-
-        {/* 期間エラー */}
+        {/* 期間エラー or データなし */}
         {!isDateRangeValid ? (
           <p className="text-sm text-[color:var(--color-accent-warn)] py-10 text-center">
             開始日が終了日より後になっています
@@ -881,66 +702,31 @@ export default function AdminSalesPage() {
               <BarChart items={menuBarItems} />
             )}
           </div>
-        ) : analysis === "price" ? (
-          /* ===== 価格変更推移 ===== */
-          <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden">
-            {priceSeries.length === 0 ? (
-              <p className="text-sm text-[color:var(--color-text-muted)] py-10 text-center">
-                この期間に販売実績がありません
-              </p>
-            ) : (
-              <>
-                {priceBeforeAfter && (
-                  <div className="grid grid-cols-3 gap-2 shrink-0">
-                    <div className="rounded-lg bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] p-3">
-                      <p className="text-[11px] text-[color:var(--color-text-muted)]">
-                        変更前 平均販売数/期間
-                      </p>
-                      <p className="text-lg font-bold tabular-nums text-[color:var(--color-text-primary)] mt-0.5">
-                        {priceBeforeAfter.beforeAvg}個
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] p-3">
-                      <p className="text-[11px] text-[color:var(--color-text-muted)]">
-                        変更後 平均販売数/期間
-                      </p>
-                      <p className="text-lg font-bold tabular-nums text-[color:var(--color-text-primary)] mt-0.5">
-                        {priceBeforeAfter.afterAvg}個
-                      </p>
-                    </div>
-                    {priceBeforeAfter.diff !== null && (
-                      <div className="rounded-lg bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] p-3">
-                        <p className="text-[11px] text-[color:var(--color-text-muted)]">
-                          変化率
-                        </p>
-                        <p
-                          className={`text-lg font-bold tabular-nums mt-0.5 ${
-                            priceBeforeAfter.diff >= 0
-                              ? "text-[color:var(--color-accent-negi)]"
-                              : "text-[color:var(--color-accent-warn)]"
-                          }`}
-                        >
-                          {priceBeforeAfter.diff >= 0 ? "+" : ""}
-                          {priceBeforeAfter.diff}%
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-                <div className="flex-1 min-h-0">
-                  <LineChart
-                    labels={buckets.map((b) => b.label)}
-                    series={priceSeries}
-                    sharedScale
-                    annotations={priceAnnotations}
-                    height={200}
-                  />
-                </div>
-                <p className="text-[11px] text-[color:var(--color-text-muted)] shrink-0">
-                  赤い点線は価格変更日。価格帯ごとに線を分けて販売数推移を比較できます。
-                </p>
-              </>
-            )}
+        ) : analysis === "dow" ? (
+          /* ===== 曜日別売上 + 時間帯別注文数 ===== */
+          <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-5">
+            <div>
+              <p className="text-xs font-medium text-[color:var(--color-text-muted)] mb-2">曜日別売上</p>
+              <BarChart
+                items={dowData.map((s, i) => ({
+                  label: DOW_LABELS[i],
+                  value: s.revenue,
+                  color: i >= 5 ? "#ef4444" : BLUE,
+                  sub: `${s.count}件`,
+                  format: yen,
+                }))}
+              />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-[color:var(--color-text-muted)] mb-2">時間帯別注文数</p>
+              <BarChart
+                items={hourData.map((count, h) => ({
+                  label: `${h}時`,
+                  value: count,
+                  color: BLUE,
+                }))}
+              />
+            </div>
           </div>
         ) : (
           /* ===== 売上推移 ===== */
