@@ -12,7 +12,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Category, Menu, Order } from "@/types";
+import type { Category, Customer, Menu, Order } from "@/types";
 import { useAdminRole } from "@/components/admin/AdminContext";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { comboLineTotal, flattenForReceipt } from "@/lib/order-utils";
@@ -279,6 +279,7 @@ export default function AdminSalesPage() {
   const role = useAdminRole();
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [menus, setMenus] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(true);
@@ -324,10 +325,12 @@ export default function AdminSalesPage() {
 
   useEffect(() => {
     async function fetchData() {
-      const snap = await getDocs(
-        query(collection(db, "orders"), where("status", "==", "paid"))
-      );
-      setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Order));
+      const [ordersSnap, customersSnap] = await Promise.all([
+        getDocs(query(collection(db, "orders"), where("status", "==", "paid"))),
+        getDocs(query(collection(db, "customers"), where("status", "==", "paid"))),
+      ]);
+      setOrders(ordersSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Order));
+      setCustomers(customersSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Customer));
       setLoading(false);
     }
     fetchData();
@@ -440,12 +443,24 @@ export default function AdminSalesPage() {
       : 1;
     const dailyAvgRevenue = days > 0 ? Math.round(revenue / days) : 0;
     const dailyAvgCount = days > 0 ? Math.round((count / days) * 10) / 10 : 0;
-    const withGuests = filteredOrders.filter((o) => (o.guestCount ?? 0) > 0);
-    const totalGuests = withGuests.reduce((s, o) => s + (o.guestCount as number), 0);
-    const guestRevenue = withGuests.reduce((s, o) => s + orderTotal(o), 0);
-    const guestAtv = totalGuests === 0 ? null : Math.round(guestRevenue / totalGuests);
+    const sessionMap = new Map<string, { revenue: number; guestCount: number }>();
+    for (const o of filteredOrders) {
+      if (!o.customerId) continue;
+      const customer = customers.find((c) => c.id === o.customerId);
+      if (!customer) continue;
+      const s = sessionMap.get(o.customerId) ?? {
+        revenue: 0,
+        guestCount: customer.guestCount,
+      };
+      s.revenue += orderTotal(o);
+      sessionMap.set(o.customerId, s);
+    }
+    const sessions = Array.from(sessionMap.values());
+    const totalGuests = sessions.reduce((s, sess) => s + sess.guestCount, 0);
+    const totalGuestRevenue = sessions.reduce((s, sess) => s + sess.revenue, 0);
+    const guestAtv = totalGuests === 0 ? null : Math.round(totalGuestRevenue / totalGuests);
     return { revenue, count, dailyAvgRevenue, dailyAvgCount, guestAtv };
-  }, [filteredOrders, isDateRangeValid, startYear, startMonth, startDay, endYear, endMonth, endDay]);
+  }, [filteredOrders, customers, isDateRangeValid, startYear, startMonth, startDay, endYear, endMonth, endDay]);
 
   const menuBarItems = useMemo(() => {
     const map = new Map<string, { menuId: string; name: string; qty: number }>();

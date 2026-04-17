@@ -111,6 +111,28 @@ export function CartPanel() {
         return;
       }
 
+      const customerSnap = await getDocs(
+        query(
+          collection(db, "customers"),
+          where("tableNumber", "==", tableNumber),
+          where("status", "==", "active")
+        )
+      );
+      let customerId: string;
+      if (customerSnap.empty) {
+        const customerRef = doc(collection(db, "customers"));
+        await setDoc(customerRef, {
+          tableNumber,
+          guestCount: guestCount ?? 1,
+          status: "active",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        customerId = customerRef.id;
+      } else {
+        customerId = customerSnap.docs[0].id;
+      }
+
       const orderRef = doc(collection(db, "orders"));
       await setDoc(orderRef, {
         // OrderItem には lineId を含めない (顧客向け識別子ではなくカート内で merge 用)
@@ -133,6 +155,7 @@ export function CartPanel() {
         })),
         status: "pending",
         tableNumber,
+        customerId,
         ...(guestCount != null ? { guestCount } : {}),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),

@@ -58,6 +58,17 @@ export type OrderItem = {
   note?: string;
 };
 
+export type CustomerStatus = "active" | "paid";
+
+export type Customer = {
+  id: string;
+  tableNumber: number;
+  guestCount: number;
+  status: CustomerStatus;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+};
+
 export type OrderStatus = "pending" | "completed" | "paid";
 
 export type AdminRole = "owner" | "staff";
@@ -71,6 +82,8 @@ export type Order = {
   customerNote: string;
   /** 注文時の客数スナップショット。整数。1以上 */
   guestCount?: number;
+  /** customers コレクションへの参照 */
+  customerId?: string;
   /** チェック済み商品のインデックス (0-based)。全チェック後「提供完了」ボタンで completed に遷移 */
   checkedItems?: number[];
   createdAt: Timestamp;

@@ -11,7 +11,8 @@ import {
   onSnapshot,
   orderBy,
   doc,
-  updateDoc,
+  getDocs,
+  writeBatch,
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -246,12 +247,28 @@ export default function AdminRegisterPage() {
     setError(null);
 
     try {
+      const customerSnap = await getDocs(
+        query(
+          collection(db, "customers"),
+          where("tableNumber", "==", payTarget.tableNumber),
+          where("status", "==", "active")
+        )
+      );
+
+      const batch = writeBatch(db);
       for (const order of payTarget.orders) {
-        await updateDoc(doc(db, "orders", order.id), {
+        batch.update(doc(db, "orders", order.id), {
           status: "paid",
           updatedAt: serverTimestamp(),
         });
       }
+      customerSnap.docs.forEach((customerDoc) => {
+        batch.update(customerDoc.ref, {
+          status: "paid",
+          updatedAt: serverTimestamp(),
+        });
+      });
+      await batch.commit();
       setPayTarget(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "精算に失敗しました。");

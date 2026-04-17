@@ -64,6 +64,16 @@ service cloud.firestore {
       allow delete: if isStaff();
     }
 
+    match /customers/{customerId} {
+      allow create: if request.resource.data.keys().hasAll(['tableNumber', 'guestCount', 'status'])
+        && validTableNumber(request.resource.data.tableNumber)
+        && request.resource.data.guestCount is int
+        && request.resource.data.guestCount >= 1
+        && request.resource.data.status == "active";
+      allow read: if true;
+      allow update, delete: if isStaff();
+    }
+
     match /admins/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;
     }
