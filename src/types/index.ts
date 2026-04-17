@@ -69,6 +69,8 @@ export type Order = {
   /** 整数。1以上 */
   tableNumber: number;
   customerNote: string;
+  /** 注文時の客数スナップショット。整数。1以上 */
+  guestCount?: number;
   /** チェック済み商品のインデックス (0-based)。全チェック後「提供完了」ボタンで completed に遷移 */
   checkedItems?: number[];
   createdAt: Timestamp;
@@ -107,13 +109,3 @@ export type CartItem = {
   note?: string;
 };
 
-export type Table = {
-  id: string;
-  name: string;
-  /** テーブル番号（整数、1以上）。Order.tableNumber と対応 */
-  number: number;
-  /** 現在の客数。null = 精算後の新規セッション待機中 */
-  guestCount: number | null;
-  sessionStartedAt: Timestamp | null;
-  createdAt: Timestamp;
-};

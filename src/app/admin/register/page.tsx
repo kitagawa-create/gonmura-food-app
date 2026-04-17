@@ -12,7 +12,6 @@ import {
   orderBy,
   doc,
   updateDoc,
-  getDocs,
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -136,7 +135,6 @@ export default function AdminRegisterPage() {
   const [goal, setGoal] = useState<number>(DEFAULT_GOAL);
   const [goalInput, setGoalInput] = useState<string>("");
   const [editingGoal, setEditingGoal] = useState<boolean>(false);
-  const [tableGuestCounts, setTableGuestCounts] = useState<Map<number, number | null>>(new Map());
 
   // 目標金額の読み込み
   useEffect(() => {
@@ -192,21 +190,6 @@ export default function AdminRegisterPage() {
       setLoading(false);
     });
 
-    return unsub;
-  }, []);
-
-  // tables コレクション購読（客数取得）
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, "tables"), (snap) => {
-      const map = new Map<number, number | null>();
-      snap.docs.forEach((d) => {
-        const data = d.data() as { number?: number; guestCount?: number | null };
-        if (typeof data.number === "number") {
-          map.set(data.number, data.guestCount ?? null);
-        }
-      });
-      setTableGuestCounts(map);
-    });
     return unsub;
   }, []);
 
@@ -268,20 +251,6 @@ export default function AdminRegisterPage() {
           status: "paid",
           updatedAt: serverTimestamp(),
         });
-      }
-      // 精算完了後にテーブルのセッションをリセット（次の客が人数選択できるように）
-      try {
-        const tablesSnap = await getDocs(
-          query(collection(db, "tables"), where("number", "==", payTarget.tableNumber))
-        );
-        for (const tableDoc of tablesSnap.docs) {
-          await updateDoc(doc(db, "tables", tableDoc.id), {
-            guestCount: null,
-            sessionStartedAt: null,
-          });
-        }
-      } catch {
-        // tables コレクションがなくても精算は成功とする
       }
       setPayTarget(null);
     } catch (e) {
@@ -462,7 +431,7 @@ export default function AdminRegisterPage() {
                       ¥{table.totalAmount.toLocaleString()}
                     </p>
                     {(() => {
-                      const guestCount = tableGuestCounts.get(table.tableNumber);
+                      const guestCount = table.orders.find((o) => o.guestCount != null)?.guestCount ?? null;
                       return guestCount != null && guestCount > 0 ? (
                         <p className="text-xs text-[color:var(--color-text-muted)]">
                           {guestCount}名 · 客単価 ¥{Math.floor(table.totalAmount / guestCount).toLocaleString()}

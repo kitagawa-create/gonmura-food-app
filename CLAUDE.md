@@ -68,7 +68,7 @@ OrderItemTopping  { menuId, name, price: number, quantity: number }  ← quantit
 OrderItem         { menuId, name, price: number, quantity: number, toppings?: OrderItemTopping[] }  ← 注文時スナップショット。price は単品価格（トッピング分は含まない）、quantity はコンボなら「杯数」
 OrderStatus       "pending" | "completed" | "paid"
 AdminRole         "owner" | "staff"
-Order             { id, items: OrderItem[], status: OrderStatus, tableNumber: number, customerNote, checkedItems?: number[], createdAt, updatedAt }
+Order             { id, items: OrderItem[], status: OrderStatus, tableNumber: number, customerNote, guestCount?: number, checkedItems?: number[], createdAt, updatedAt }
 Admin             { uid, email, role, createdAt, updatedAt }
 CartItemTopping   { menuId, name, price: number, quantity: number }  ← quantity は「1杯あたり」
 CartItem          { lineId, menuId, name, price: number, quantity: number, toppings?: CartItemTopping[] }  ← localStorage保存、Firestore不使用。lineId でコンボを識別（同 menuId でも構成が違えば別 line）
@@ -77,7 +77,7 @@ CartItem          { lineId, menuId, name, price: number, quantity: number, toppi
 ## Firestore コレクション
 - `categories/{categoryId}` → Category型。name, sortOrder（長押し→タップ or DnD で変更）
 - `menus/{menuId}` → Menu型。price整数, categoryIds配列, isAvailable で非公開制御, isSoldOut で売り切れ制御, sortOrder? で並び替え
-- `orders/{orderId}` → Order型。items配列にスナップショット, statusで遷移管理, checkedItems で商品チェック状態
+- `orders/{orderId}` → Order型。items配列にスナップショット, statusで遷移管理, checkedItems で商品チェック状態。guestCount は注文時にlocalStorageから付与
 - `admins/{uid}` → Admin型。Firebase Auth uidがドキュメントID
 
 ## ステータス遷移

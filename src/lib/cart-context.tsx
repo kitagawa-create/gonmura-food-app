@@ -4,9 +4,8 @@ import { createContext, useContext, useState, useCallback, useEffect, useRef } f
 import type { CartItem, CartItemTopping } from "@/types";
 import { comboLineHash, newLineId } from "@/lib/order-utils";
 
-// 注意: Window C の /admin/tables、CLAUDE.md 既存規約と揃えて "gonmura-table" を共有。
-// 共通仕様で "gonmura-table-number" と書かれていたが、実態の既存キーに合わせる。
 const TABLE_KEY = "gonmura-table";
+const GUEST_COUNT_KEY = "gonmura-guest-count";
 
 function cartKey(table: number | null): string {
   return table ? `gonmura-cart-${table}` : "gonmura-cart";
@@ -27,10 +26,13 @@ type CartContextType = {
   updateQuantity: (lineId: string, quantity: number) => void;
   updateItemNote: (lineId: string, note: string) => void;
   clearCart: () => void;
+  resetSession: () => void;
   totalAmount: number;
   totalItems: number;
   tableNumber: number | null;
   setTableNumber: (n: number | null) => void;
+  guestCount: number | null;
+  setGuestCount: (n: number) => void;
 };
 
 const CartContext = createContext<CartContextType | null>(null);
@@ -88,21 +90,37 @@ function loadTableNumber(): number | null {
 export function CartProvider({ children }: { children: React.ReactNode }) {
   // 初回レンダリング時に localStorage から同期的に復元 (SSRでは fallback を返す)
   const [tableNumber, setTableNumberState] = useState<number | null>(() => loadTableNumber());
+  const [guestCount, setGuestCountState] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    const raw = localStorage.getItem(GUEST_COUNT_KEY);
+    if (!raw) return null;
+    const n = parseInt(raw, 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  });
   const [items, setItems] = useState<CartItem[]>(() => {
     const t = loadTableNumber();
     return rehydrateItems(loadFromStorage<unknown>(cartKey(t), []));
   });
   const currentTableRef = useRef<number | null>(tableNumber);
 
-  // テーブル番号を設定（カートも切り替え）
+  // テーブル番号を設定（カートも切り替え、客数もリセット）
   const setTableNumber = useCallback((n: number | null) => {
     setTableNumberState(n);
+    setGuestCountState(null);
     if (typeof window !== "undefined") {
       localStorage.setItem(TABLE_KEY, JSON.stringify(n));
-      // 新しいテーブルのカートを読み込む
+      localStorage.removeItem(GUEST_COUNT_KEY);
       const savedCart = rehydrateItems(loadFromStorage<unknown>(cartKey(n), []));
       setItems(savedCart);
       currentTableRef.current = n;
+    }
+  }, []);
+
+  const setGuestCount = useCallback((n: number) => {
+    const count = Math.max(1, Math.trunc(n));
+    setGuestCountState(count);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(GUEST_COUNT_KEY, String(count));
     }
   }, []);
 
@@ -160,6 +178,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const clearCart = useCallback(() => setItems([]), []);
 
+  // 精算完了後の新セッション開始用: guestCount をリセットしてカートもクリア
+  const resetSession = useCallback(() => {
+    setGuestCountState(null);
+    setItems([]);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(GUEST_COUNT_KEY);
+    }
+  }, []);
+
   // コンボ価格 = (ラーメン単価 + Σトッピング単価×個数) × 杯数
   const totalAmount = items.reduce((sum, i) => {
     const topPerBowl = (i.toppings ?? []).reduce((s, t) => s + t.price * t.quantity, 0);
@@ -180,10 +207,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         updateQuantity,
         updateItemNote,
         clearCart,
+        resetSession,
         totalAmount,
         totalItems,
         tableNumber,
         setTableNumber,
+        guestCount,
+        setGuestCount,
       }}
     >
       {children}

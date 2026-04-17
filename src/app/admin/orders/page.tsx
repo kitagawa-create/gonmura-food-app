@@ -783,8 +783,7 @@ function HistoryView({
   );
 
   return (
-    <div className="flex-1 overflow-y-auto" style={{ direction: "rtl" }}>
-      <div style={{ direction: "ltr" }}>
+    <div className="flex-1 overflow-y-auto -mr-3 md:-mr-6 pr-3 md:pr-6">
       {/* 日付検索 */}
       <div className="flex items-center gap-3 mb-4">
         <input
@@ -846,7 +845,6 @@ function HistoryView({
           ))}
         </div>
       )}
-      </div>
     </div>
   );
 }

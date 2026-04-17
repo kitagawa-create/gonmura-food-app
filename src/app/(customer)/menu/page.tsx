@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, query, where, getDocs, orderBy, onSnapshot, updateDoc, doc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, getDocs, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Menu, Category, CartItemTopping } from "@/types";
 import { useCart } from "@/lib/cart-context";
@@ -39,13 +39,11 @@ export default function MenuPage() {
   const [pinError, setPinError] = useState("");
   const [showTableChange, setShowTableChange] = useState(false);
   const [tableChangeError, setTableChangeError] = useState("");
-  const [availableTables, setAvailableTables] = useState<{ id: string; name: string; number: number }[]>([]);
-  const [selectedTableId, setSelectedTableId] = useState<string>("");
+  const [newTableInput, setNewTableInput] = useState<string>("");
   const [showGuestCountDialog, setShowGuestCountDialog] = useState(false);
-  const [tableDocId, setTableDocId] = useState<string | null>(null);
   const [guestCountInput, setGuestCountInput] = useState<number>(2);
   const [hasUnpaidOrders, setHasUnpaidOrders] = useState(false);
-  const { addItem, totalItems, tableNumber, setTableNumber, clearCart } =
+  const { addItem, totalItems, tableNumber, setTableNumber, clearCart, resetSession, guestCount, setGuestCount } =
     useCart();
   const router = useRouter();
 
@@ -146,52 +144,14 @@ export default function MenuPage() {
     }
   }, [selectedMenu]);
 
-  // テーブルの guestCount が null なら人数選択ダイアログを表示
+  // 客数未設定なら人数選択ダイアログを表示
   useEffect(() => {
     if (tableNumber === null) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const snap = await getDocs(
-          query(collection(db, "tables"), where("number", "==", tableNumber))
-        );
-        if (cancelled || snap.empty) return;
-        const tableDoc = snap.docs[0];
-        const data = tableDoc.data() as { guestCount?: number | null };
-        if (data.guestCount === null || data.guestCount === undefined) {
-          setTableDocId(tableDoc.id);
-          setGuestCountInput(2);
-          setShowGuestCountDialog(true);
-        }
-      } catch {
-        // tables コレクションがない場合はダイアログを出さない
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [tableNumber]);
-
-  // showTableChange が true になったときにテーブル一覧を取得
-  useEffect(() => {
-    if (!showTableChange) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const snap = await getDocs(query(collection(db, "tables"), orderBy("number", "asc")));
-        if (cancelled) return;
-        const tlist = snap.docs.map((d) => ({
-          id: d.id,
-          name: d.data().name as string,
-          number: d.data().number as number,
-        }));
-        setAvailableTables(tlist);
-        const current = tlist.find((t) => t.number === tableNumber);
-        setSelectedTableId(current?.id ?? (tlist[0]?.id ?? ""));
-      } catch {
-        setAvailableTables([]);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [showTableChange, tableNumber]);
+    if (guestCount === null) {
+      setGuestCountInput(2);
+      setShowGuestCountDialog(true);
+    }
+  }, [tableNumber, guestCount]);
 
   const filteredMenus = activeCategory
     ? menus
@@ -462,17 +422,19 @@ export default function MenuPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="overflow-y-auto">
-              {selectedMenu.imageUrl && (
-                <div className="relative w-full shrink-0 overflow-hidden" style={{ paddingTop: "75%" }}>
-                  <div className="absolute inset-0">
-                    <FadeImage
-                      src={selectedMenu.imageUrl}
-                      alt={selectedMenu.name}
-                      className="w-full h-full"
-                    />
+              <div className="w-full h-56 shrink-0 overflow-hidden bg-[color:var(--color-bg-subtle)]">
+                {selectedMenu.imageUrl ? (
+                  <FadeImage
+                    src={selectedMenu.imageUrl}
+                    alt={selectedMenu.name}
+                    className="w-full h-full"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <span className="text-sm text-[color:var(--color-text-muted)]">画像なし</span>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
               <div className="p-5 space-y-5">
                 <div>
                   <h2 className="text-xl font-bold text-[color:var(--color-text-primary)]">
@@ -718,23 +680,18 @@ export default function MenuPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-lg font-bold text-[color:var(--color-text-primary)] mb-4">
-              テーブルを選択
+              テーブル番号を変更
             </h2>
-            {availableTables.length === 0 ? (
-              <p className="text-sm text-[color:var(--color-text-muted)] mb-4">テーブル情報を読み込み中...</p>
-            ) : (
-              <select
-                value={selectedTableId}
-                onChange={(e) => setSelectedTableId(e.target.value)}
-                className="w-full bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-base text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)] mb-4"
-              >
-                {availableTables.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}（テーブル {t.number}）
-                  </option>
-                ))}
-              </select>
-            )}
+            <input
+              type="number"
+              min="1"
+              max="50"
+              value={newTableInput}
+              onChange={(e) => { setNewTableInput(e.target.value); setTableChangeError(""); }}
+              placeholder="1〜50の番号"
+              autoFocus
+              className="w-full bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-center text-2xl text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)] mb-4"
+            />
             {tableChangeError && (
               <p className="text-sm text-[color:var(--color-accent-warn)] text-center mb-3">
                 {tableChangeError}
@@ -756,9 +713,12 @@ export default function MenuPage() {
               <button
                 type="button"
                 onClick={() => {
-                  const selected = availableTables.find((t) => t.id === selectedTableId);
-                  if (!selected) return;
-                  if (selected.number === tableNumber) {
+                  const n = parseInt(newTableInput, 10);
+                  if (isNaN(n) || n < 1 || n > 50) {
+                    setTableChangeError("1〜50の番号を入力してください");
+                    return;
+                  }
+                  if (n === tableNumber) {
                     setShowTableChange(false);
                     return;
                   }
@@ -767,8 +727,9 @@ export default function MenuPage() {
                     if (!ok) return;
                   }
                   clearCart();
-                  setTableNumber(selected.number);
+                  setTableNumber(n);
                   setShowTableChange(false);
+                  setNewTableInput("");
                 }}
                 className="flex-1 min-h-[44px] rounded-xl bg-[color:var(--color-accent-char)] text-white font-bold hover:opacity-90 transition-opacity"
               >
@@ -813,17 +774,8 @@ export default function MenuPage() {
             <p className="text-center text-sm text-[color:var(--color-text-muted)] mb-5">名様</p>
             <button
               type="button"
-              onClick={async () => {
-                if (tableDocId) {
-                  try {
-                    await updateDoc(doc(db, "tables", tableDocId), {
-                      guestCount: guestCountInput,
-                      sessionStartedAt: serverTimestamp(),
-                    });
-                  } catch {
-                    // エラーでも続行
-                  }
-                }
+              onClick={() => {
+                setGuestCount(guestCountInput);
                 setShowGuestCountDialog(false);
               }}
               className="w-full rounded-xl bg-[color:var(--color-accent-char)] py-3 text-base font-bold text-white hover:opacity-90 transition-opacity"

@@ -28,6 +28,7 @@ export function CartPanel() {
     totalItems,
     clearCart,
     tableNumber,
+    guestCount,
   } = useCart();
   const [deleteTarget, setDeleteTarget] = useState<{ lineId: string; name: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -132,6 +133,7 @@ export function CartPanel() {
         })),
         status: "pending",
         tableNumber,
+        ...(guestCount != null ? { guestCount } : {}),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
