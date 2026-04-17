@@ -444,7 +444,7 @@ export default function AdminSalesPage() {
     const totalGuests = withGuests.reduce((s, o) => s + (o.guestCount as number), 0);
     const guestRevenue = withGuests.reduce((s, o) => s + orderTotal(o), 0);
     const guestAtv = totalGuests === 0 ? null : Math.round(guestRevenue / totalGuests);
-    return { revenue, count, dailyAvgRevenue, dailyAvgCount, guestAtv, guestBase: withGuests.length };
+    return { revenue, count, dailyAvgRevenue, dailyAvgCount, guestAtv };
   }, [filteredOrders, isDateRangeValid, startYear, startMonth, startDay, endYear, endMonth, endDay]);
 
   const menuBarItems = useMemo(() => {
@@ -466,28 +466,16 @@ export default function AdminSalesPage() {
     return all.map((m) => ({ label: m.name, value: m.qty, color: BLUE }));
   }, [filteredOrders, categoryFilter, menuCategoryMap, menuNameMap]);
 
-  // 曜日別売上・注文数 (月=0 〜 日=6)
-  const dowData = useMemo(() => {
-    const slots = Array.from({ length: 7 }, () => ({ revenue: 0, count: 0 }));
+  // 時間帯×曜日ヒートマップ [hour0-23][dow0-6(月〜日)] = 注文数
+  const heatmapData = useMemo(() => {
+    const grid = Array.from({ length: 24 }, () => Array(7).fill(0) as number[]);
     for (const o of filteredOrders) {
       const d = o.createdAt?.toDate?.();
       if (!d) continue;
       const dow = (d.getDay() + 6) % 7;
-      slots[dow].revenue += orderTotal(o);
-      slots[dow].count++;
+      grid[d.getHours()][dow]++;
     }
-    return slots;
-  }, [filteredOrders]);
-
-  // 時間帯別注文数 (0〜23時)
-  const hourData = useMemo(() => {
-    const slots = Array.from({ length: 24 }, () => 0);
-    for (const o of filteredOrders) {
-      const d = o.createdAt?.toDate?.();
-      if (!d) continue;
-      slots[d.getHours()]++;
-    }
-    return slots;
+    return grid;
   }, [filteredOrders]);
 
   const tableBreakdown = useMemo(() => {
@@ -640,11 +628,6 @@ export default function AdminSalesPage() {
         <KpiCard
           label="客単価"
           value={kpi.guestAtv !== null ? yen(kpi.guestAtv) : "−"}
-          sub={
-            kpi.guestAtv !== null
-              ? `${kpi.guestBase}件から算出`
-              : "人数データなし"
-          }
         />
       </div>
 
@@ -703,31 +686,74 @@ export default function AdminSalesPage() {
             )}
           </div>
         ) : analysis === "dow" ? (
-          /* ===== 曜日別売上 + 時間帯別注文数 ===== */
-          <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-5">
-            <div>
-              <p className="text-xs font-medium text-[color:var(--color-text-muted)] mb-2">曜日別売上</p>
-              <BarChart
-                items={dowData.map((s, i) => ({
-                  label: DOW_LABELS[i],
-                  value: s.revenue,
-                  color: i >= 5 ? "#ef4444" : BLUE,
-                  sub: `${s.count}件`,
-                  format: yen,
-                }))}
-              />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-[color:var(--color-text-muted)] mb-2">時間帯別注文数</p>
-              <BarChart
-                items={hourData.map((count, h) => ({
-                  label: `${h}時`,
-                  value: count,
-                  color: BLUE,
-                }))}
-              />
-            </div>
-          </div>
+          /* ===== 時間帯×曜日ヒートマップ ===== */
+          (() => {
+            const maxVal = Math.max(...heatmapData.flatMap((r) => r), 1);
+            const colTotals = DOW_LABELS.map((_, d) =>
+              heatmapData.reduce((s, row) => s + row[d], 0)
+            );
+            return (
+              <div className="flex-1 min-h-0 overflow-auto">
+                <table className="text-xs tabular-nums border-collapse min-w-full">
+                  <thead>
+                    <tr>
+                      <th className="sticky left-0 bg-[color:var(--color-bg-card)] w-10 py-1 text-center font-normal text-[color:var(--color-text-muted)]">時</th>
+                      {DOW_LABELS.map((d, i) => (
+                        <th
+                          key={d}
+                          className={`w-12 py-1 text-center font-medium ${i >= 5 ? "text-[color:var(--color-accent-warn)]" : "text-[color:var(--color-text-primary)]"}`}
+                        >
+                          {d}
+                        </th>
+                      ))}
+                      <th className="w-12 py-1 text-center font-normal text-[color:var(--color-text-muted)]">計</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {heatmapData.map((row, h) => {
+                      const rowTotal = row.reduce((s, v) => s + v, 0);
+                      return (
+                        <tr key={h}>
+                          <td className="sticky left-0 bg-[color:var(--color-bg-card)] text-center text-[color:var(--color-text-muted)] py-0.5 pr-1">
+                            {h}
+                          </td>
+                          {row.map((val, d) => (
+                            <td
+                              key={d}
+                              className="text-center py-0.5 rounded"
+                              style={{
+                                backgroundColor:
+                                  val === 0
+                                    ? undefined
+                                    : `rgba(59,130,246,${0.1 + 0.7 * (val / maxVal)})`,
+                                color: val / maxVal > 0.6 ? "#fff" : undefined,
+                              }}
+                            >
+                              {val > 0 ? val : ""}
+                            </td>
+                          ))}
+                          <td className="text-center font-medium text-[color:var(--color-text-muted)] py-0.5">
+                            {rowTotal > 0 ? rowTotal : ""}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    <tr className="border-t border-[color:var(--color-border)]">
+                      <td className="sticky left-0 bg-[color:var(--color-bg-card)] text-center text-[color:var(--color-text-muted)] py-1">計</td>
+                      {colTotals.map((t, i) => (
+                        <td key={i} className="text-center font-medium text-[color:var(--color-text-primary)] py-1">
+                          {t > 0 ? t : ""}
+                        </td>
+                      ))}
+                      <td className="text-center font-bold text-[color:var(--color-text-primary)] py-1">
+                        {colTotals.reduce((s, v) => s + v, 0)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()
         ) : (
           /* ===== 売上推移 ===== */
           <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden">
