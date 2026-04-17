@@ -6,6 +6,7 @@ import { comboLineHash, newLineId } from "@/lib/order-utils";
 
 const TABLE_KEY = "gonmura-table";
 const GUEST_COUNT_KEY = "gonmura-guest-count";
+const CUSTOMER_ID_KEY = "gonmura-customer-id";
 
 function cartKey(table: number | null): string {
   return table ? `gonmura-cart-${table}` : "gonmura-cart";
@@ -34,6 +35,8 @@ type CartContextType = {
   setTableNumber: (n: number | null) => void;
   guestCount: number | null;
   setGuestCount: (n: number) => void;
+  customerId: string | null;
+  setCustomerId: (id: string | null) => void;
 };
 
 const CartContext = createContext<CartContextType | null>(null);
@@ -98,19 +101,25 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     const n = parseInt(raw, 10);
     return Number.isFinite(n) && n > 0 ? n : null;
   });
+  const [customerId, setCustomerIdState] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem(CUSTOMER_ID_KEY) ?? null;
+  });
   const [items, setItems] = useState<CartItem[]>(() => {
     const t = loadTableNumber();
     return rehydrateItems(loadFromStorage<unknown>(cartKey(t), []));
   });
   const currentTableRef = useRef<number | null>(tableNumber);
 
-  // テーブル番号を設定（カートも切り替え、客数もリセット）
+  // テーブル番号を設定（カートも切り替え、客数・顧客IDもリセット）
   const setTableNumber = useCallback((n: number | null) => {
     setTableNumberState(n);
     setGuestCountState(null);
+    setCustomerIdState(null);
     if (typeof window !== "undefined") {
       localStorage.setItem(TABLE_KEY, JSON.stringify(n));
       localStorage.removeItem(GUEST_COUNT_KEY);
+      localStorage.removeItem(CUSTOMER_ID_KEY);
       const savedCart = rehydrateItems(loadFromStorage<unknown>(cartKey(n), []));
       setItems(savedCart);
       currentTableRef.current = n;
@@ -122,6 +131,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setGuestCountState(count);
     if (typeof window !== "undefined") {
       localStorage.setItem(GUEST_COUNT_KEY, String(count));
+    }
+  }, []);
+
+  const setCustomerId = useCallback((id: string | null) => {
+    setCustomerIdState(id);
+    if (typeof window !== "undefined") {
+      if (id) localStorage.setItem(CUSTOMER_ID_KEY, id);
+      else localStorage.removeItem(CUSTOMER_ID_KEY);
     }
   }, []);
 
@@ -180,12 +197,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const clearCart = useCallback(() => setItems([]), []);
 
-  // 精算完了後の新セッション開始用: guestCount をリセットしてカートもクリア
+  // 精算完了後の新セッション開始用: guestCount・customerId をリセットしてカートもクリア
   const resetSession = useCallback(() => {
     setGuestCountState(null);
+    setCustomerIdState(null);
     setItems([]);
     if (typeof window !== "undefined") {
       localStorage.removeItem(GUEST_COUNT_KEY);
+      localStorage.removeItem(CUSTOMER_ID_KEY);
     }
   }, []);
 
@@ -216,6 +235,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setTableNumber,
         guestCount,
         setGuestCount,
+        customerId,
+        setCustomerId,
       }}
     >
       {children}

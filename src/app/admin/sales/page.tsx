@@ -465,11 +465,13 @@ export default function AdminSalesPage() {
     return grid;
   }, [filteredOrders]);
 
+  const customerByIdMap = useMemo(() => new Map(customers.map((c) => [c.id, c])), [customers]);
+
   const tableBreakdown = useMemo(() => {
     if (analysis !== "sales") return [];
     const map = new Map<number, { table: number; count: number; revenue: number }>();
     for (const o of filteredOrders) {
-      const t = o.tableNumber;
+      const t = customerByIdMap.get(o.customerId)?.tableNumber ?? 0;
       const e = map.get(t) ?? { table: t, count: 0, revenue: 0 };
       e.count++;
       e.revenue += orderTotal(o);
@@ -478,7 +480,7 @@ export default function AdminSalesPage() {
     return Array.from(map.values())
       .sort((a, b) => b.revenue - a.revenue)
       .map((e) => ({ ...e, atv: e.count === 0 ? 0 : Math.round(e.revenue / e.count) }));
-  }, [analysis, filteredOrders]);
+  }, [analysis, filteredOrders, customerByIdMap]);
 
   const detail = useMemo(() => {
     if (!detailKey) return null;

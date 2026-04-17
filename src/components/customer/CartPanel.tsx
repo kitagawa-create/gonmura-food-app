@@ -30,6 +30,7 @@ export function CartPanel({ hasOrders }: { hasOrders: boolean }) {
     clearCart,
     tableNumber,
     guestCount,
+    setCustomerId,
   } = useCart();
   const [deleteTarget, setDeleteTarget] = useState<{ lineId: string; name: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -119,7 +120,7 @@ export function CartPanel({ hasOrders }: { hasOrders: boolean }) {
           where("status", "==", "active")
         )
       );
-      let customerId: string;
+      let cid: string;
       if (customerSnap.empty) {
         const customerRef = doc(collection(db, "customers"));
         await setDoc(customerRef, {
@@ -129,20 +130,19 @@ export function CartPanel({ hasOrders }: { hasOrders: boolean }) {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
-        customerId = customerRef.id;
+        cid = customerRef.id;
       } else {
-        customerId = customerSnap.docs[0].id;
+        cid = customerSnap.docs[0].id;
       }
+      setCustomerId(cid);
 
       const orderRef = doc(collection(db, "orders"));
       const batch = writeBatch(db);
 
       batch.set(orderRef, {
         status: "pending",
-        tableNumber,
-        customerId,
+        customerId: cid,
         customerNote: "",
-        ...(guestCount != null ? { guestCount } : {}),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });

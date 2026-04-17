@@ -79,23 +79,13 @@ export type AdminRole = "owner" | "staff";
 export type Order = {
   id: string;
   status: OrderStatus;
-  /** 整数。1以上 */
-  tableNumber: number;
   customerNote: string;
-  /** 注文時の客数スナップショット。整数。1以上 */
-  guestCount?: number;
-  /** customers コレクションへの参照 */
-  customerId?: string;
+  /** customers コレクションへの参照（必須）。tableNumber・guestCount はここから取得 */
+  customerId: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
 
-export type TableConfig = {
-  id: string;
-  /** 整数。1〜30 */
-  number: number;
-  name: string;
-};
 
 export type Admin = {
   uid: string;

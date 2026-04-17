@@ -11,16 +11,16 @@ import { comboLineTotal } from "@/lib/order-utils";
 
 type OrderWithItems = Order & { items: OrderItem[] };
 export default function OrderHistoryPage() {
-  const { tableNumber } = useCart();
+  const { customerId } = useCart();
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
-  const [loading, setLoading] = useState(() => tableNumber !== null);
+  const [loading, setLoading] = useState(() => customerId !== null);
 
   useEffect(() => {
-    if (!tableNumber) return;
+    if (!customerId) return;
 
     const q = query(
       collection(db, "orders"),
-      where("tableNumber", "==", tableNumber),
+      where("customerId", "==", customerId),
       where("status", "in", ["pending", "completed"])
     );
 
@@ -43,13 +43,13 @@ export default function OrderHistoryPage() {
       });
     });
     return () => unsub();
-  }, [tableNumber]);
+  }, [customerId]);
 
-  if (!tableNumber) {
+  if (!customerId) {
     return (
       <div className="min-h-screen bg-[color:var(--color-bg-base)] flex flex-col items-center justify-center px-4">
         <p className="text-[color:var(--color-text-muted)] text-lg mb-4">
-          テーブル番号が設定されていません
+          まだ注文がありません
         </p>
         <a
           href="/menu"

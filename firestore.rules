@@ -55,8 +55,9 @@ service cloud.firestore {
     }
 
     match /orders/{orderId} {
-      allow create: if request.resource.data.keys().hasAll(['tableNumber'])
-                    && validTableNumber(request.resource.data.tableNumber)
+      allow create: if request.resource.data.keys().hasAll(['customerId'])
+                    && request.resource.data.customerId is string
+                    && request.resource.data.customerId.size() > 0
                     && (!('customerNote' in request.resource.data)
                         || validNote(request.resource.data.customerNote));
       allow read: if true;
@@ -72,17 +73,6 @@ service cloud.firestore {
         && request.resource.data.status == "active";
       allow read: if true;
       allow update, delete: if isStaff();
-    }
-
-    match /tables/{tableId} {
-      allow read: if true;
-      allow write: if isOwner()
-        && request.resource.data.number is int
-        && request.resource.data.number >= 1
-        && request.resource.data.number <= 50
-        && request.resource.data.name is string
-        && request.resource.data.name.size() >= 1
-        && request.resource.data.name.size() <= 10;
     }
 
     match /orders/{orderId}/items/{itemId} {

@@ -45,7 +45,7 @@ export default function MenuPage() {
   const [guestCountInput, setGuestCountInput] = useState<number>(1);
   const [hasUnpaidOrders, setHasUnpaidOrders] = useState(false);
   const [ordersLoaded, setOrdersLoaded] = useState(false);
-  const { addItem, totalItems, tableNumber, setTableNumber, clearCart, resetSession, guestCount, setGuestCount } =
+  const { addItem, totalItems, tableNumber, setTableNumber, clearCart, resetSession, guestCount, setGuestCount, customerId } =
     useCart();
   const router = useRouter();
   const prevHasUnpaidRef = useRef<boolean | undefined>(undefined);
@@ -69,9 +69,14 @@ export default function MenuPage() {
       setHasUnpaidOrders(false);
       return;
     }
+    if (customerId === null) {
+      setHasUnpaidOrders(false);
+      setOrdersLoaded(true);
+      return;
+    }
     const q = query(
       collection(db, "orders"),
-      where("tableNumber", "==", tableNumber),
+      where("customerId", "==", customerId),
       where("status", "in", ["pending", "completed"])
     );
     const unsub = onSnapshot(q, (snap) => {
@@ -84,7 +89,7 @@ export default function MenuPage() {
       setOrdersLoaded(true);
     });
     return unsub;
-  }, [tableNumber, resetSession]);
+  }, [tableNumber, customerId, resetSession]);
 
   // 公開中のメニューを購読 (isAvailable 即時反映)
   useEffect(() => {

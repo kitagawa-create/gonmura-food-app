@@ -18,7 +18,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Category, Menu, Order, OrderItemTopping } from "@/types";
+import type { Category, Customer, Menu, Order, OrderItemTopping } from "@/types";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { comboLineTotal } from "@/lib/order-utils";
 
@@ -113,6 +113,13 @@ export default function AdminOrdersPage() {
   const [view, setView] = useState<"orders" | "history">("orders");
   const [error, setError] = useState<string | null>(null);
   const toppingMenuIds = useToppingMenuIds();
+  const [customerMap, setCustomerMap] = useState<Map<string, Customer>>(new Map());
+
+  useEffect(() => {
+    return onSnapshot(collection(db, "customers"), (snap) => {
+      setCustomerMap(new Map(snap.docs.map((d) => [d.id, { id: d.id, ...(d.data() as Omit<Customer, "id">) }])));
+    });
+  }, []);
 
   return (
     <div className="h-full flex flex-col">
@@ -153,9 +160,9 @@ export default function AdminOrdersPage() {
       )}
 
       {view === "orders" ? (
-        <NewOrdersView onError={setError} toppingMenuIds={toppingMenuIds} />
+        <NewOrdersView onError={setError} toppingMenuIds={toppingMenuIds} customerMap={customerMap} />
       ) : (
-        <HistoryView onError={setError} toppingMenuIds={toppingMenuIds} />
+        <HistoryView onError={setError} toppingMenuIds={toppingMenuIds} customerMap={customerMap} />
       )}
     </div>
   );
@@ -205,9 +212,11 @@ function useToppingMenuIds(): Set<string> {
 function NewOrdersView({
   onError,
   toppingMenuIds,
+  customerMap,
 }: {
   onError: (msg: string | null) => void;
   toppingMenuIds: Set<string>;
+  customerMap: Map<string, Customer>;
 }) {
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(true);
@@ -454,6 +463,7 @@ function NewOrdersView({
             order={order}
             now={now}
             toppingMenuIds={toppingMenuIds}
+            customerMap={customerMap}
             onToggle={toggleCheck}
             onComplete={completeOrder}
             onDelete={deleteOrder}
@@ -473,6 +483,7 @@ function ActiveOrderCard({
   order,
   now,
   toppingMenuIds,
+  customerMap,
   onToggle,
   onComplete,
   onDelete,
@@ -483,6 +494,7 @@ function ActiveOrderCard({
   order: OrderWithItems;
   now: number;
   toppingMenuIds: Set<string>;
+  customerMap: Map<string, Customer>;
   onToggle: (order: OrderWithItems, itemId: string) => void;
   onComplete: (order: OrderWithItems) => void;
   onDelete: (id: string) => void;
@@ -494,6 +506,7 @@ function ActiveOrderCard({
   const [cancelItemId, setCancelItemId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [autoCompleteCountdown, setAutoCompleteCountdown] = useState<number | null>(null);
+  const tableNumber = customerMap.get(order.customerId)?.tableNumber;
   const total = order.items.reduce((s, i) => s + comboLineTotal(i), 0);
   const created = order.createdAt?.toDate?.();
   const elapsed = created ? timeAgo(created) : "";
@@ -541,7 +554,7 @@ function ActiveOrderCard({
       {/* テーブル番号 + 経過 + 進捗 + 編集 */}
       <div className="flex items-center justify-between gap-2 mb-3">
         <span className="inline-flex items-center justify-center min-w-[56px] h-12 px-3 rounded-lg bg-[color:var(--color-accent-char)] text-white text-2xl font-black leading-none">
-          T{order.tableNumber}
+          T{tableNumber ?? "?"}
         </span>
         <div className="flex items-center gap-2">
           <span className="text-xs text-[color:var(--color-text-muted)]">{progress}</span>
@@ -732,7 +745,7 @@ function ActiveOrderCard({
 
       <ConfirmDialog
         open={showCancel}
-        title={`テーブル ${order.tableNumber} の注文を削除`}
+        title={`テーブル ${tableNumber ?? "?"} の注文を削除`}
         message={`${order.items.map((i) => i.name).join("、")}（¥${total.toLocaleString()}）を削除しますか？この操作は取り消せません。`}
         confirmLabel="削除する"
         confirmColor="red"
@@ -768,9 +781,11 @@ function ActiveOrderCard({
 function HistoryView({
   onError,
   toppingMenuIds,
+  customerMap,
 }: {
   onError: (msg: string | null) => void;
   toppingMenuIds: Set<string>;
+  customerMap: Map<string, Customer>;
 }) {
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(true);
@@ -840,13 +855,23 @@ function HistoryView({
   );
 
   const availableTables = useMemo(
-    () => [...new Set(orders.map((o) => o.tableNumber))].sort((a, b) => a - b),
-    [orders]
+    () =>
+      [
+        ...new Set(
+          orders
+            .map((o) => customerMap.get(o.customerId)?.tableNumber)
+            .filter((n): n is number => n !== undefined)
+        ),
+      ].sort((a, b) => a - b),
+    [orders, customerMap]
   );
 
   const filteredOrders = useMemo(
-    () => (tableFilter !== null ? orders.filter((o) => o.tableNumber === tableFilter) : orders),
-    [orders, tableFilter]
+    () =>
+      tableFilter !== null
+        ? orders.filter((o) => customerMap.get(o.customerId)?.tableNumber === tableFilter)
+        : orders,
+    [orders, tableFilter, customerMap]
   );
 
   // totalAmount は filteredOrders ベースで再計算
@@ -911,6 +936,7 @@ function HistoryView({
               key={order.id}
               order={order}
               toppingMenuIds={toppingMenuIds}
+              customerMap={customerMap}
               onRevert={revertOrder}
             />
           ))}
@@ -925,13 +951,16 @@ function HistoryView({
 function HistoryOrderCard({
   order,
   toppingMenuIds,
+  customerMap,
   onRevert,
 }: {
   order: OrderWithItems;
   toppingMenuIds: Set<string>;
+  customerMap: Map<string, Customer>;
   onRevert: (order: OrderWithItems) => void;
 }) {
   const [showRevert, setShowRevert] = useState(false);
+  const tableNumber = customerMap.get(order.customerId)?.tableNumber;
   const total = order.items.reduce((s, i) => s + comboLineTotal(i), 0);
   const created = order.createdAt?.toDate?.();
   const isPaid = order.status === "paid";
@@ -941,7 +970,7 @@ function HistoryOrderCard({
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center justify-center min-w-[40px] h-8 px-2 rounded-md bg-[color:var(--color-accent-soy)] text-white text-sm font-bold leading-none">
-            T{order.tableNumber}
+            T{tableNumber ?? "?"}
           </span>
           <span
             className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
@@ -1017,7 +1046,7 @@ function HistoryOrderCard({
 
       <ConfirmDialog
         open={showRevert}
-        title={`テーブル ${order.tableNumber} の注文を新規に戻す`}
+        title={`テーブル ${tableNumber ?? "?"} の注文を新規に戻す`}
         message="この注文を提供前(新規)に戻します。チェック状態はすべてリセットされます。"
         confirmLabel="戻す"
         confirmColor="green"

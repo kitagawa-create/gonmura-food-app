@@ -13,18 +13,18 @@ import Link from "next/link";
 type OrderWithItems = Order & { items: OrderItem[] };
 
 export default function BillPage() {
-  const { tableNumber } = useCart();
+  const { tableNumber, customerId } = useCart();
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
-  // tableNumber が最初から無いなら fetch しないので loading=false で開始
-  const [loading, setLoading] = useState(() => tableNumber !== null);
+  // customerId が無いなら fetch しないので loading=false で開始
+  const [loading, setLoading] = useState(() => customerId !== null);
 
   useEffect(() => {
-    if (!tableNumber) return;
+    if (!customerId) return;
 
     async function fetchOrders() {
       const q = query(
         collection(db, "orders"),
-        where("tableNumber", "==", tableNumber),
+        where("customerId", "==", customerId),
         where("status", "in", ["pending", "completed"])
       );
       const snap = await getDocs(q);
@@ -45,9 +45,9 @@ export default function BillPage() {
       setLoading(false);
     }
     fetchOrders();
-  }, [tableNumber]);
+  }, [customerId]);
 
-  if (!tableNumber) {
+  if (!customerId) {
     return (
       <div className="min-h-screen bg-[color:var(--color-bg-base)] flex flex-col items-center justify-center px-4">
         <p className="text-[color:var(--color-text-muted)] text-lg mb-4">
