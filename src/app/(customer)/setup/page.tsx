@@ -22,8 +22,8 @@ export default function SetupPage() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const num = parseInt(tableInput, 10);
-    if (isNaN(num) || num <= 0) {
-      setError("正しいテーブル番号を入力してください");
+    if (isNaN(num) || num <= 0 || num > 50) {
+      setError("テーブル番号は1〜50で入力してください");
       return;
     }
     if (!/^\d{4}$/.test(pinInput)) {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { subscribeAuth, getAdminRole } from "@/lib/admin-auth";
+import { subscribeAuth, getAdminRole, logout } from "@/lib/admin-auth";
 import { AdminProvider } from "./AdminContext";
 import type { AdminRole } from "@/types";
 
@@ -56,7 +56,6 @@ export function AdminAuthGuard({ children }: { children: React.ReactNode }) {
         <button
           className="rounded-xl bg-[color:var(--color-accent-char)] px-5 py-2.5 text-sm text-white font-bold hover:bg-[color:var(--color-accent-char-hover)] transition-colors"
           onClick={async () => {
-            const { logout } = await import("@/lib/admin-auth");
             await logout();
             router.replace("/admin/login");
           }}

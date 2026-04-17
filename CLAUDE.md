@@ -21,8 +21,8 @@ src/
 │   ├── (customer)/              # お客様側（テーブルタブレット）
 │   │   ├── layout.tsx           # CartProvider + AnalyticsProvider + force-dynamic
 │   │   ├── setup/page.tsx       # テーブル番号 + PIN 初期設定
-│   │   ├── menu/page.tsx        # メニュー一覧（カテゴリタブ+スワイプ切替、商品モーダル、ラーメン→トッピング追加、売り切れオーバーレイ、PIN認証テーブル変更）
-│   │   ├── order/page.tsx       # 注文確認・数量編集・送信 → 完了ダイアログ → 3秒後メニュー自動遷移
+│   │   ├── menu/page.tsx        # メニュー一覧（カテゴリタブ+スワイプ切替、商品モーダル、ラーメン→トッピング追加、売り切れオーバーレイ、PIN認証テーブル変更）+ サイドカートで注文確定
+│   │   ├── order/page.tsx       # /menu へのリダイレクトのみ（注文確定はCartPanelに移行済み）
 │   │   ├── order/history/       # テーブル注文履歴
 │   │   └── bill/page.tsx        # お会計伝票（未精算注文をまとめ表示）
 │   ├── admin/                   # 管理側（iPad / PC）
@@ -30,10 +30,9 @@ src/
 │   │   ├── login/page.tsx       # メール/パスワードログイン
 │   │   ├── orders/page.tsx      # 注文管理（商品チェックリスト方式、全チェック→提供完了ボタン、履歴ビュー+日付検索）
 │   │   ├── register/page.tsx    # レジ（未精算/精算済みタブ、売上ドーナツ円グラフ、目標達成率）
-│   │   ├── sales/page.tsx       # 売上分析（owner のみ。KPI + 売上推移/メニュー別売数/価格変更前後比較）
+│   │   ├── sales/page.tsx       # 売上分析（owner のみ。年月日プルダウン期間指定、KPI4枚、売上推移/メニュー別売数/曜日・時間帯ヒートマップ）
 │   │   ├── menus/page.tsx       # メニューCRUD（owner: 全機能 / staff: 公開+売り切れトグル）
-│   │   ├── categories/page.tsx  # カテゴリ管理（owner のみ、長押し→タップ並替え対応）
-│   │   └── tables/page.tsx      # テーブル番号+PIN設定（サイドバーからは非表示、URL直打ち用）
+│   │   └── categories/page.tsx  # カテゴリ管理（owner のみ、長押し→タップ並替え対応）
 │   ├── global-error.tsx         # Sentryエラーキャッチ画面
 │   ├── layout.tsx               # ルートレイアウト（lang="ja"）
 │   └── page.tsx                 # / → /menu クライアントリダイレクト
@@ -41,10 +40,12 @@ src/
 │   ├── admin/
 │   │   ├── AdminAuthGuard.tsx   # 認証ガード + role 取得 → AdminProvider で配下に提供
 │   │   ├── AdminContext.tsx     # AdminProvider / useAdminRole フック
+│   │   ├── AdminPageHeader.tsx  # 管理画面共通ヘッダー（title, subtitle, rightSlot）
 │   │   ├── AdminSidebar.tsx     # サイドバーナビ（h-full固定、staff は sales/categories を非表示）
 │   │   └── ConfirmDialog.tsx    # 確認ダイアログ（画面中央モーダル、赤/緑ボタン）
 │   ├── customer/
-│   │   └── AnalyticsProvider.tsx # Firebase Analytics初期化（page_viewイベント）
+│   │   ├── AnalyticsProvider.tsx # Firebase Analytics初期化（page_viewイベント）
+│   │   └── CartPanel.tsx        # サイドカート（注文確定・在庫チェック・完了ダイアログ、/menu内で使用）
 │   └── ui/
 │       ├── BackButton.tsx       # 戻るボタン（size="default"|"sm"、variant="light"|"dark"）
 │       ├── FadeImage.tsx        # 画像ローディング（スケルトン → フェードイン）
@@ -55,7 +56,8 @@ src/
 │   ├── firebase.ts              # Firebase初期化（db, auth, storage export、measurementId含む）
 │   ├── cart-context.tsx          # CartProvider（localStorage永続化、テーブルごとカート分離、数量指定addItem）
 │   ├── admin-auth.ts            # loginWithEmail, logout, getAdminRole, subscribeAuth
-│   └── analytics.ts             # trackEvent（Firebase Analytics logEvent wrapper）
+│   ├── analytics.ts             # trackEvent（Firebase Analytics logEvent wrapper）
+│   └── order-utils.ts           # comboUnitPrice, comboLineTotal, orderGrandTotal, flattenForReceipt, comboLineHash
 └── types/
     └── index.ts                 # Category, Menu, Order, OrderItem, OrderStatus, AdminRole, Admin, CartItem
 ```

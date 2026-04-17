@@ -694,19 +694,20 @@ export default function AdminSalesPage() {
             );
             return (
               <div className="flex-1 min-h-0 overflow-auto">
-                <table className="text-xs tabular-nums border-collapse min-w-full">
+                <table className="text-xs tabular-nums min-w-full" style={{ borderCollapse: "collapse" }}>
                   <thead>
                     <tr>
-                      <th className="sticky left-0 bg-[color:var(--color-bg-card)] w-10 py-1 text-center font-normal text-[color:var(--color-text-muted)] border border-black">時</th>
+                      <th className="sticky left-0 bg-[color:var(--color-bg-card)] w-10 py-1 text-center font-normal text-[color:var(--color-text-muted)]" style={{ border: "1px solid #000" }}>時</th>
                       {DOW_LABELS.map((d) => (
                         <th
                           key={d}
-                          className="w-12 py-1 text-center font-medium text-[color:var(--color-text-primary)] border border-black"
+                          className="w-12 py-1 text-center font-medium text-[color:var(--color-text-primary)]"
+                          style={{ border: "1px solid #000" }}
                         >
                           {d}
                         </th>
                       ))}
-                      <th className="w-12 py-1 text-center font-normal text-[color:var(--color-text-muted)] border border-black">計</th>
+                      <th className="w-12 py-1 text-center font-normal text-[color:var(--color-text-muted)]" style={{ border: "1px solid #000" }}>計</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -714,14 +715,15 @@ export default function AdminSalesPage() {
                       const rowTotal = row.reduce((s, v) => s + v, 0);
                       return (
                         <tr key={h}>
-                          <td className="sticky left-0 bg-[color:var(--color-bg-card)] text-center text-[color:var(--color-text-muted)] py-0.5 pr-1 border border-black">
+                          <td className="sticky left-0 bg-[color:var(--color-bg-card)] text-center text-[color:var(--color-text-muted)] py-0.5 pr-1" style={{ border: "1px solid #000" }}>
                             {h}
                           </td>
                           {row.map((val, d) => (
                             <td
                               key={d}
-                              className="text-center py-0.5 border border-black"
+                              className="text-center py-0.5"
                               style={{
+                                border: "1px solid #000",
                                 backgroundColor:
                                   val === 0
                                     ? undefined
@@ -732,20 +734,20 @@ export default function AdminSalesPage() {
                               {val > 0 ? val : ""}
                             </td>
                           ))}
-                          <td className="text-center font-medium text-[color:var(--color-text-muted)] py-0.5 border border-black">
+                          <td className="text-center font-medium text-[color:var(--color-text-muted)] py-0.5" style={{ border: "1px solid #000" }}>
                             {rowTotal > 0 ? rowTotal : ""}
                           </td>
                         </tr>
                       );
                     })}
                     <tr>
-                      <td className="sticky left-0 bg-[color:var(--color-bg-card)] text-center text-[color:var(--color-text-muted)] py-1 border border-black">計</td>
+                      <td className="sticky left-0 bg-[color:var(--color-bg-card)] text-center text-[color:var(--color-text-muted)] py-1" style={{ border: "1px solid #000" }}>計</td>
                       {colTotals.map((t, i) => (
-                        <td key={i} className="text-center font-medium text-[color:var(--color-text-primary)] py-1 border border-black">
+                        <td key={i} className="text-center font-medium text-[color:var(--color-text-primary)] py-1" style={{ border: "1px solid #000" }}>
                           {t > 0 ? t : ""}
                         </td>
                       ))}
-                      <td className="text-center font-bold text-[color:var(--color-text-primary)] py-1 border border-black">
+                      <td className="text-center font-bold text-[color:var(--color-text-primary)] py-1" style={{ border: "1px solid #000" }}>
                         {colTotals.reduce((s, v) => s + v, 0)}
                       </td>
                     </tr>
