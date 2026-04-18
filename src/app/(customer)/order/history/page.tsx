@@ -22,18 +22,19 @@ export default function OrderHistoryPage() {
       where("status", "in", ["pending", "completed"])
     );
 
-    const unsub = onSnapshot(q, async (snap) => {
+    const unsub = onSnapshot(q, (snap) => {
       const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
-      const withItems = await Promise.all(
+      Promise.all(
         orderDocs.map(async (o) => {
           const itemsSnap = await getDocs(collection(db, "orders", o.id, "items"));
           const items = itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>));
           return { ...o, items };
         })
-      );
-      setOrders(withItems.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0)));
-      setLoading(false);
-    });
+      ).then((data) => {
+        setOrders(data.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0)));
+        setLoading(false);
+      }).catch(() => { setOrders([]); setLoading(false); });
+    }, () => { setOrders([]); setLoading(false); });
     return () => unsub();
   }, [customerId]);
 
@@ -104,7 +105,7 @@ export default function OrderHistoryPage() {
                         <div>
                           {item.name} x {item.quantity}
                         </div>
-                        {item.toppings && item.toppings.length > 0 && (
+                        {item.toppings.length > 0 && (
                           <ul className="ml-4 text-xs">
                             {item.toppings.map((t) => (
                               <li key={t.menuId}>

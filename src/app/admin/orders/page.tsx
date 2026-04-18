@@ -756,17 +756,16 @@ function HistoryView({
     );
     const unsub = onSnapshot(
       q,
-      async (snap) => {
+      (snap) => {
         const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
-        const withItems = await Promise.all(
+        Promise.all(
           orderDocs.map(async (o) => {
             const itemsSnap = await getDocs(collection(db, "orders", o.id, "items"));
             const items = itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>));
             return { ...o, items };
           })
-        );
-        setOrders(withItems);
-        setLoading(false);
+        ).then((data) => { setOrders(data); setLoading(false); })
+         .catch(() => { setOrders([]); setLoading(false); });
       },
       (e) => {
         onError(e.message);
