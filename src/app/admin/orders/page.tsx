@@ -15,10 +15,11 @@ import {
   serverTimestamp,
   updateDoc,
   where,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Category, Customer, Menu, OrderItem, OrderWithItems } from "@/types";
-import { normalizeMenu, normalizeOrder, comboLineTotal } from "@/lib/order-utils";
+import type { Category, Customer, Menu, Order, OrderItem, OrderWithItems } from "@/types";
+import { normalizeMenu, normalizeOrder, normalizeOrderItem, comboLineTotal } from "@/lib/order-utils";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 const TIME_FORMATTER = new Intl.DateTimeFormat("ja-JP", {
@@ -70,25 +71,6 @@ function playNotificationSound() {
   } catch {
     /* Audio not supported */
   }
-}
-
-// OrderItem を Firestore に書き込める plain object に変換
-function itemToPlain(item: OrderItem) {
-  return {
-    id: item.id,
-    menuId: item.menuId,
-    name: item.name,
-    price: item.price,
-    quantity: item.quantity,
-    toppings: item.toppings.map((t) => ({
-      menuId: t.menuId,
-      name: t.name,
-      price: t.price,
-      quantity: t.quantity,
-    })),
-    note: item.note,
-    checked: item.checked,
-  };
 }
 
 // ---------- page ----------
@@ -202,7 +184,8 @@ function NewOrdersView({
   toppingMenuIds: Set<string>;
   customerMap: Map<string, Customer>;
 }) {
-  const [orders, setOrders] = useState<OrderWithItems[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [itemsByOrder, setItemsByOrder] = useState<Map<string, OrderItem[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [dateFilter, setDateFilter] = useState<string>(todayISO());
   const [now, setNow] = useState(() => Date.now());
@@ -252,6 +235,25 @@ function NewOrdersView({
     return unsub;
   }, [dateFilter, onError]);
 
+  useEffect(() => {
+    if (orders.length === 0) return;
+    const unsubscribers = orders.map((order) =>
+      onSnapshot(collection(db, "orders", order.id, "items"), (snap) => {
+        setItemsByOrder((prev) => {
+          const next = new Map(prev);
+          next.set(order.id, snap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)));
+          return next;
+        });
+      })
+    );
+    return () => unsubscribers.forEach((u) => u());
+  }, [orders]);
+
+  const ordersWithItems: OrderWithItems[] = useMemo(
+    () => orders.map((o) => ({ ...o, items: itemsByOrder.get(o.id) ?? [] })),
+    [orders, itemsByOrder]
+  );
+
   const toggleCheck = useCallback(
     async (order: OrderWithItems, itemId: string) => {
       onError(null);
@@ -259,40 +261,23 @@ function NewOrdersView({
       if (!item) return;
       const newChecked = !item.checked;
 
-      setOrders((os) =>
-        os.map((o) =>
-          o.id === order.id
-            ? {
-                ...o,
-                items: o.items.map((i) =>
-                  i.id === itemId ? { ...i, checked: newChecked } : i
-                ),
-              }
-            : o
-        )
-      );
+      setItemsByOrder((prev) => {
+        const next = new Map(prev);
+        next.set(order.id, (prev.get(order.id) ?? []).map((i) => i.id === itemId ? { ...i, checked: newChecked } : i));
+        return next;
+      });
 
       try {
-        const updatedItems = order.items.map((i) =>
-          i.id === itemId ? { ...i, checked: newChecked } : i
-        );
-        await updateDoc(doc(db, "orders", order.id), {
-          items: updatedItems.map(itemToPlain),
+        await updateDoc(doc(db, "orders", order.id, "items", itemId), {
+          checked: newChecked,
           updatedAt: serverTimestamp(),
         });
       } catch (e) {
-        setOrders((os) =>
-          os.map((o) =>
-            o.id === order.id
-              ? {
-                  ...o,
-                  items: o.items.map((i) =>
-                    i.id === itemId ? { ...i, checked: item.checked } : i
-                  ),
-                }
-              : o
-          )
-        );
+        setItemsByOrder((prev) => {
+          const next = new Map(prev);
+          next.set(order.id, (prev.get(order.id) ?? []).map((i) => i.id === itemId ? { ...i, checked: item.checked } : i));
+          return next;
+        });
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
       }
     },
@@ -302,6 +287,7 @@ function NewOrdersView({
   const completeOrder = useCallback(
     async (order: OrderWithItems) => {
       onError(null);
+      const orderBase: Order = { id: order.id, status: order.status, customerId: order.customerId, createdAt: order.createdAt, updatedAt: order.updatedAt };
       setOrders((os) => os.filter((o) => o.id !== order.id));
       try {
         await updateDoc(doc(db, "orders", order.id), {
@@ -309,7 +295,7 @@ function NewOrdersView({
           updatedAt: serverTimestamp(),
         });
       } catch (e) {
-        setOrders((os) => [...os, order]);
+        setOrders((os) => [...os, orderBase]);
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
       }
     },
@@ -320,7 +306,11 @@ function NewOrdersView({
     async (id: string) => {
       onError(null);
       try {
-        await deleteDoc(doc(db, "orders", id));
+        const itemsSnap = await getDocs(collection(db, "orders", id, "items"));
+        const batch = writeBatch(db);
+        for (const d of itemsSnap.docs) batch.delete(d.ref);
+        batch.delete(doc(db, "orders", id));
+        await batch.commit();
       } catch (e) {
         onError(e instanceof Error ? e.message : "削除に失敗しました。");
       }
@@ -331,16 +321,16 @@ function NewOrdersView({
   const cancelItem = useCallback(
     async (order: OrderWithItems, itemId: string) => {
       onError(null);
-      const remaining = order.items.filter((i) => i.id !== itemId);
+      const isLast = order.items.length === 1;
       try {
-        if (remaining.length === 0) {
-          await deleteDoc(doc(db, "orders", order.id));
+        if (isLast) {
+          const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+          const batch = writeBatch(db);
+          for (const d of itemsSnap.docs) batch.delete(d.ref);
+          batch.delete(doc(db, "orders", order.id));
+          await batch.commit();
         } else {
-          await updateDoc(doc(db, "orders", order.id), {
-            items: remaining.map(itemToPlain),
-            updatedAt: serverTimestamp(),
-          });
-          setOrders((os) => os.map((o) => (o.id === order.id ? { ...o, items: remaining } : o)));
+          await deleteDoc(doc(db, "orders", order.id, "items", itemId));
         }
       } catch (e) {
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
@@ -352,15 +342,23 @@ function NewOrdersView({
   const bulkCheckAll = useCallback(
     async (order: OrderWithItems) => {
       onError(null);
-      const updatedItems = order.items.map((i) => ({ ...i, checked: true }));
-      setOrders((os) => os.map((o) => (o.id === order.id ? { ...o, items: updatedItems } : o)));
+      setItemsByOrder((prev) => {
+        const next = new Map(prev);
+        next.set(order.id, (prev.get(order.id) ?? []).map((i) => ({ ...i, checked: true })));
+        return next;
+      });
       try {
-        await updateDoc(doc(db, "orders", order.id), {
-          items: updatedItems.map(itemToPlain),
-          updatedAt: serverTimestamp(),
-        });
+        const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+        const batch = writeBatch(db);
+        const ts = serverTimestamp();
+        for (const d of itemsSnap.docs) batch.update(d.ref, { checked: true, updatedAt: ts });
+        await batch.commit();
       } catch (e) {
-        setOrders((os) => os.map((o) => (o.id === order.id ? { ...o, items: order.items } : o)));
+        setItemsByOrder((prev) => {
+          const next = new Map(prev);
+          next.set(order.id, order.items);
+          return next;
+        });
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
       }
     },
@@ -370,15 +368,23 @@ function NewOrdersView({
   const bulkUncheckAll = useCallback(
     async (order: OrderWithItems) => {
       onError(null);
-      const updatedItems = order.items.map((i) => ({ ...i, checked: false }));
-      setOrders((os) => os.map((o) => (o.id === order.id ? { ...o, items: updatedItems } : o)));
+      setItemsByOrder((prev) => {
+        const next = new Map(prev);
+        next.set(order.id, (prev.get(order.id) ?? []).map((i) => ({ ...i, checked: false })));
+        return next;
+      });
       try {
-        await updateDoc(doc(db, "orders", order.id), {
-          items: updatedItems.map(itemToPlain),
-          updatedAt: serverTimestamp(),
-        });
+        const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+        const batch = writeBatch(db);
+        const ts = serverTimestamp();
+        for (const d of itemsSnap.docs) batch.update(d.ref, { checked: false, updatedAt: ts });
+        await batch.commit();
       } catch (e) {
-        setOrders((os) => os.map((o) => (o.id === order.id ? { ...o, items: order.items } : o)));
+        setItemsByOrder((prev) => {
+          const next = new Map(prev);
+          next.set(order.id, order.items);
+          return next;
+        });
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
       }
     },
@@ -398,10 +404,10 @@ function NewOrdersView({
   return (
     <div className="flex-1 overflow-y-auto">
       <p className="mb-3 text-xs text-[color:var(--color-text-muted)]">
-        未完了: {orders.length}件
+        未完了: {ordersWithItems.length}件
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {orders.map((order) => (
+        {ordersWithItems.map((order) => (
           <ActiveOrderCard
             key={order.id}
             order={order}
@@ -734,11 +740,12 @@ function HistoryView({
       onError(null);
       if (order.status === "paid") return;
       try {
-        await updateDoc(doc(db, "orders", order.id), {
-          status: "pending",
-          items: order.items.map((i) => itemToPlain({ ...i, checked: false })),
-          updatedAt: serverTimestamp(),
-        });
+        const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+        const batch = writeBatch(db);
+        const ts = serverTimestamp();
+        for (const d of itemsSnap.docs) batch.update(d.ref, { checked: false, updatedAt: ts });
+        batch.update(doc(db, "orders", order.id), { status: "pending", updatedAt: ts });
+        await batch.commit();
       } catch (e) {
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
       }
@@ -760,8 +767,18 @@ function HistoryView({
     );
     const unsub = onSnapshot(
       q,
-      (snap) => {
-        setOrders(snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>)));
+      async (snap) => {
+        const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
+        const withItems = await Promise.all(
+          orderDocs.map(async (order) => {
+            const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+            return {
+              ...order,
+              items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)),
+            } as OrderWithItems;
+          })
+        );
+        setOrders(withItems);
         setLoading(false);
       },
       (e) => {

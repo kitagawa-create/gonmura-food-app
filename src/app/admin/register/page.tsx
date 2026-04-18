@@ -156,8 +156,15 @@ export default function AdminRegisterPage() {
   useEffect(() => {
     return onSnapshot(
       query(collection(db, "orders"), where("status", "in", ["pending", "completed"])),
-      (snap) => {
-        setUnpaidOrders(snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>)));
+      async (snap) => {
+        const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
+        const withItems = await Promise.all(
+          orderDocs.map(async (order) => {
+            const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+            return { ...order, items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)) };
+          })
+        );
+        setUnpaidOrders(withItems);
         setOrdersLoaded(true);
       },
       () => { setUnpaidOrders([]); setOrdersLoaded(true); }
@@ -173,8 +180,15 @@ export default function AdminRegisterPage() {
         where("createdAt", ">=", Timestamp.fromDate(start)),
         where("createdAt", "<", Timestamp.fromDate(end)),
         orderBy("createdAt", "desc")),
-      (snap) => {
-        setTodayPaidOrders(snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>)));
+      async (snap) => {
+        const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
+        const withItems = await Promise.all(
+          orderDocs.map(async (order) => {
+            const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+            return { ...order, items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)) };
+          })
+        );
+        setTodayPaidOrders(withItems);
         setTodayLoaded(true);
       },
       () => setTodayLoaded(true)
@@ -190,8 +204,15 @@ export default function AdminRegisterPage() {
         where("createdAt", ">=", Timestamp.fromDate(start)),
         where("createdAt", "<", Timestamp.fromDate(end)),
         orderBy("createdAt", "desc")),
-      (snap) => {
-        setPaidOrders(snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>)));
+      async (snap) => {
+        const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
+        const withItems = await Promise.all(
+          orderDocs.map(async (order) => {
+            const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+            return { ...order, items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)) };
+          })
+        );
+        setPaidOrders(withItems);
       }
     );
   }, [dateFilter]);
