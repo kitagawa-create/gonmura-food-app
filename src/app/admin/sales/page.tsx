@@ -548,9 +548,9 @@ export default function AdminSalesPage() {
             className={selectCls}
           >
             <option value="sales">売上推移</option>
-            <option disabled>──────────</option>
+            <option disabled>─────</option>
             <option value="menu">メニュー別売数</option>
-            <option disabled>──────────</option>
+            <option disabled>─────</option>
             <option value="dow">曜日・時間帯</option>
           </select>
         }
