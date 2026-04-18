@@ -214,7 +214,7 @@ function NewOrdersView({
 
     const unsub = onSnapshot(
       q,
-      async (snap) => {
+      (snap) => {
         const all = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
         const active = all.filter((o) => o.status === "pending");
 
@@ -223,15 +223,14 @@ function NewOrdersView({
         }
         prevOrderCountRef.current = all.length;
 
-        const withItems = await Promise.all(
+        Promise.all(
           active.map(async (o) => {
             const itemsSnap = await getDocs(collection(db, "orders", o.id, "items"));
             const items = itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>));
             return { ...o, items };
           })
-        );
-        setOrders(withItems);
-        setLoading(false);
+        ).then((data) => { setOrders(data); setLoading(false); })
+         .catch(() => { setOrders([]); setLoading(false); });
       },
       (e) => {
         onError(e.message);
