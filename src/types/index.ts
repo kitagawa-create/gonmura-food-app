@@ -79,14 +79,12 @@ export type Order = {
   status: OrderStatus;
   /** customers コレクションへの参照（必須）。tableNumber・guestCount はここから取得 */
   customerId: string;
-  /** 注文明細（ドキュメント埋め込み） */
-  items: OrderItem[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
 
-/** Order の別名（後方互換のため残存） */
-export type OrderWithItems = Order;
+/** orders/{orderId}/items サブコレクションを結合したランタイム型 */
+export type OrderWithItems = Order & { items: OrderItem[] };
 
 
 export type Admin = {

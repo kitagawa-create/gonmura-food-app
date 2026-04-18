@@ -309,23 +309,6 @@ for (let day = new Date(START); day < END; day.setDate(day.getDate() + 1)) {
             customerId: { stringValue: customerId },
             tableNumber: { integerValue: String(tableNumber) },
             guestCount: { integerValue: String(guestCount) },
-            items: {
-              arrayValue: {
-                values: items.map((it) => ({
-                  mapValue: {
-                    fields: {
-                      menuId: { stringValue: it.menuId },
-                      name: { stringValue: it.name },
-                      price: { integerValue: String(it.price) },
-                      quantity: { integerValue: String(it.quantity) },
-                      note: { stringValue: it.note },
-                      checked: { booleanValue: true },
-                      toppings: { arrayValue: { values: [] } },
-                    },
-                  },
-                })),
-              },
-            },
             status: { stringValue: "paid" },
             customerNote: { stringValue: "" },
             createdAt: { timestampValue: isoTs },
@@ -333,6 +316,23 @@ for (let day = new Date(START); day < END; day.setDate(day.getDate() + 1)) {
           },
         },
       });
+      for (const it of items) {
+        const itemId = randomUUID();
+        orderWrites.push({
+          update: {
+            name: `projects/${PROJECT}/databases/(default)/documents/orders/${orderId}/items/${itemId}`,
+            fields: {
+              menuId: { stringValue: it.menuId },
+              name: { stringValue: it.name },
+              price: { integerValue: String(it.price) },
+              quantity: { integerValue: String(it.quantity) },
+              note: { stringValue: it.note },
+              checked: { booleanValue: true },
+              toppings: { arrayValue: { values: [] } },
+            },
+          },
+        });
+      }
       totalOrders++;
     }
   }

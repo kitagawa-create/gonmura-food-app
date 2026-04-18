@@ -26,8 +26,17 @@ export default function BillPage() {
         where("status", "in", ["pending", "completed"])
       );
       const snap = await getDocs(q);
-      const data = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
-      setOrders(data.sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0)));
+      const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
+      const withItems: OrderWithItems[] = await Promise.all(
+        orderDocs.map(async (order) => {
+          const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+          return {
+            ...order,
+            items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)),
+          };
+        })
+      );
+      setOrders(withItems.sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0)));
       setLoading(false);
     }
     fetchOrders();

@@ -8,6 +8,7 @@ import type { OrderWithItems } from "@/types";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import { BackButton } from "@/components/ui/BackButton";
 import { comboLineTotal, normalizeOrder, normalizeOrderItem } from "@/lib/order-utils";
+
 export default function OrderHistoryPage() {
   const { customerId } = useCart();
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
@@ -22,9 +23,18 @@ export default function OrderHistoryPage() {
       where("status", "in", ["pending", "completed"])
     );
 
-    const unsub = onSnapshot(q, (snap) => {
-      const data = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
-      setOrders(data.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0)));
+    const unsub = onSnapshot(q, async (snap) => {
+      const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
+      const withItems: OrderWithItems[] = await Promise.all(
+        orderDocs.map(async (order) => {
+          const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+          return {
+            ...order,
+            items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)),
+          };
+        })
+      );
+      setOrders(withItems.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0)));
       setLoading(false);
     }, () => { setOrders([]); setLoading(false); });
     return () => unsub();
