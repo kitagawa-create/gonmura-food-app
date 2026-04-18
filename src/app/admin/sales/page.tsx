@@ -639,7 +639,7 @@ export default function AdminSalesPage() {
           </p>
         ) : analysis === "menu" ? (
           /* ===== メニュー別棒グラフ ===== */
-          <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable]">
             {menuBarItems.length === 0 ? (
               <p className="text-sm text-[color:var(--color-text-muted)] py-10 text-center">
                 該当メニューがありません
@@ -656,7 +656,7 @@ export default function AdminSalesPage() {
               heatmapData.reduce((s, row) => s + row[d], 0)
             );
             return (
-              <div className="flex-1 min-h-0 overflow-auto">
+              <div className="flex-1 min-h-0 overflow-auto [scrollbar-gutter:stable]">
                 <table className="text-xs tabular-nums min-w-full" style={{ borderCollapse: "collapse" }}>
                   <thead>
                     <tr>
@@ -782,7 +782,7 @@ export default function AdminSalesPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex-1 min-h-0 overflow-y-auto">
+                  <div className="flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable]">
                     <table className="w-full text-xs tabular-nums">
                       <thead className="text-[color:var(--color-text-muted)] sticky top-0 bg-[color:var(--color-bg-subtle)]">
                         <tr>
@@ -823,7 +823,7 @@ export default function AdminSalesPage() {
                       データがありません
                     </p>
                   ) : (
-                    <div className="flex-1 min-h-0 overflow-y-auto">
+                    <div className="flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable]">
                       <table className="w-full text-xs tabular-nums">
                         <thead className="text-[color:var(--color-text-muted)] sticky top-0 bg-[color:var(--color-bg-card)]">
                           <tr>
