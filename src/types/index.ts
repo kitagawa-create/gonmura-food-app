@@ -58,7 +58,7 @@ export type OrderItem = {
   toppings: OrderItemTopping[];
   /** 注文時スナップショット。備考なしは空文字 */
   note: string;
-  /** チェック状態（旧 checkedItems 配列を置き換え） */
+  /** チェック状態 */
   checked: boolean;
 };
 
@@ -79,13 +79,13 @@ export type Order = {
   status: OrderStatus;
   /** customers コレクションへの参照（必須）。tableNumber・guestCount はここから取得 */
   customerId: string;
-  /** orders/{orderId}/items サブコレクションをフェッチして結合した明細 */
+  /** 注文明細（ドキュメント埋め込み） */
   items: OrderItem[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
 
-/** Order の別名。items サブコレクション取得済みを明示したい箇所で使用 */
+/** Order の別名（後方互換のため残存） */
 export type OrderWithItems = Order;
 
 
