@@ -166,7 +166,8 @@ export function CartPanel({ hasOrders }: { hasOrders: boolean }) {
       setShowComplete(true);
       setSubmitting(false);
       clearCart();
-    } catch {
+    } catch (err) {
+      console.error("[CartPanel] order submission failed:", err);
       alert("注文の送信に失敗しました。もう一度お試しください。");
       setSubmitting(false);
     }

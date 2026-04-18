@@ -169,7 +169,7 @@ export default function MenuPage() {
     if (!ordersLoaded) return;
     if (guestCount !== null) return;
     if (hasUnpaidOrders) return;
-    setGuestCountInput(2);
+    setGuestCountInput(1);
     setShowGuestCountDialog(true);
   }, [tableNumber, guestCount, ordersLoaded, hasUnpaidOrders]);
 
