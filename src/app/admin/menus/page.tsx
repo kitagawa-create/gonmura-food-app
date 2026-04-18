@@ -7,9 +7,7 @@ import { PageLoader } from "@/components/ui/PageLoader";
 import {
   addDoc,
   collection,
-  deleteDoc,
   doc,
-  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -62,8 +60,6 @@ export default function AdminMenusPage() {
   } | null>(null);
   const [activeTab, setActiveTab] = useState<string>("all");
   const [deleting, setDeleting] = useState(false);
-  const [orderedMenuIds, setOrderedMenuIds] = useState<Set<string>>(new Set());
-  const [orderedLoaded, setOrderedLoaded] = useState(false);
   const [movingMenuId, setMovingMenuId] = useState<string | null>(null);
   const [draggingMenuId, setDraggingMenuId] = useState<string | null>(null);
   const [dragOverMenuId, setDragOverMenuId] = useState<string | null>(null);
@@ -73,19 +69,6 @@ export default function AdminMenusPage() {
   const handleTabChange = useCallback((tabId: string) => {
     setActiveTab(tabId);
     scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
-
-  // 注文に含まれたことのあるメニューIDを取得（削除ボタン可否判定に使用）
-  useEffect(() => {
-    async function fetchOrderedMenuIds() {
-      try {
-        const snap = await getDocs(collection(db, "orderedMenus"));
-        setOrderedMenuIds(new Set(snap.docs.map((d) => d.id)));
-      } finally {
-        setOrderedLoaded(true);
-      }
-    }
-    fetchOrderedMenuIds();
   }, []);
 
   useEffect(() => {
@@ -121,9 +104,11 @@ export default function AdminMenusPage() {
   }, [categories]);
 
   // カテゴリ順でメニューをグルーピング。複数カテゴリ所属のメニューは各カテゴリに重複表示する。
+  const visibleMenus = useMemo(() => menus.filter((m) => !m.isDeleted), [menus]);
+
   const groupedMenus = useMemo(() => {
     const groups = new Map<string | null, Menu[]>();
-    for (const m of menus) {
+    for (const m of visibleMenus) {
       const validCatIds = m.categoryIds.filter((cid) => categoryMap.has(cid));
       if (validCatIds.length === 0) {
         const arr = groups.get(null) ?? [];
@@ -306,7 +291,11 @@ export default function AdminMenusPage() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await deleteDoc(doc(db, "menus", deleteTarget.id));
+      await updateDoc(doc(db, "menus", deleteTarget.id), {
+        isDeleted: true,
+        isAvailable: false,
+        updatedAt: serverTimestamp(),
+      });
       setDeleteTarget(null);
       toast("メニューを削除しました");
     } catch (e) {
@@ -351,10 +340,10 @@ export default function AdminMenusPage() {
               }`}
             >
               すべて
-              <span className="ml-1 text-xs">({menus.length})</span>
+              <span className="ml-1 text-xs">({visibleMenus.length})</span>
             </button>
             {categories.map((cat) => {
-              const count = menus.filter((m) => m.categoryIds.includes(cat.id)).length;
+              const count = visibleMenus.filter((m) => m.categoryIds.includes(cat.id)).length;
               return (
                 <button
                   key={cat.id}
@@ -383,9 +372,9 @@ export default function AdminMenusPage() {
         </p>
       )}
 
-      {loading || !orderedLoaded ? (
+      {loading ? (
         <PageLoader />
-      ) : menus.length === 0 ? (
+      ) : menus.filter((m) => !m.isDeleted).length === 0 ? (
         <p className="text-sm text-[color:var(--color-text-muted)]">メニューがまだありません。</p>
       ) : (
         <div className="space-y-6">
@@ -394,7 +383,7 @@ export default function AdminMenusPage() {
             : (() => {
                 // 特定カテゴリタブ: 主カテゴリに関係なく categoryIds に含む全メニューを表示
                 const cat = categories.find((c) => c.id === activeTab) ?? null;
-                const items = menus
+                const items = visibleMenus
                   .filter((m) => m.categoryIds.includes(activeTab))
                   .sort((a, b) => {
                     if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
@@ -559,7 +548,7 @@ export default function AdminMenusPage() {
                         >
                           {m.isSoldOut ? "売り切れ解除" : "売り切れにする"}
                         </button>
-                        {role === "owner" && !orderedMenuIds.has(m.id) && (
+                        {role === "owner" && (
                           <button
                             onClick={() => setDeleteTarget(m)}
                             className="ml-auto rounded-lg bg-[color:var(--color-accent-warn)] px-3 py-1 text-xs text-white hover:opacity-90 transition-colors"
@@ -594,7 +583,7 @@ export default function AdminMenusPage() {
       <ConfirmDialog
         open={deleteTarget !== null}
         title={`「${deleteTarget?.name}」を削除`}
-        message="このメニューを完全に削除します。この操作は取り消せません。"
+        message="このメニューを削除します。過去の売上データへの影響を防ぐためデータは内部に保持されます。"
         confirmLabel="削除する"
         confirmColor="red"
         onConfirm={confirmDelete}

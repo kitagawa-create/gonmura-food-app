@@ -29,6 +29,8 @@ export type Menu = {
    * - isSoldOut=true:    売り切れ（顧客側で薄表示+「売り切れ」オーバーレイ、注文不可）
    */
   isSoldOut: boolean;
+  /** ソフトデリート済み。true のとき顧客・管理両画面で非表示。ドキュメントは残す（分析用） */
+  isDeleted: boolean;
   /** 表示順（整数、小さいほど上）。Firestore に未設定のドキュメントは Number.MAX_SAFE_INTEGER に正規化 */
   sortOrder: number;
   createdAt: Timestamp;

@@ -71,6 +71,7 @@ export function normalizeMenu(id: string, data: Record<string, unknown>): Menu {
     ...(data as Omit<Menu, "id" | "isSoldOut" | "sortOrder">),
     id,
     isSoldOut: data.isSoldOut === true,
+    isDeleted: data.isDeleted === true,
     sortOrder: typeof data.sortOrder === "number" ? data.sortOrder : Number.MAX_SAFE_INTEGER,
   };
 }
