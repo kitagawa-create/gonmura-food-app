@@ -99,8 +99,12 @@ export default function BillPage() {
               <span className="text-[color:var(--color-text-primary)]">{tableNumber}番</span>
             </div>
             <div className="flex justify-between mt-1">
-              <span>注文数</span>
-              <span className="text-[color:var(--color-text-primary)]">{orders.length}件</span>
+              <span>商品数</span>
+              <span className="text-[color:var(--color-text-primary)]">{allItems.reduce((s, i) => s + i.quantity, 0)}点</span>
+            </div>
+            <div className="flex justify-between mt-1 font-bold">
+              <span className="text-[color:var(--color-text-primary)]">合計</span>
+              <span className="text-[color:var(--color-accent-char)] tabular-nums">¥{totalAmount.toLocaleString()}</span>
             </div>
           </div>
 
