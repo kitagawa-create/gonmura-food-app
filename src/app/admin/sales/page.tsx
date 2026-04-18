@@ -558,10 +558,10 @@ export default function AdminSalesPage() {
               >
                 {(["sales", "menu", "dow"] as Analysis[]).map((val, i) => (
                   <div key={val}>
-                    {i > 0 && <div className="border-t border-[color:var(--color-border)]" />}
+                    {i > 0 && <hr className="border-[color:var(--color-border)] my-0" />}
                     <button
                       onClick={() => { setAnalysis(val); setAnalysisOpen(false); }}
-                      className={`w-full text-left px-3 py-1.5 text-sm hover:bg-[color:var(--color-bg-subtle)] ${analysis === val ? "font-medium text-[color:var(--color-accent-char)]" : "text-[color:var(--color-text-primary)]"}`}
+                      className={`w-full text-left px-3 py-1 text-sm hover:bg-[color:var(--color-bg-subtle)] ${analysis === val ? "font-medium text-[color:var(--color-accent-char)]" : "text-[color:var(--color-text-primary)]"}`}
                     >
                       {val === "sales" ? "売上推移" : val === "menu" ? "メニュー別売数" : "曜日・時間帯"}
                     </button>
