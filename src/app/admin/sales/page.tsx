@@ -835,32 +835,34 @@ export default function AdminSalesPage() {
                       データがありません
                     </p>
                   ) : (
+                    <table className="w-full table-fixed text-xs tabular-nums shrink-0">
+                      <thead>
+                        <tr className="border-b border-[color:var(--color-border)] text-[color:var(--color-text-muted)]">
+                          <th className="text-left font-normal py-1.5 w-1/4">テーブル</th>
+                          <th className="text-right font-normal py-1.5 w-1/4">注文数</th>
+                          <th className="text-right font-normal py-1.5 w-1/4">合計売上</th>
+                          <th className="text-right font-normal py-1.5 w-1/4">テーブル単価</th>
+                        </tr>
+                      </thead>
+                    </table>
                     <div className="flex-1 min-h-0 overflow-y-auto pr-2 [scrollbar-gutter:stable]">
-                      <table className="w-full text-xs tabular-nums">
-                        <thead>
-                          <tr>
-                            <th className="sticky top-0 text-left font-normal py-1.5 w-1/4 bg-[color:var(--color-bg-card)] text-[color:var(--color-text-muted)]">テーブル</th>
-                            <th className="sticky top-0 text-right font-normal py-1.5 w-1/4 bg-[color:var(--color-bg-card)] text-[color:var(--color-text-muted)]">注文数</th>
-                            <th className="sticky top-0 text-right font-normal py-1.5 w-1/4 bg-[color:var(--color-bg-card)] text-[color:var(--color-text-muted)]">合計売上</th>
-                            <th className="sticky top-0 text-right font-normal py-1.5 w-1/4 bg-[color:var(--color-bg-card)] text-[color:var(--color-text-muted)]">テーブル単価</th>
-                          </tr>
-                        </thead>
+                      <table className="w-full table-fixed text-xs tabular-nums">
                         <tbody>
                           {tableBreakdown.map((t) => (
                             <tr
                               key={t.table}
                               className="border-t border-[color:var(--color-border)]"
                             >
-                              <td className="py-1.5 text-[color:var(--color-text-primary)]">
+                              <td className="py-1.5 w-1/4 text-[color:var(--color-text-primary)]">
                                 No.{t.table}
                               </td>
-                              <td className="py-1.5 text-right text-[color:var(--color-text-primary)]">
+                              <td className="py-1.5 w-1/4 text-right text-[color:var(--color-text-primary)]">
                                 {t.count}件
                               </td>
-                              <td className="py-1.5 text-right text-[color:var(--color-text-primary)]">
+                              <td className="py-1.5 w-1/4 text-right text-[color:var(--color-text-primary)]">
                                 {yen(t.revenue)}
                               </td>
-                              <td className="py-1.5 text-right font-medium text-[color:var(--color-accent-char)]">
+                              <td className="py-1.5 w-1/4 text-right font-medium text-[color:var(--color-accent-char)]">
                                 {yen(t.atv)}
                               </td>
                             </tr>
