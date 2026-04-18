@@ -597,9 +597,14 @@ export default function AdminSalesPage() {
       </div>
 
       <section className="rounded-xl bg-[color:var(--color-bg-card)] border border-black p-4 flex flex-col flex-1 min-h-0 overflow-hidden shadow-sm">
-        <h2 className="text-lg font-bold text-[color:var(--color-text-primary)] mb-3 shrink-0">
-          {sectionTitle}
-        </h2>
+        <div className="flex items-baseline gap-2 mb-3 shrink-0">
+          <h2 className="text-lg font-bold text-[color:var(--color-text-primary)]">
+            {sectionTitle}
+          </h2>
+          {analysis === "dow" && (
+            <span className="text-xs text-[color:var(--color-text-muted)]">単位: 注文件数</span>
+          )}
+        </div>
 
         {/* メニュー別: カテゴリフィルター */}
         {analysis === "menu" && categories.length > 0 && (
@@ -658,6 +663,13 @@ export default function AdminSalesPage() {
               heatmapData.reduce((s, row) => s + row[d], 0)
             );
             return (
+              <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                {/* 凡例バー */}
+                <div className="flex items-center gap-2 mb-2 shrink-0">
+                  <span className="text-xs text-[color:var(--color-text-muted)]">少</span>
+                  <div className="h-3 w-32 rounded-sm" style={{ background: "linear-gradient(to right, rgba(59,130,246,0.1), rgba(59,130,246,0.8))" }} />
+                  <span className="text-xs text-[color:var(--color-text-muted)]">多</span>
+                </div>
               <div className="flex-1 min-h-0 overflow-auto pb-2 pr-2 [scrollbar-gutter:stable]">
                 <table className="text-xs tabular-nums min-w-full" style={{ borderCollapse: "collapse" }}>
                   <thead>
@@ -718,6 +730,7 @@ export default function AdminSalesPage() {
                     </tr>
                   </tbody>
                 </table>
+              </div>
               </div>
             );
           })()
