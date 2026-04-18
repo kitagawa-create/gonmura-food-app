@@ -367,7 +367,7 @@ export default function MenuPage() {
                       大きな縦長画像や一部ブラウザで高さが滲むことがあるためこちらを採用。 */}
                   {menu.imageUrl ? (
                     <div
-                      className={`relative w-full shrink-0 overflow-hidden ${
+                      className={`relative w-full shrink-0 overflow-hidden rounded-xl ${
                         sold ? "opacity-40 grayscale" : ""
                       }`}
                       style={{ paddingTop: "75%" }}
@@ -382,7 +382,7 @@ export default function MenuPage() {
                     </div>
                   ) : (
                     <div
-                      className={`relative w-full shrink-0 overflow-hidden bg-[color:var(--color-bg-subtle)] ${
+                      className={`relative w-full shrink-0 overflow-hidden rounded-xl bg-[color:var(--color-bg-subtle)] ${
                         sold ? "opacity-40 grayscale" : ""
                       }`}
                       style={{ paddingTop: "75%" }}
@@ -441,18 +441,20 @@ export default function MenuPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="overflow-y-auto">
-              <div className="w-full h-56 shrink-0 overflow-hidden bg-[color:var(--color-bg-subtle)]">
-                {selectedMenu.imageUrl ? (
-                  <FadeImage
-                    src={selectedMenu.imageUrl}
-                    alt={selectedMenu.name}
-                    className="w-full h-full"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <span className="text-sm text-[color:var(--color-text-muted)]">画像なし</span>
-                  </div>
-                )}
+              <div className="relative w-full shrink-0 overflow-hidden bg-[color:var(--color-bg-subtle)]" style={{ paddingTop: "75%" }}>
+                <div className="absolute inset-0">
+                  {selectedMenu.imageUrl ? (
+                    <FadeImage
+                      src={selectedMenu.imageUrl}
+                      alt={selectedMenu.name}
+                      className="w-full h-full"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <span className="text-sm text-[color:var(--color-text-muted)]">画像なし</span>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="p-5 space-y-5">
                 <div>
