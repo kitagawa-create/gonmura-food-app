@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { collection, query, where, getDocs, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Menu, Category, CartItemTopping } from "@/types";
+import { normalizeMenu } from "@/lib/order-utils";
 import { useCart } from "@/lib/cart-context";
 import { FadeImage } from "@/components/ui/FadeImage";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
@@ -96,7 +97,7 @@ export default function MenuPage() {
     const unsub = onSnapshot(
       query(collection(db, "menus"), where("isAvailable", "==", true)),
       (snap) => {
-        setMenus(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Menu));
+        setMenus(snap.docs.map((d) => normalizeMenu(d.id, d.data() as Record<string, unknown>)));
         setMenusLoaded(true);
       }
     );
@@ -146,7 +147,7 @@ export default function MenuPage() {
   useEffect(() => {
     if (!selectedMenu) return;
     const stillThere = menus.find((m) => m.id === selectedMenu.id);
-    if (!stillThere || stillThere.isSoldOut === true) {
+    if (!stillThere || stillThere.isSoldOut) {
       setSelectedMenu(null);
       setExtraQty({});
     }
@@ -176,9 +177,7 @@ export default function MenuPage() {
     ? menus
         .filter((menu) => menu.categoryIds.includes(activeCategory))
         .sort((a, b) => {
-          const ao = a.sortOrder ?? Number.MAX_SAFE_INTEGER;
-          const bo = b.sortOrder ?? Number.MAX_SAFE_INTEGER;
-          if (ao !== bo) return ao - bo;
+          if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
           return a.name.localeCompare(b.name, "ja");
         })
     : [];
@@ -189,8 +188,8 @@ export default function MenuPage() {
   const toppings = useMemo(
     () =>
       menus
-        .filter((m) => menuBelongsToCategory(m, categories, "トッピング") && m.isSoldOut !== true)
-        .sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999)),
+        .filter((m) => menuBelongsToCategory(m, categories, "トッピング") && !m.isSoldOut)
+        .sort((a, b) => a.sortOrder - b.sortOrder),
     [menus, categories]
   );
 
@@ -344,7 +343,7 @@ export default function MenuPage() {
             className="grid w-full gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
           >
             {filteredMenus.map((menu) => {
-              const sold = menu.isSoldOut === true;
+              const sold = menu.isSoldOut;
               return (
                 <button
                   key={menu.id}
@@ -579,6 +578,9 @@ export default function MenuPage() {
                     rows={2}
                     className="w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-subtle)] px-3 py-2 text-sm text-[color:var(--color-text-primary)] placeholder-[color:var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)] resize-none"
                   />
+                  <p className={`mt-1 text-right text-xs ${selectedNote.length >= 90 ? "text-[color:var(--color-accent-warn)]" : "text-[color:var(--color-text-muted)]"}`}>
+                    {selectedNote.length}/100
+                  </p>
                 </div>
 
               </div>
@@ -610,7 +612,7 @@ export default function MenuPage() {
                         menuId: selectedMenu.id,
                         name: selectedMenu.name,
                         price: selectedMenu.price,
-                        toppings: toppings.length > 0 ? toppings : undefined,
+                        toppings,
                         ...(selectedNote.trim() ? { note: selectedNote.trim() } : {}),
                       },
                       1

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from "react";
 import type { CartItem, CartItemTopping } from "@/types";
 import { comboLineHash, newLineId } from "@/lib/order-utils";
 
@@ -62,8 +62,8 @@ function rehydrateItems(raw: unknown): CartItem[] {
       name: String(x.name ?? ""),
       price: Number(x.price ?? 0),
       quantity: Math.max(1, Math.trunc(Number(x.quantity ?? 1))),
-      toppings: Array.isArray(x.toppings) ? x.toppings : undefined,
-      ...(typeof x.note === 'string' && x.note ? { note: x.note } : {}),
+      toppings: Array.isArray(x.toppings) ? x.toppings : [],
+      note: typeof x.note === "string" ? x.note : "",
     }))
     .filter((x) => x.menuId);
 }
@@ -168,8 +168,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           name: input.name,
           price: input.price,
           quantity: qty,
-          toppings: input.toppings && input.toppings.length > 0 ? input.toppings : undefined,
-          ...(input.note ? { note: input.note } : {}),
+          toppings: input.toppings ?? [],
+          note: input.note ?? "",
         },
       ];
     });
@@ -191,7 +191,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const updateItemNote = useCallback((lineId: string, note: string) => {
     setItems((prev) =>
-      prev.map((i) => (i.lineId === lineId ? { ...i, note: note || undefined } : i))
+      prev.map((i) => (i.lineId === lineId ? { ...i, note } : i))
     );
   }, []);
 
@@ -209,15 +209,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // コンボ価格 = (ラーメン単価 + Σトッピング単価×個数) × 杯数
-  const totalAmount = items.reduce((sum, i) => {
-    const topPerBowl = (i.toppings ?? []).reduce((s, t) => s + t.price * t.quantity, 0);
+  const totalAmount = useMemo(() => items.reduce((sum, i) => {
+    const topPerBowl = i.toppings.reduce((s, t) => s + t.price * t.quantity, 0);
     return sum + (i.price + topPerBowl) * i.quantity;
-  }, 0);
+  }, 0), [items]);
   // 総点数 = 各コンボの (杯数 + Σトッピング個数×杯数)。トッピングも個数分カウント。
-  const totalItems = items.reduce((sum, i) => {
-    const topPerBowl = (i.toppings ?? []).reduce((a, t) => a + t.quantity, 0);
+  const totalItems = useMemo(() => items.reduce((sum, i) => {
+    const topPerBowl = i.toppings.reduce((a, t) => a + t.quantity, 0);
     return sum + i.quantity + topPerBowl * i.quantity;
-  }, 0);
+  }, 0), [items]);
 
   return (
     <CartContext.Provider

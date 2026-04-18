@@ -18,43 +18,9 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Category, Customer, Menu, Order, OrderItemTopping } from "@/types";
+import type { Category, Customer, Menu, OrderItem, OrderWithItems } from "@/types";
+import { normalizeMenu, normalizeOrder, normalizeOrderItem, comboLineTotal } from "@/lib/order-utils";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
-import { comboLineTotal } from "@/lib/order-utils";
-
-// ---------- ローカル型 ----------
-
-type OrderItem = {
-  id: string;
-  menuId: string;
-  name: string;
-  price: number;
-  quantity: number;
-  toppings?: OrderItemTopping[];
-  note?: string;
-  checked?: boolean;
-};
-
-type OrderWithItems = Order & { items: OrderItem[] };
-
-// ---------- helpers ----------
-
-async function loadOrdersWithItems(
-  orderDocs: Array<Omit<Order, "items" | "checkedItems">>
-): Promise<OrderWithItems[]> {
-  return Promise.all(
-    orderDocs.map(async (order) => {
-      const itemsSnap = await getDocs(
-        collection(db, "orders", order.id, "items")
-      );
-      const items: OrderItem[] = itemsSnap.docs.map((d) => ({
-        id: d.id,
-        ...(d.data() as Omit<OrderItem, "id">),
-      }));
-      return { ...order, items };
-    })
-  );
-}
 
 const TIME_FORMATTER = new Intl.DateTimeFormat("ja-JP", {
   hour: "2-digit",
@@ -182,7 +148,7 @@ function useToppingMenuIds(): Set<string> {
           getDocs(collection(db, "categories")),
         ]);
         if (cancelled) return;
-        setMenus(menusSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Menu, "id">) })));
+        setMenus(menusSnap.docs.map((d) => normalizeMenu(d.id, d.data() as Record<string, unknown>)));
         setCategories(
           catsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Category, "id">) }))
         );
@@ -223,7 +189,6 @@ function NewOrdersView({
   const [dateFilter, setDateFilter] = useState<string>(todayISO());
   const [now, setNow] = useState(() => Date.now());
   const prevOrderCountRef = useRef<number | null>(null);
-  const loadedOrderIdsRef = useRef<Set<string>>(new Set());
 
   // 経過時刻更新 + 日付自動ロールオーバー (30秒おき)
   useEffect(() => {
@@ -237,7 +202,6 @@ function NewOrdersView({
 
   useEffect(() => {
     prevOrderCountRef.current = null;
-    loadedOrderIdsRef.current = new Set();
     const start = new Date(`${dateFilter}T00:00:00`);
     const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
 
@@ -250,40 +214,24 @@ function NewOrdersView({
 
     const unsub = onSnapshot(
       q,
-      (snap) => {
-        const all = snap.docs.map(
-          (d) => ({ id: d.id, ...(d.data() as Omit<Order, "id">) })
-        );
+      async (snap) => {
+        const all = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
         const active = all.filter((o) => o.status === "pending");
 
-        if (
-          prevOrderCountRef.current !== null &&
-          all.length > prevOrderCountRef.current
-        ) {
+        if (prevOrderCountRef.current !== null && all.length > prevOrderCountRef.current) {
           playNotificationSound();
         }
         prevOrderCountRef.current = all.length;
 
-        // 新規登場オーダーのみ items を fetch（既存はチェック状態を保持）
-        const newOrders = active.filter((o) => !loadedOrderIdsRef.current.has(o.id));
-        loadOrdersWithItems(newOrders)
-          .then((newWithItems) => {
-            newOrders.forEach((o) => loadedOrderIdsRef.current.add(o.id));
-            setOrders((prev) => {
-              const prevMap = new Map(prev.map((o) => [o.id, o]));
-              return active.map(
-                (o) =>
-                  prevMap.get(o.id) ??
-                  newWithItems.find((n) => n.id === o.id) ??
-                  { ...o, items: [] }
-              );
-            });
-            setLoading(false);
+        const withItems = await Promise.all(
+          active.map(async (o) => {
+            const itemsSnap = await getDocs(collection(db, "orders", o.id, "items"));
+            const items = itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>));
+            return { ...o, items };
           })
-          .catch((e) => {
-            onError(e instanceof Error ? e.message : "取得に失敗しました。");
-            setLoading(false);
-          });
+        );
+        setOrders(withItems);
+        setLoading(false);
       },
       (e) => {
         onError(e.message);
@@ -314,9 +262,10 @@ function NewOrdersView({
       );
 
       try {
-        await updateDoc(doc(db, "orders", order.id, "items", itemId), {
-          checked: newChecked,
-        });
+        const batch = writeBatch(db);
+        batch.update(doc(db, "orders", order.id, "items", itemId), { checked: newChecked });
+        batch.update(doc(db, "orders", order.id), { updatedAt: serverTimestamp() });
+        await batch.commit();
       } catch (e) {
         setOrders((os) =>
           os.map((o) =>
@@ -357,7 +306,11 @@ function NewOrdersView({
     async (id: string) => {
       onError(null);
       try {
-        await deleteDoc(doc(db, "orders", id));
+        const itemsSnap = await getDocs(collection(db, "orders", id, "items"));
+        const batch = writeBatch(db);
+        for (const d of itemsSnap.docs) batch.delete(d.ref);
+        batch.delete(doc(db, "orders", id));
+        await batch.commit();
       } catch (e) {
         onError(e instanceof Error ? e.message : "削除に失敗しました。");
       }
@@ -369,19 +322,18 @@ function NewOrdersView({
     async (order: OrderWithItems, itemId: string) => {
       onError(null);
       const remaining = order.items.filter((i) => i.id !== itemId);
-      if (remaining.length === 0) {
-        try {
-          await deleteDoc(doc(db, "orders", order.id));
-        } catch (e) {
-          onError(e instanceof Error ? e.message : "削除に失敗しました。");
-        }
-        return;
-      }
       try {
-        await deleteDoc(doc(db, "orders", order.id, "items", itemId));
-        setOrders((os) =>
-          os.map((o) => (o.id === order.id ? { ...o, items: remaining } : o))
-        );
+        const batch = writeBatch(db);
+        batch.delete(doc(db, "orders", order.id, "items", itemId));
+        if (remaining.length === 0) {
+          batch.delete(doc(db, "orders", order.id));
+        } else {
+          batch.update(doc(db, "orders", order.id), { updatedAt: serverTimestamp() });
+        }
+        await batch.commit();
+        if (remaining.length > 0) {
+          setOrders((os) => os.map((o) => (o.id === order.id ? { ...o, items: remaining } : o)));
+        }
       } catch (e) {
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
       }
@@ -392,23 +344,17 @@ function NewOrdersView({
   const bulkCheckAll = useCallback(
     async (order: OrderWithItems) => {
       onError(null);
-      setOrders((os) =>
-        os.map((o) =>
-          o.id === order.id
-            ? { ...o, items: o.items.map((i) => ({ ...i, checked: true })) }
-            : o
-        )
-      );
-      const batch = writeBatch(db);
-      for (const item of order.items) {
-        batch.update(doc(db, "orders", order.id, "items", item.id), { checked: true });
-      }
+      const updatedItems = order.items.map((i) => ({ ...i, checked: true }));
+      setOrders((os) => os.map((o) => (o.id === order.id ? { ...o, items: updatedItems } : o)));
       try {
+        const batch = writeBatch(db);
+        for (const item of order.items) {
+          batch.update(doc(db, "orders", order.id, "items", item.id), { checked: true });
+        }
+        batch.update(doc(db, "orders", order.id), { updatedAt: serverTimestamp() });
         await batch.commit();
       } catch (e) {
-        setOrders((os) =>
-          os.map((o) => (o.id === order.id ? { ...o, items: order.items } : o))
-        );
+        setOrders((os) => os.map((o) => (o.id === order.id ? { ...o, items: order.items } : o)));
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
       }
     },
@@ -418,23 +364,17 @@ function NewOrdersView({
   const bulkUncheckAll = useCallback(
     async (order: OrderWithItems) => {
       onError(null);
-      setOrders((os) =>
-        os.map((o) =>
-          o.id === order.id
-            ? { ...o, items: o.items.map((i) => ({ ...i, checked: false })) }
-            : o
-        )
-      );
-      const batch = writeBatch(db);
-      for (const item of order.items) {
-        batch.update(doc(db, "orders", order.id, "items", item.id), { checked: false });
-      }
+      const updatedItems = order.items.map((i) => ({ ...i, checked: false }));
+      setOrders((os) => os.map((o) => (o.id === order.id ? { ...o, items: updatedItems } : o)));
       try {
+        const batch = writeBatch(db);
+        for (const item of order.items) {
+          batch.update(doc(db, "orders", order.id, "items", item.id), { checked: false });
+        }
+        batch.update(doc(db, "orders", order.id), { updatedAt: serverTimestamp() });
         await batch.commit();
       } catch (e) {
-        setOrders((os) =>
-          os.map((o) => (o.id === order.id ? { ...o, items: order.items } : o))
-        );
+        setOrders((os) => os.map((o) => (o.id === order.id ? { ...o, items: order.items } : o)));
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
       }
     },
@@ -606,8 +546,8 @@ function ActiveOrderCard({
       {/* 商品チェックリスト */}
       <ul className="mb-3 space-y-1">
         {order.items.map((item) => {
-          const done = item.checked === true;
-          const hasNestedToppings = !!item.toppings && item.toppings.length > 0;
+          const done = item.checked;
+          const hasNestedToppings = item.toppings.length > 0;
           const isLegacyTopping = !hasNestedToppings && toppingMenuIds.has(item.menuId);
           return (
             <li key={item.id} className="flex items-stretch gap-1">
@@ -791,10 +731,7 @@ function HistoryView({
       if (order.status === "paid") return;
       try {
         const batch = writeBatch(db);
-        batch.update(doc(db, "orders", order.id), {
-          status: "pending",
-          updatedAt: serverTimestamp(),
-        });
+        batch.update(doc(db, "orders", order.id), { status: "pending", updatedAt: serverTimestamp() });
         for (const item of order.items) {
           batch.update(doc(db, "orders", order.id, "items", item.id), { checked: false });
         }
@@ -820,19 +757,17 @@ function HistoryView({
     );
     const unsub = onSnapshot(
       q,
-      (snap) => {
-        const orderDocs = snap.docs.map(
-          (d) => ({ id: d.id, ...(d.data() as Omit<Order, "id">) })
-        );
-        loadOrdersWithItems(orderDocs)
-          .then((withItems) => {
-            setOrders(withItems);
-            setLoading(false);
+      async (snap) => {
+        const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
+        const withItems = await Promise.all(
+          orderDocs.map(async (o) => {
+            const itemsSnap = await getDocs(collection(db, "orders", o.id, "items"));
+            const items = itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>));
+            return { ...o, items };
           })
-          .catch((e) => {
-            onError(e instanceof Error ? e.message : "取得に失敗しました。");
-            setLoading(false);
-          });
+        );
+        setOrders(withItems);
+        setLoading(false);
       },
       (e) => {
         onError(e.message);
@@ -978,7 +913,7 @@ function HistoryOrderCard({
       </div>
       <ul className="text-sm text-[color:var(--color-text-primary)] space-y-0.5">
         {order.items.map((item) => {
-          const hasNestedToppings = !!item.toppings && item.toppings.length > 0;
+          const hasNestedToppings = item.toppings.length > 0;
           const isLegacyTopping = !hasNestedToppings && toppingMenuIds.has(item.menuId);
           return (
             <li key={item.id}>

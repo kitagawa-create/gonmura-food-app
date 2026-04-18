@@ -4,12 +4,10 @@ import { useEffect, useState } from "react";
 import { collection, getDocs, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
-import type { Order, OrderItem } from "@/types";
+import type { OrderWithItems } from "@/types";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import { BackButton } from "@/components/ui/BackButton";
-import { comboLineTotal } from "@/lib/order-utils";
-
-type OrderWithItems = Order & { items: OrderItem[] };
+import { comboLineTotal, normalizeOrder, normalizeOrderItem } from "@/lib/order-utils";
 export default function OrderHistoryPage() {
   const { customerId } = useCart();
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
@@ -24,23 +22,17 @@ export default function OrderHistoryPage() {
       where("status", "in", ["pending", "completed"])
     );
 
-    const unsub = onSnapshot(q, (snap) => {
-      const orderDocs = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() }) as Order)
-        .sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
-      Promise.all(
-        orderDocs.map(async (order) => {
-          const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
-          const items: OrderItem[] = itemsSnap.docs.map((d) => ({
-            id: d.id,
-            ...(d.data() as Omit<OrderItem, "id">),
-          }));
-          return { ...order, items };
+    const unsub = onSnapshot(q, async (snap) => {
+      const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
+      const withItems = await Promise.all(
+        orderDocs.map(async (o) => {
+          const itemsSnap = await getDocs(collection(db, "orders", o.id, "items"));
+          const items = itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>));
+          return { ...o, items };
         })
-      ).then((data) => {
-        setOrders(data);
-        setLoading(false);
-      });
+      );
+      setOrders(withItems.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0)));
+      setLoading(false);
     });
     return () => unsub();
   }, [customerId]);

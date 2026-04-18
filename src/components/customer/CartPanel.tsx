@@ -82,7 +82,7 @@ export function CartPanel({ hasOrders }: { hasOrders: boolean }) {
       const idSet = new Set<string>();
       for (const i of items) {
         idSet.add(i.menuId);
-        for (const t of i.toppings ?? []) idSet.add(t.menuId);
+        for (const t of i.toppings) idSet.add(t.menuId);
       }
       const ids = Array.from(idSet);
       if (ids.length > 30) {
@@ -102,7 +102,7 @@ export function CartPanel({ hasOrders }: { hasOrders: boolean }) {
       // コンボ本体 または いずれかのトッピングが注文不可ならコンボ全体を落とす
       const unavailable = items.filter((i) => {
         if (orderable.get(i.menuId) !== true) return true;
-        for (const t of i.toppings ?? []) {
+        for (const t of i.toppings) {
           if (orderable.get(t.menuId) !== true) return true;
         }
         return false;
@@ -122,7 +122,6 @@ export function CartPanel({ hasOrders }: { hasOrders: boolean }) {
         await setDoc(customerRef, {
           tableNumber,
           guestCount: guestCount ?? 1,
-          status: "active",
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
@@ -132,36 +131,32 @@ export function CartPanel({ hasOrders }: { hasOrders: boolean }) {
 
       const orderRef = doc(collection(db, "orders"));
       const batch = writeBatch(db);
-
       batch.set(orderRef, {
         status: "pending",
         customerId: cid,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-
       for (const item of items) {
-        const itemRef = doc(collection(db, "orders", orderRef.id, "items"));
+        const itemRef = doc(db, "orders", orderRef.id, "items", crypto.randomUUID());
         batch.set(itemRef, {
           menuId: item.menuId,
           name: item.name,
           price: item.price,
           quantity: item.quantity,
           checked: false,
-          ...(item.note ? { note: item.note } : {}),
-          ...(item.toppings && item.toppings.length > 0
-            ? {
-                toppings: item.toppings.map((t) => ({
-                  menuId: t.menuId,
-                  name: t.name,
-                  price: t.price,
-                  quantity: t.quantity,
-                })),
-              }
-            : {}),
+          note: item.note,
+          toppings: item.toppings.map((t) => ({
+            menuId: t.menuId,
+            name: t.name,
+            price: t.price,
+            quantity: t.quantity,
+          })),
         });
       }
-
+      for (const menuId of idSet) {
+        batch.set(doc(db, "orderedMenus", menuId), { menuId }, { merge: true });
+      }
       await batch.commit();
 
       trackEvent("purchase", {
@@ -216,7 +211,7 @@ export function CartPanel({ hasOrders }: { hasOrders: boolean }) {
                         </h3>
                         <p className="text-xs font-bold text-[color:var(--color-accent-char)] tabular-nums">
                           ¥{unitPrice.toLocaleString()}
-                          {item.toppings && item.toppings.length > 0 && (
+                          {item.toppings.length > 0 && (
                             <span className="ml-1 text-[10px] font-normal text-[color:var(--color-text-muted)]">
                               /杯
                             </span>
@@ -256,7 +251,7 @@ export function CartPanel({ hasOrders }: { hasOrders: boolean }) {
                       </button>
                     </div>
                     {/* トッピング (ネスト表示) */}
-                    {item.toppings && item.toppings.length > 0 && (
+                    {item.toppings.length > 0 && (
                       <ul className="mt-1 ml-14 space-y-0.5">
                         {item.toppings.map((t) => (
                           <li
@@ -273,7 +268,7 @@ export function CartPanel({ hasOrders }: { hasOrders: boolean }) {
                     <div className="mt-1.5 ml-14">
                       <input
                         type="text"
-                        value={item.note ?? ""}
+                        value={item.note}
                         onChange={(e) => updateItemNote(item.lineId, e.target.value)}
                         placeholder={`「${item.name}」への備考（アレルギー等）`}
                         maxLength={100}

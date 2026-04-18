@@ -12,12 +12,11 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Category, Customer, Menu, Order, OrderItem } from "@/types";
+import type { Category, Customer, Menu, OrderWithItems } from "@/types";
+import { normalizeMenu, normalizeOrder, normalizeOrderItem } from "@/lib/order-utils";
 import { useAdminRole } from "@/components/admin/AdminContext";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { comboLineTotal, flattenForReceipt } from "@/lib/order-utils";
-
-type OrderWithItems = Order & { items: OrderItem[] };
 
 type Period = "daily" | "weekly" | "monthly";
 type Analysis = "sales" | "menu" | "dow";
@@ -315,12 +314,12 @@ export default function AdminSalesPage() {
           getDocs(query(collection(db, "orders"), where("status", "==", "paid"))),
           getDocs(collection(db, "customers")),
         ]);
-        const orderDocs = ordersSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Order);
-        const ordersWithItems: OrderWithItems[] = await Promise.all(
-          orderDocs.map(async (order) => {
-            const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
-            const items: OrderItem[] = itemsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<OrderItem, "id">) }));
-            return { ...order, items };
+        const orderDocs = ordersSnap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
+        const ordersWithItems = await Promise.all(
+          orderDocs.map(async (o) => {
+            const itemsSnap = await getDocs(collection(db, "orders", o.id, "items"));
+            const items = itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>));
+            return { ...o, items };
           })
         );
         setOrders(ordersWithItems);
@@ -345,10 +344,7 @@ export default function AdminSalesPage() {
     );
     const unsubMenus = onSnapshot(collection(db, "menus"), (snap) =>
       setMenus(
-        snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Omit<Menu, "id">),
-        }))
+        snap.docs.map((d) => normalizeMenu(d.id, d.data() as Record<string, unknown>))
       )
     );
     return () => {

@@ -27,11 +27,10 @@ export type Menu = {
    * 在庫売り切れ。isAvailable とは独立に管理。
    * - isAvailable=false: 非公開（顧客側で一切表示しない）
    * - isSoldOut=true:    売り切れ（顧客側で薄表示+「売り切れ」オーバーレイ、注文不可）
-   * undefined は false として扱う。
    */
-  isSoldOut?: boolean;
-  /** 表示順（整数、小さいほど上）。未設定のメニューは最後尾に配置 */
-  sortOrder?: number;
+  isSoldOut: boolean;
+  /** 表示順（整数、小さいほど上）。Firestore に未設定のドキュメントは Number.MAX_SAFE_INTEGER に正規化 */
+  sortOrder: number;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
@@ -53,12 +52,12 @@ export type OrderItem = {
   price: number;
   /** 整数。コンボなら「杯数」 */
   quantity: number;
-  /** ラーメンコンボのみ。このコンボに付くトッピング一覧 (quantity は1杯あたり) */
-  toppings?: OrderItemTopping[];
-  /** 注文時スナップショット */
-  note?: string;
+  /** ラーメンコンボのみ。このコンボに付くトッピング一覧 (quantity は1杯あたり)。ラーメン以外は空配列 */
+  toppings: OrderItemTopping[];
+  /** 注文時スナップショット。備考なしは空文字 */
+  note: string;
   /** チェック状態（旧 checkedItems 配列を置き換え） */
-  checked?: boolean;
+  checked: boolean;
 };
 
 export type Customer = {
@@ -78,9 +77,14 @@ export type Order = {
   status: OrderStatus;
   /** customers コレクションへの参照（必須）。tableNumber・guestCount はここから取得 */
   customerId: string;
+  /** orders/{orderId}/items サブコレクションをフェッチして結合した明細 */
+  items: OrderItem[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
+
+/** Order の別名。items サブコレクション取得済みを明示したい箇所で使用 */
+export type OrderWithItems = Order;
 
 
 export type Admin = {
@@ -109,9 +113,9 @@ export type CartItem = {
   /** 整数。コンボなら「杯数」 */
   quantity: number;
   name: string;
-  /** ラーメンコンボのみ */
-  toppings?: CartItemTopping[];
-  /** 商品ごとの備考（アレルギー等） */
-  note?: string;
+  /** ラーメンコンボのみ。ラーメン以外は空配列 */
+  toppings: CartItemTopping[];
+  /** 商品ごとの備考（アレルギー等）。備考なしは空文字 */
+  note: string;
 };
 

@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import { logout } from "@/lib/admin-auth";
 import { useAdminRole } from "./AdminContext";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 const NAV = [
   { href: "/admin/orders", label: "注文管理", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
@@ -17,6 +19,7 @@ export function AdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const role = useAdminRole();
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const nav =
     role === "staff"
       ? NAV.filter((i) => i.href !== "/admin/sales" && i.href !== "/admin/categories")
@@ -60,10 +63,7 @@ export function AdminSidebar() {
         <button
           title="ログアウト"
           className="w-full flex items-center justify-center md:justify-start gap-3 rounded-lg px-2 md:px-3 py-2.5 text-sm text-[color:var(--color-text-on-dark)]/70 hover:bg-white/5 hover:text-[color:var(--color-text-on-dark)] transition-colors"
-          onClick={async () => {
-            await logout();
-            router.replace("/admin/login");
-          }}
+          onClick={() => setShowLogoutDialog(true)}
         >
           <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -71,6 +71,18 @@ export function AdminSidebar() {
           <span className="hidden md:inline">ログアウト</span>
         </button>
       </div>
+      <ConfirmDialog
+        open={showLogoutDialog}
+        title="ログアウト"
+        message="ログアウトしますか？"
+        confirmLabel="ログアウト"
+        confirmColor="red"
+        onConfirm={async () => {
+          await logout();
+          router.replace("/admin/login");
+        }}
+        onCancel={() => setShowLogoutDialog(false)}
+      />
     </aside>
   );
 }

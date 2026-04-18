@@ -20,6 +20,7 @@ import {
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import type { Category, Menu } from "@/types";
+import { normalizeMenu } from "@/lib/order-utils";
 import { useAdminRole } from "@/components/admin/AdminContext";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { useToast } from "@/components/ui/Snackbar";
@@ -78,18 +79,8 @@ export default function AdminMenusPage() {
   useEffect(() => {
     async function fetchOrderedMenuIds() {
       try {
-        const snap = await getDocs(collection(db, "orders"));
-        const ids = new Set<string>();
-        await Promise.all(
-          snap.docs.map(async (d) => {
-            const itemsSnap = await getDocs(collection(db, "orders", d.id, "items"));
-            for (const itemDoc of itemsSnap.docs) {
-              const menuId = (itemDoc.data() as { menuId: string }).menuId;
-              if (menuId) ids.add(menuId);
-            }
-          })
-        );
-        setOrderedMenuIds(ids);
+        const snap = await getDocs(collection(db, "orderedMenus"));
+        setOrderedMenuIds(new Set(snap.docs.map((d) => d.id)));
       } finally {
         setOrderedLoaded(true);
       }
@@ -102,7 +93,7 @@ export default function AdminMenusPage() {
       collection(db, "menus"),
       (snap) =>
         setMenus(
-          snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Menu, "id">) }))
+          snap.docs.map((d) => normalizeMenu(d.id, d.data() as Record<string, unknown>))
         )
     );
     const unsubCats = onSnapshot(
@@ -149,9 +140,7 @@ export default function AdminMenusPage() {
     // 各グループ内は sortOrder 昇順 (未設定は末尾)、同値は名前順
     for (const arr of groups.values()) {
       arr.sort((a, b) => {
-        const ao = a.sortOrder ?? Number.MAX_SAFE_INTEGER;
-        const bo = b.sortOrder ?? Number.MAX_SAFE_INTEGER;
-        if (ao !== bo) return ao - bo;
+        if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
         return a.name.localeCompare(b.name, "ja");
       });
     }
@@ -191,7 +180,7 @@ export default function AdminMenusPage() {
       } else {
         // 新規: 末尾になるように既存最大 + 1
         const maxOrder = menus.reduce(
-          (m, x) => Math.max(m, x.sortOrder ?? -1),
+          (m, x) => x.sortOrder < Number.MAX_SAFE_INTEGER ? Math.max(m, x.sortOrder) : m,
           -1
         );
         await addDoc(collection(db, "menus"), {
@@ -231,7 +220,7 @@ export default function AdminMenusPage() {
   }
 
   async function handleToggleSoldOut(menu: Menu) {
-    const next = !(menu.isSoldOut ?? false);
+    const next = !menu.isSoldOut;
     setMenus((prev) =>
       prev.map((x) => (x.id === menu.id ? { ...x, isSoldOut: next } : x))
     );
@@ -255,7 +244,7 @@ export default function AdminMenusPage() {
     setError(null);
     try {
       const base = orderedSectionItems.reduce(
-        (m, x) => Math.min(m, x.sortOrder ?? Number.MAX_SAFE_INTEGER),
+        (m, x) => Math.min(m, x.sortOrder),
         Number.MAX_SAFE_INTEGER
       );
       const startAt = base === Number.MAX_SAFE_INTEGER ? 0 : base;
@@ -408,9 +397,7 @@ export default function AdminMenusPage() {
                 const items = menus
                   .filter((m) => m.categoryIds.includes(activeTab))
                   .sort((a, b) => {
-                    const ao = a.sortOrder ?? Number.MAX_SAFE_INTEGER;
-                    const bo = b.sortOrder ?? Number.MAX_SAFE_INTEGER;
-                    if (ao !== bo) return ao - bo;
+                    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
                     return a.name.localeCompare(b.name, "ja");
                   });
                 return items.length > 0 ? [{ category: cat, items }] : [];
@@ -664,7 +651,7 @@ function MenuFormModal({
           imageUrl: menu.imageUrl,
           categoryIds: menu.categoryIds,
           isAvailable: menu.isAvailable,
-          isSoldOut: menu.isSoldOut ?? false,
+          isSoldOut: menu.isSoldOut,
         }
       : EMPTY_FORM
   );
@@ -733,6 +720,9 @@ function MenuFormModal({
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
+            <p className={`mt-1 text-right text-xs ${form.name.length >= 27 ? "text-[color:var(--color-accent-warn)]" : "text-[color:var(--color-text-muted)]"}`}>
+              {form.name.length}/30
+            </p>
           </Field>
           <Field label="説明">
             <textarea
@@ -744,6 +734,9 @@ function MenuFormModal({
                 setForm({ ...form, description: e.target.value })
               }
             />
+            <p className={`mt-1 text-right text-xs ${form.description.length >= 180 ? "text-[color:var(--color-accent-warn)]" : "text-[color:var(--color-text-muted)]"}`}>
+              {form.description.length}/200
+            </p>
           </Field>
           <Field label="価格(税込・円)">
             <input

@@ -4,13 +4,11 @@ import { useEffect, useState } from "react";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
-import type { Order, OrderItem } from "@/types";
+import type { OrderWithItems } from "@/types";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import { BackButton } from "@/components/ui/BackButton";
-import { flattenForReceipt } from "@/lib/order-utils";
+import { flattenForReceipt, normalizeOrder, normalizeOrderItem } from "@/lib/order-utils";
 import Link from "next/link";
-
-type OrderWithItems = Order & { items: OrderItem[] };
 
 export default function BillPage() {
   const { tableNumber, customerId } = useCart();
@@ -28,20 +26,15 @@ export default function BillPage() {
         where("status", "in", ["pending", "completed"])
       );
       const snap = await getDocs(q);
-      const orderDocs = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() }) as Order)
-        .sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0));
-      const data: OrderWithItems[] = await Promise.all(
-        orderDocs.map(async (order) => {
-          const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
-          const items: OrderItem[] = itemsSnap.docs.map((d) => ({
-            id: d.id,
-            ...(d.data() as Omit<OrderItem, "id">),
-          }));
-          return { ...order, items };
+      const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
+      const data = await Promise.all(
+        orderDocs.map(async (o) => {
+          const itemsSnap = await getDocs(collection(db, "orders", o.id, "items"));
+          const items = itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>));
+          return { ...o, items };
         })
       );
-      setOrders(data);
+      setOrders(data.sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0)));
       setLoading(false);
     }
     fetchOrders();

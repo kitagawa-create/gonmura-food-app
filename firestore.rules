@@ -30,10 +30,6 @@ service cloud.firestore {
       return s is string && s.size() <= 200;
     }
 
-    function validNote(s) {
-      return s is string && s.size() <= 100;
-    }
-
     match /categories/{categoryId} {
       allow read: if true;
       allow write: if isOwner()
@@ -61,6 +57,22 @@ service cloud.firestore {
       allow read: if true;
       allow update: if isStaff();
       allow delete: if isStaff();
+
+      match /items/{itemId} {
+        allow create: if request.resource.data.keys().hasAll(['menuId', 'name', 'price', 'quantity', 'toppings', 'note', 'checked'])
+          && request.resource.data.menuId is string
+          && request.resource.data.name is string
+          && request.resource.data.price is int
+          && request.resource.data.price >= 0
+          && request.resource.data.quantity is int
+          && request.resource.data.quantity >= 1
+          && request.resource.data.toppings is list
+          && request.resource.data.note is string
+          && request.resource.data.checked is bool;
+        allow read: if true;
+        allow update: if isStaff();
+        allow delete: if isStaff();
+      }
     }
 
     match /customers/{customerId} {
@@ -74,16 +86,9 @@ service cloud.firestore {
       allow delete: if isStaff();
     }
 
-    match /orders/{orderId}/items/{itemId} {
-      allow create: if request.resource.data.keys().hasAll(['menuId', 'name', 'price', 'quantity'])
-        && request.resource.data.menuId is string
-        && request.resource.data.name is string
-        && request.resource.data.price is int
-        && request.resource.data.price >= 0
-        && request.resource.data.quantity is int
-        && request.resource.data.quantity >= 1;
-      allow read: if true;
-      allow update, delete: if isStaff();
+    match /orderedMenus/{menuId} {
+      allow create, update: if true;
+      allow read: if isStaff();
     }
 
     match /admins/{uid} {

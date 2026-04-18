@@ -231,6 +231,9 @@ export default function AdminCategoriesPage() {
             }}
             placeholder="例: 丼もの"
           />
+          <p className={`mt-1 text-right text-xs ${newName.length >= 18 ? "text-[color:var(--color-accent-warn)]" : "text-[color:var(--color-text-muted)]"}`}>
+            {newName.length}/20
+          </p>
           {addNameError && (
             <p className="mt-1 text-sm text-[color:var(--color-accent-warn)]">
               {addNameError}
@@ -416,20 +419,25 @@ function CategoryRow({
           {index + 1}.
         </span>
         {editing ? (
-          <input
-            autoFocus
-            className="flex-1 rounded border border-[color:var(--color-accent-char)] bg-[color:var(--color-bg-base)] px-2 py-1 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
-            maxLength={20}
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              if (nameError) setNameError(null);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleSave();
-              if (e.key === "Escape") { setEditing(false); setName(category.name); }
-            }}
-          />
+          <div className="flex-1">
+            <input
+              autoFocus
+              className="w-full rounded border border-[color:var(--color-accent-char)] bg-[color:var(--color-bg-base)] px-2 py-1 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
+              maxLength={20}
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (nameError) setNameError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSave();
+                if (e.key === "Escape") { setEditing(false); setName(category.name); }
+              }}
+            />
+            <p className={`mt-0.5 text-right text-xs ${name.length >= 18 ? "text-[color:var(--color-accent-warn)]" : "text-[color:var(--color-text-muted)]"}`}>
+              {name.length}/20
+            </p>
+          </div>
         ) : (
           <span className="flex-1 px-2 py-1 text-sm text-[color:var(--color-text-primary)]">
             {category.name}
