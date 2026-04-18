@@ -14,6 +14,14 @@ export type Category = {
   updatedAt: Timestamp;
 };
 
+/**
+ * - active:   公開中・注文可
+ * - soldout:  売り切れ表示（顧客側でオーバーレイ）・注文不可
+ * - hidden:   非公開（顧客・管理両画面で非表示）
+ * - deleted:  ソフトデリート済み（両画面で非表示、ドキュメント保持）
+ */
+export type MenuStatus = "active" | "soldout" | "hidden" | "deleted";
+
 export type Menu = {
   id: string;
   name: string;
@@ -22,15 +30,7 @@ export type Menu = {
   price: number;
   categoryIds: string[];
   imageUrl: string;
-  isAvailable: boolean;
-  /**
-   * 在庫売り切れ。isAvailable とは独立に管理。
-   * - isAvailable=false: 非公開（顧客側で一切表示しない）
-   * - isSoldOut=true:    売り切れ（顧客側で薄表示+「売り切れ」オーバーレイ、注文不可）
-   */
-  isSoldOut: boolean;
-  /** ソフトデリート済み。true のとき顧客・管理両画面で非表示。ドキュメントは残す（分析用） */
-  isDeleted: boolean;
+  status: MenuStatus;
   /** 表示順（整数、小さいほど上）。Firestore に未設定のドキュメントは Number.MAX_SAFE_INTEGER に正規化 */
   sortOrder: number;
   createdAt: Timestamp;

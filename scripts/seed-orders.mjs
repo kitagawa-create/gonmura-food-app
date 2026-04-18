@@ -79,7 +79,7 @@ const menus = menusRes
       name: f.name?.stringValue,
       price: parseInt(f.price?.integerValue, 10),
       categoryIds: (f.categoryIds?.arrayValue?.values || []).map((v) => v.stringValue),
-      isAvailable: f.isAvailable?.booleanValue,
+      status: f.status?.stringValue ?? "active",
     };
   });
 
@@ -93,10 +93,10 @@ const catNameById = new Map(
 function hasCategory(menu, catName) {
   return menu.categoryIds.some((id) => catNameById.get(id) === catName);
 }
-const ramens = menus.filter((m) => hasCategory(m, "ラーメン") && m.isAvailable);
-const toppings = menus.filter((m) => hasCategory(m, "トッピング") && m.isAvailable);
-const sides = menus.filter((m) => hasCategory(m, "サイドメニュー") && m.isAvailable);
-const drinks = menus.filter((m) => hasCategory(m, "ドリンク") && m.isAvailable);
+const ramens = menus.filter((m) => hasCategory(m, "ラーメン") && m.status === "active");
+const toppings = menus.filter((m) => hasCategory(m, "トッピング") && m.status === "active");
+const sides = menus.filter((m) => hasCategory(m, "サイドメニュー") && m.status === "active");
+const drinks = menus.filter((m) => hasCategory(m, "ドリンク") && m.status === "active");
 console.log(`  ラーメン:${ramens.length} トッピング:${toppings.length} サイド:${sides.length} ドリンク:${drinks.length}`);
 
 // ============== 2) 既存データ全削除 ==============

@@ -92,10 +92,10 @@ export default function MenuPage() {
     return unsub;
   }, [tableNumber, customerId, resetSession]);
 
-  // 公開中のメニューを購読 (isAvailable 即時反映)
+  // 公開中のメニューを購読 (status 変更を即時反映)
   useEffect(() => {
     const unsub = onSnapshot(
-      query(collection(db, "menus"), where("isAvailable", "==", true)),
+      query(collection(db, "menus"), where("status", "in", ["active", "soldout"])),
       (snap) => {
         setMenus(snap.docs.map((d) => normalizeMenu(d.id, d.data() as Record<string, unknown>)));
         setMenusLoaded(true);
@@ -147,7 +147,7 @@ export default function MenuPage() {
   useEffect(() => {
     if (!selectedMenu) return;
     const stillThere = menus.find((m) => m.id === selectedMenu.id);
-    if (!stillThere || stillThere.isSoldOut) {
+    if (!stillThere || stillThere.status === "soldout") {
       setSelectedMenu(null);
       setExtraQty({});
     }
@@ -188,7 +188,7 @@ export default function MenuPage() {
   const toppings = useMemo(
     () =>
       menus
-        .filter((m) => menuBelongsToCategory(m, categories, "トッピング") && !m.isSoldOut)
+        .filter((m) => menuBelongsToCategory(m, categories, "トッピング") && m.status !== "soldout")
         .sort((a, b) => a.sortOrder - b.sortOrder),
     [menus, categories]
   );
@@ -343,7 +343,7 @@ export default function MenuPage() {
             className="grid w-full gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
           >
             {filteredMenus.map((menu) => {
-              const sold = menu.isSoldOut;
+              const sold = menu.status === "soldout";
               return (
                 <button
                   key={menu.id}

@@ -96,8 +96,8 @@ export function CartPanel({ hasOrders }: { hasOrders: boolean }) {
       // 非公開 (isAvailable=false) と 売り切れ (isSoldOut=true) は注文不可
       const orderable = new Map<string, boolean>();
       snap.docs.forEach((d) => {
-        const data = d.data() as { isAvailable?: boolean; isSoldOut?: boolean };
-        orderable.set(d.id, data.isAvailable === true && data.isSoldOut !== true);
+        const data = d.data() as { status?: string };
+        orderable.set(d.id, data.status === "active");
       });
       // コンボ本体 または いずれかのトッピングが注文不可ならコンボ全体を落とす
       const unavailable = items.filter((i) => {

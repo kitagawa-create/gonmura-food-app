@@ -1,4 +1,4 @@
-import type { CartItem, Menu, Order, OrderItem, OrderItemTopping } from "@/types";
+import type { CartItem, Menu, MenuStatus, Order, OrderItem, OrderItemTopping } from "@/types";
 
 // 以下 OrderItem / CartItem 双方で使える汎用ヘルパー。
 // - price フィールドは単品価格 (トッピング除く) として扱う。
@@ -65,14 +65,30 @@ export function comboLineHash(
   return `${menuId}#${t}`;
 }
 
-/** Firestore から取得した生データを Menu 型に正規化。フィールド欠損のある既存ドキュメントを安全に扱う。 */
+/** Firestore から取得した生データを Menu 型に正規化。旧 isAvailable/isSoldOut/isDeleted フィールドにも後方互換で対応。 */
 export function normalizeMenu(id: string, data: Record<string, unknown>): Menu {
+  const VALID_STATUSES: MenuStatus[] = ["active", "soldout", "hidden", "deleted"];
+  let status: MenuStatus;
+  if (typeof data.status === "string" && (VALID_STATUSES as string[]).includes(data.status)) {
+    status = data.status as MenuStatus;
+  } else {
+    // 旧フィールドから変換
+    if (data.isDeleted === true) status = "deleted";
+    else if (data.isAvailable === false) status = "hidden";
+    else if (data.isSoldOut === true) status = "soldout";
+    else status = "active";
+  }
   return {
-    ...(data as Omit<Menu, "id" | "isSoldOut" | "sortOrder">),
     id,
-    isSoldOut: data.isSoldOut === true,
-    isDeleted: data.isDeleted === true,
+    name: typeof data.name === "string" ? data.name : "",
+    description: typeof data.description === "string" ? data.description : "",
+    price: typeof data.price === "number" ? Math.trunc(data.price) : 0,
+    categoryIds: Array.isArray(data.categoryIds) ? (data.categoryIds as string[]) : [],
+    imageUrl: typeof data.imageUrl === "string" ? data.imageUrl : "",
+    status,
     sortOrder: typeof data.sortOrder === "number" ? data.sortOrder : Number.MAX_SAFE_INTEGER,
+    createdAt: data.createdAt as Menu["createdAt"],
+    updatedAt: data.updatedAt as Menu["updatedAt"],
   };
 }
 

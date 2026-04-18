@@ -17,7 +17,7 @@ import {
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
-import type { Category, Menu } from "@/types";
+import type { Category, Menu, MenuStatus } from "@/types";
 import { normalizeMenu } from "@/lib/order-utils";
 import { useAdminRole } from "@/components/admin/AdminContext";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
@@ -29,8 +29,7 @@ type MenuFormData = {
   price: number;
   imageUrl: string;
   categoryIds: string[];
-  isAvailable: boolean;
-  isSoldOut: boolean;
+  status: MenuStatus;
 };
 
 const EMPTY_FORM: MenuFormData = {
@@ -39,8 +38,7 @@ const EMPTY_FORM: MenuFormData = {
   price: 0,
   imageUrl: "",
   categoryIds: [],
-  isAvailable: true,
-  isSoldOut: false,
+  status: "active",
 };
 
 
@@ -104,7 +102,7 @@ export default function AdminMenusPage() {
   }, [categories]);
 
   // カテゴリ順でメニューをグルーピング。複数カテゴリ所属のメニューは各カテゴリに重複表示する。
-  const visibleMenus = useMemo(() => menus.filter((m) => !m.isDeleted), [menus]);
+  const visibleMenus = useMemo(() => menus.filter((m) => m.status !== "deleted"), [menus]);
 
   const groupedMenus = useMemo(() => {
     const groups = new Map<string | null, Menu[]>();
@@ -185,19 +183,19 @@ export default function AdminMenusPage() {
   }
 
   async function handleToggleAvailable(menu: Menu) {
-    const next = !menu.isAvailable;
+    const next: MenuStatus = menu.status === "hidden" ? "active" : "hidden";
     setMenus((prev) =>
-      prev.map((x) => (x.id === menu.id ? { ...x, isAvailable: next } : x))
+      prev.map((x) => (x.id === menu.id ? { ...x, status: next } : x))
     );
     try {
       await updateDoc(doc(db, "menus", menu.id), {
-        isAvailable: next,
+        status: next,
         updatedAt: serverTimestamp(),
       });
-      toast("公開状態を更新しました");
+      toast(next === "hidden" ? "非公開にしました" : "公開しました");
     } catch (e) {
       setMenus((prev) =>
-        prev.map((x) => (x.id === menu.id ? { ...x, isAvailable: !next } : x))
+        prev.map((x) => (x.id === menu.id ? { ...x, status: menu.status } : x))
       );
       setError(e instanceof Error ? e.message : "更新に失敗しました。");
       toast("更新に失敗しました");
@@ -205,19 +203,19 @@ export default function AdminMenusPage() {
   }
 
   async function handleToggleSoldOut(menu: Menu) {
-    const next = !menu.isSoldOut;
+    const next: MenuStatus = menu.status === "soldout" ? "active" : "soldout";
     setMenus((prev) =>
-      prev.map((x) => (x.id === menu.id ? { ...x, isSoldOut: next } : x))
+      prev.map((x) => (x.id === menu.id ? { ...x, status: next } : x))
     );
     try {
       await updateDoc(doc(db, "menus", menu.id), {
-        isSoldOut: next,
+        status: next,
         updatedAt: serverTimestamp(),
       });
-      toast(next ? "売り切れに設定しました" : "売り切れを解除しました");
+      toast(next === "soldout" ? "売り切れに設定しました" : "売り切れを解除しました");
     } catch (e) {
       setMenus((prev) =>
-        prev.map((x) => (x.id === menu.id ? { ...x, isSoldOut: !next } : x))
+        prev.map((x) => (x.id === menu.id ? { ...x, status: menu.status } : x))
       );
       setError(e instanceof Error ? e.message : "更新に失敗しました。");
       toast("更新に失敗しました");
@@ -292,8 +290,7 @@ export default function AdminMenusPage() {
     setDeleting(true);
     try {
       await updateDoc(doc(db, "menus", deleteTarget.id), {
-        isDeleted: true,
-        isAvailable: false,
+        status: "deleted",
         updatedAt: serverTimestamp(),
       });
       setDeleteTarget(null);
@@ -374,7 +371,7 @@ export default function AdminMenusPage() {
 
       {loading ? (
         <PageLoader />
-      ) : menus.filter((m) => !m.isDeleted).length === 0 ? (
+      ) : visibleMenus.length === 0 ? (
         <p className="text-sm text-[color:var(--color-text-muted)]">メニューがまだありません。</p>
       ) : (
         <div className="space-y-6">
@@ -449,11 +446,11 @@ export default function AdminMenusPage() {
                       }}
                       onClick={() => { if (isMoveTarget) handleTapMoveMenu(items, m.id); }}
                       className={`relative rounded-xl border bg-[color:var(--color-bg-card)] p-4 shadow-sm select-none ${
-                        m.isAvailable ? "" : "bg-[color:var(--color-bg-subtle)] opacity-60 border-dashed"
+                        m.status === "hidden" ? "bg-[color:var(--color-bg-subtle)] opacity-60 border-dashed" : ""
                       } ${
                         isMovingThis
                           ? "border-[color:var(--color-accent-char)] ring-2 ring-[color:var(--color-accent-char)]/30 bg-[color:var(--color-accent-char)]/5"
-                          : m.isSoldOut
+                          : m.status === "soldout"
                             ? "border-[color:var(--color-accent-warn)]"
                             : "border-[color:var(--color-border)]"
                       } ${isMoveTarget ? "cursor-pointer" : ""} ${isDragging ? "opacity-40" : ""}`}
@@ -496,14 +493,14 @@ export default function AdminMenusPage() {
                             </p>
                           )}
                           {/* 非公開・売り切れバッジ */}
-                          {(!m.isAvailable || m.isSoldOut) && (
+                          {(m.status === "hidden" || m.status === "soldout") && (
                             <div className="mt-1.5 flex flex-wrap gap-1">
-                              {!m.isAvailable && (
+                              {m.status === "hidden" && (
                                 <span className="rounded-full bg-[color:var(--color-text-muted)] px-2 py-0.5 text-[10px] font-bold text-white">
                                   非公開中
                                 </span>
                               )}
-                              {m.isSoldOut && (
+                              {m.status === "soldout" && (
                                 <span className="rounded-full bg-[color:var(--color-accent-warn)] px-2 py-0.5 text-[10px] font-bold text-white">
                                   売り切れ中
                                 </span>
@@ -516,37 +513,37 @@ export default function AdminMenusPage() {
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         <button
                           onClick={() => {
-                            if (m.isAvailable) {
+                            if (m.status !== "hidden") {
                               setToggleConfirm({ menu: m, type: "available" });
                             } else {
                               handleToggleAvailable(m);
                             }
                           }}
-                          aria-pressed={!m.isAvailable}
+                          aria-pressed={m.status === "hidden"}
                           className={`rounded-lg border px-3 py-1 text-xs transition-colors ${
-                            !m.isAvailable
+                            m.status === "hidden"
                               ? "border-[color:var(--color-accent-char)] bg-[color:var(--color-accent-char)] text-white hover:opacity-90"
                               : "border-[color:var(--color-accent-char)]/40 text-[color:var(--color-accent-char)] hover:bg-[color:var(--color-accent-char)]/10"
                           }`}
                         >
-                          {m.isAvailable ? "非公開にする" : "公開する"}
+                          {m.status === "hidden" ? "公開する" : "非公開にする"}
                         </button>
                         <button
                           onClick={() => {
-                            if (!m.isSoldOut) {
+                            if (m.status !== "soldout") {
                               setToggleConfirm({ menu: m, type: "soldout" });
                             } else {
                               handleToggleSoldOut(m);
                             }
                           }}
-                          aria-pressed={!!m.isSoldOut}
+                          aria-pressed={m.status === "soldout"}
                           className={`rounded-lg border px-3 py-1 text-xs transition-colors ${
-                            m.isSoldOut
+                            m.status === "soldout"
                               ? "border-[color:var(--color-accent-warn)] bg-[color:var(--color-accent-warn)] text-white hover:opacity-90"
                               : "border-[color:var(--color-accent-warn)]/40 text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10"
                           }`}
                         >
-                          {m.isSoldOut ? "売り切れ解除" : "売り切れにする"}
+                          {m.status === "soldout" ? "売り切れ解除" : "売り切れにする"}
                         </button>
                         {role === "owner" && (
                           <button
@@ -639,8 +636,7 @@ function MenuFormModal({
           price: menu.price,
           imageUrl: menu.imageUrl,
           categoryIds: menu.categoryIds,
-          isAvailable: menu.isAvailable,
-          isSoldOut: menu.isSoldOut,
+          status: menu.status,
         }
       : EMPTY_FORM
   );
@@ -786,26 +782,17 @@ function MenuFormModal({
               )}
             </div>
           </Field>
-          <label className="flex items-center gap-2 text-sm text-[color:var(--color-text-primary)]">
-            <input
-              type="checkbox"
-              checked={form.isAvailable}
-              onChange={(e) =>
-                setForm({ ...form, isAvailable: e.target.checked })
-              }
-            />
-            公開する
-          </label>
-          <label className="flex items-center gap-2 text-sm text-[color:var(--color-accent-warn)]">
-            <input
-              type="checkbox"
-              checked={form.isSoldOut}
-              onChange={(e) =>
-                setForm({ ...form, isSoldOut: e.target.checked })
-              }
-            />
-            売り切れ中
-          </label>
+          <Field label="公開状態">
+            <select
+              className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
+              value={form.status}
+              onChange={(e) => setForm({ ...form, status: e.target.value as MenuStatus })}
+            >
+              <option value="active">公開中</option>
+              <option value="soldout">売り切れ</option>
+              <option value="hidden">非公開</option>
+            </select>
+          </Field>
         </div>
 
         </div>

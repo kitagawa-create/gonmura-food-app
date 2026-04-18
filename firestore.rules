@@ -47,7 +47,7 @@ service cloud.firestore {
             && validDescription(request.resource.data.description))
         || (isStaff()
             && request.resource.data.diff(resource.data).affectedKeys()
-                .hasOnly(["isAvailable", "isSoldOut", "updatedAt"]));
+                .hasOnly(["status", "updatedAt"]));
     }
 
     match /orders/{orderId} {
