@@ -307,10 +307,7 @@ for (let day = new Date(START); day < END; day.setDate(day.getDate() + 1)) {
           name: `projects/${PROJECT}/databases/(default)/documents/orders/${orderId}`,
           fields: {
             customerId: { stringValue: customerId },
-            tableNumber: { integerValue: String(tableNumber) },
-            guestCount: { integerValue: String(guestCount) },
             status: { stringValue: "paid" },
-            customerNote: { stringValue: "" },
             createdAt: { timestampValue: isoTs },
             updatedAt: { timestampValue: isoTs },
           },
