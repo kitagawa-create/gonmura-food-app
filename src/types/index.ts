@@ -61,13 +61,10 @@ export type OrderItem = {
   checked?: boolean;
 };
 
-export type CustomerStatus = "active" | "paid";
-
 export type Customer = {
   id: string;
   tableNumber: number;
   guestCount: number;
-  status: CustomerStatus;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
@@ -79,7 +76,6 @@ export type AdminRole = "owner" | "staff";
 export type Order = {
   id: string;
   status: OrderStatus;
-  customerNote: string;
   /** customers コレクションへの参照（必須）。tableNumber・guestCount はここから取得 */
   customerId: string;
   createdAt: Timestamp;

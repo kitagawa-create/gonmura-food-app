@@ -68,7 +68,7 @@ function rehydrateItems(raw: unknown): CartItem[] {
     .filter((x) => x.menuId);
 }
 
-// admin/tables 側が String(n) で保存するケースもあるため、JSON 失敗時は数値として再解釈
+// 旧バージョンが String(n) で保存するケースがあるため、JSON 失敗時は数値として再解釈
 function loadTableNumber(): number | null {
   if (typeof window === "undefined") return null;
   const raw = (() => {

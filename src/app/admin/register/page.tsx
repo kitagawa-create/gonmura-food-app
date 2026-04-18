@@ -10,7 +10,6 @@ import {
   orderBy,
   query,
   serverTimestamp,
-  updateDoc,
   where,
   writeBatch,
 } from "firebase/firestore";
@@ -36,7 +35,6 @@ type TableBill = {
 const DEFAULT_GOAL = 100_000;
 const GOAL_KEY = "gonmura-sales-goal";
 const TABLE_NAMES_KEY = "gonmura-table-names";
-const TABLE_COUNT = 50;
 
 function todayISO() {
   const d = new Date();
@@ -144,10 +142,6 @@ export default function AdminRegisterPage() {
   const [processing, setProcessing] = useState<number | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
 
-  const [moveSource, setMoveSource] = useState<{ tableNumber: number; customerId: string } | null>(null);
-  const [moveDest, setMoveDest] = useState<number | null>(null);
-  const [moving, setMoving] = useState(false);
-
   useEffect(() => {
     setTableNames(loadTableNames());
     const s = localStorage.getItem(GOAL_KEY);
@@ -172,7 +166,8 @@ export default function AdminRegisterPage() {
             const items: OrderItem[] = itemsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<OrderItem, "id">) }));
             return { ...order, items };
           })
-        ).then((data) => { setUnpaidOrders(data); setOrdersLoaded(true); });
+        ).then((data) => { setUnpaidOrders(data); setOrdersLoaded(true); })
+         .catch(() => { setUnpaidOrders([]); setOrdersLoaded(true); });
       }
     );
   }, []);
@@ -223,10 +218,6 @@ export default function AdminRegisterPage() {
   }, [dateFilter]);
 
   const customerById = useMemo(() => new Map(customers.map((c) => [c.id, c])), [customers]);
-  const activeByTable = useMemo(
-    () => new Map(customers.filter((c) => c.status === "active").map((c) => [c.tableNumber, c])),
-    [customers]
-  );
   const unpaidBills = useMemo(() => groupByCustomer(unpaidOrders, customerById), [unpaidOrders, customerById]);
   const paidBills = useMemo(() => groupByCustomer(paidOrders, customerById), [paidOrders, customerById]);
 
@@ -236,8 +227,6 @@ export default function AdminRegisterPage() {
   );
   const achievePercent = goal > 0 ? (todaySales / goal) * 100 : 0;
   const remaining = Math.max(goal - todaySales, 0);
-
-  const allTables = useMemo(() => Array.from({ length: TABLE_COUNT }, (_, i) => i + 1), []);
 
   function saveGoal() {
     const n = parseInt(goalInput, 10);
@@ -261,24 +250,11 @@ export default function AdminRegisterPage() {
       for (const o of payTarget.orders) {
         batch.update(doc(db, "orders", o.id), { status: "paid", updatedAt: serverTimestamp() });
       }
-      batch.update(doc(db, "customers", payTarget.customerId), { status: "paid", updatedAt: serverTimestamp() });
       await batch.commit();
       setPayTarget(null);
     } catch (e) { setPayError(e instanceof Error ? e.message : "精算に失敗しました"); }
     finally { setProcessing(null); }
   }, [payTarget, processing]);
-
-  const doMoveTable = useCallback(async () => {
-    if (!moveSource || moveDest === null || moving) return;
-    setMoving(true);
-    try {
-      await updateDoc(doc(db, "customers", moveSource.customerId), { tableNumber: moveDest, updatedAt: serverTimestamp() });
-      setMoveSource(null);
-      setMoveDest(null);
-      toast("席を移動しました");
-    } catch { toast("移動に失敗しました"); }
-    finally { setMoving(false); }
-  }, [moveSource, moveDest, moving, toast]);
 
   if (!ordersLoaded || !todayLoaded) return <PageLoader />;
 
@@ -444,18 +420,10 @@ export default function AdminRegisterPage() {
                     </div>
 
                     <div className="flex gap-2">
-                      {customer && (
-                        <button
-                          onClick={() => setMoveSource({ tableNumber: bill.tableNumber, customerId: bill.customerId })}
-                          className="flex-1 rounded-xl border border-[color:var(--color-accent-char)]/40 py-2 text-sm font-medium text-[color:var(--color-accent-char)] hover:bg-[color:var(--color-accent-char)]/5 transition-colors"
-                        >
-                          席移動
-                        </button>
-                      )}
                       <button
                         onClick={() => setPayTarget(bill)}
                         disabled={processing !== null}
-                        className="flex-[2] rounded-xl bg-[color:var(--color-accent-negi)] py-2 text-sm font-bold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+                        className="w-full rounded-xl bg-[color:var(--color-accent-negi)] py-2 text-sm font-bold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
                       >
                         {processing === bill.tableNumber ? "処理中..." : "精算完了"}
                       </button>
@@ -523,57 +491,6 @@ export default function AdminRegisterPage() {
               })}
             </div>
           )}
-        </div>
-      )}
-
-      {/* ── 席移動モーダル ── */}
-      {moveSource && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] p-6">
-            <h2 className="text-lg font-bold text-[color:var(--color-text-primary)] mb-1">席移動</h2>
-            <p className="text-sm text-[color:var(--color-text-muted)] mb-4">
-              {tableNames.get(moveSource.tableNumber) ?? `テーブル${moveSource.tableNumber}`} の客を移動します
-            </p>
-            <div className="grid grid-cols-5 gap-2 mb-5 max-h-52 overflow-y-auto pr-1">
-              {allTables
-                .filter((n) => n !== moveSource.tableNumber)
-                .map((n) => {
-                  const occupied = activeByTable.has(n);
-                  const name = tableNames.get(n);
-                  const selected = moveDest === n;
-                  return (
-                    <button
-                      key={n}
-                      onClick={() => !occupied && setMoveDest(n)}
-                      disabled={occupied}
-                      className={`rounded-lg border py-2 px-1 text-xs font-medium transition-colors ${
-                        selected
-                          ? "border-[color:var(--color-accent-char)] bg-[color:var(--color-accent-char)] text-white"
-                          : occupied
-                          ? "border-[color:var(--color-border)] bg-[color:var(--color-bg-subtle)] text-[color:var(--color-text-muted)] opacity-40 cursor-not-allowed"
-                          : "border-[color:var(--color-border)] bg-[color:var(--color-bg-subtle)] text-[color:var(--color-text-primary)] hover:border-[color:var(--color-accent-char)]"
-                      }`}
-                    >
-                      {name ? (
-                        <span className="block truncate leading-tight">{name}</span>
-                      ) : (
-                        <span>{n}</span>
-                      )}
-                    </button>
-                  );
-                })}
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => { setMoveSource(null); setMoveDest(null); }}
-                className="flex-1 rounded-xl border border-[color:var(--color-border)] py-2.5 text-sm font-medium text-[color:var(--color-text-primary)] hover:opacity-80 transition-opacity">
-                キャンセル
-              </button>
-              <button onClick={doMoveTable} disabled={moveDest === null || moving}
-                className="flex-1 rounded-xl bg-[color:var(--color-accent-char)] py-2.5 text-sm font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity">
-                {moving ? "移動中..." : "移動する"}
-              </button>
-            </div>
-          </div>
         </div>
       )}
 

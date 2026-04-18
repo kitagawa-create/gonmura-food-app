@@ -313,7 +313,7 @@ export default function AdminSalesPage() {
       try {
         const [ordersSnap, customersSnap] = await Promise.all([
           getDocs(query(collection(db, "orders"), where("status", "==", "paid"))),
-          getDocs(query(collection(db, "customers"), where("status", "==", "paid"))),
+          getDocs(collection(db, "customers")),
         ]);
         const orderDocs = ordersSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Order);
         const ordersWithItems: OrderWithItems[] = await Promise.all(

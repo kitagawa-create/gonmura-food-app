@@ -720,16 +720,17 @@ export default function MenuPage() {
             <h2 className="text-lg font-bold text-[color:var(--color-text-primary)] mb-4">
               テーブル番号を変更
             </h2>
-            <input
-              type="number"
-              min="1"
-              max="50"
+            <select
               value={newTableInput}
               onChange={(e) => { setNewTableInput(e.target.value); setTableChangeError(""); }}
-              placeholder="1〜50の番号"
               autoFocus
               className="w-full bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-center text-2xl text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)] mb-4"
-            />
+            >
+              <option value="">選択してください</option>
+              {Array.from({ length: 50 }, (_, i) => i + 1).map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
             {tableChangeError && (
               <p className="text-sm text-[color:var(--color-accent-warn)] text-center mb-3">
                 {tableChangeError}

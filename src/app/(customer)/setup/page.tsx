@@ -51,15 +51,17 @@ export default function SetupPage() {
             <label className="block text-sm text-[color:var(--color-text-muted)] mb-1">
               テーブル番号
             </label>
-            <input
-              type="number"
-              min="1"
+            <select
               required
               value={tableInput}
               onChange={(e) => { setTableInput(e.target.value); setError(""); }}
-              placeholder="例: 5"
-              className="w-full bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-center text-2xl text-[color:var(--color-text-primary)] placeholder-[color:var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-soy)]"
-            />
+              className="w-full bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-center text-2xl text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-soy)]"
+            >
+              <option value="">選択してください</option>
+              {Array.from({ length: 50 }, (_, i) => i + 1).map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-sm text-[color:var(--color-text-muted)] mb-1">

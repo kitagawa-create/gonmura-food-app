@@ -35,7 +35,7 @@ type OrderItem = {
   checked?: boolean;
 };
 
-type OrderWithItems = Omit<Order, "items" | "checkedItems"> & { items: OrderItem[] };
+type OrderWithItems = Order & { items: OrderItem[] };
 
 // ---------- helpers ----------
 
@@ -583,18 +583,6 @@ function ActiveOrderCard({
         </div>
       </div>
 
-      {/* 備考 */}
-      {order.customerNote && (
-        <div className="mb-3 rounded-lg border-l-4 border-[color:var(--color-accent-warn)] bg-[color:var(--color-accent-warn)]/10 px-3 py-2">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-[color:var(--color-accent-warn)]">
-            備考
-          </p>
-          <p className="text-base leading-snug text-[color:var(--color-text-primary)]">
-            {order.customerNote}
-          </p>
-        </div>
-      )}
-
       {/* 一括操作 */}
       <div className="mb-2 flex gap-2">
         <button
@@ -701,6 +689,11 @@ function ActiveOrderCard({
                       </li>
                     ))}
                   </ul>
+                )}
+                {item.note && (
+                  <p className="mt-1 ml-10 text-xs text-[color:var(--color-accent-warn)]">
+                    ※ {item.note}
+                  </p>
                 )}
               </button>
               {editMode && (
@@ -849,11 +842,6 @@ function HistoryView({
     return unsub;
   }, [dateSearch, onError]);
 
-  const totalAmount = useMemo(
-    () => orders.reduce((sum, o) => sum + o.items.reduce((s, i) => s + i.price * i.quantity, 0), 0),
-    [orders]
-  );
-
   const availableTables = useMemo(
     () =>
       [
@@ -873,9 +861,6 @@ function HistoryView({
         : orders,
     [orders, tableFilter, customerMap]
   );
-
-  // totalAmount は filteredOrders ベースで再計算
-  void totalAmount;
 
   return (
     <div className="flex-1 overflow-y-auto -mr-3 md:-mr-6 pr-3 md:pr-6">
@@ -1022,15 +1007,15 @@ function HistoryOrderCard({
                   ))}
                 </ul>
               )}
+              {item.note && (
+                <p className="mt-0.5 ml-4 text-xs text-[color:var(--color-accent-warn)]">
+                  ※ {item.note}
+                </p>
+              )}
             </li>
           );
         })}
       </ul>
-      {order.customerNote && (
-        <p className="mt-2 text-xs text-[color:var(--color-text-muted)] border-t border-[color:var(--color-border)] pt-2">
-          備考: {order.customerNote}
-        </p>
-      )}
 
       {!isPaid && (
         <div className="mt-3 flex justify-end">
