@@ -697,7 +697,7 @@ function MenuFormModal({
         <div className="flex-1 overflow-y-auto px-6 py-4">
 
         <div className="space-y-3">
-          <Field label="名前">
+          <Field label="名前" required>
             <input
               required
               maxLength={30}
@@ -723,7 +723,7 @@ function MenuFormModal({
               {form.description.length}/200
             </p>
           </Field>
-          <Field label="価格(税込・円)">
+          <Field label="価格(税込・円)" required>
             <input
               type="text"
               inputMode="numeric"
@@ -782,7 +782,7 @@ function MenuFormModal({
               )}
             </div>
           </Field>
-          <Field label="公開状態">
+          <Field label="公開状態" required>
             <select
               className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
               value={form.status}
@@ -814,14 +814,23 @@ function MenuFormModal({
 
 function Field({
   label,
+  required,
   children,
 }: {
   label: string;
+  required?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div>
-      <label className="mb-1 block text-xs text-[color:var(--color-text-muted)]">{label}</label>
+      <div className="mb-1 flex items-center gap-1.5">
+        <label className="block text-xs text-[color:var(--color-text-muted)]">{label}</label>
+        {required ? (
+          <span className="text-[10px] font-medium text-white bg-[color:var(--color-accent-warn)] rounded px-1 py-0.5 leading-none">必須</span>
+        ) : (
+          <span className="text-[10px] text-[color:var(--color-text-muted)] bg-[color:var(--color-bg-subtle)] rounded px-1 py-0.5 leading-none">任意</span>
+        )}
+      </div>
       {children}
     </div>
   );

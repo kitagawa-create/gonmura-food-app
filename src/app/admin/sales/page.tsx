@@ -852,6 +852,7 @@ export default function AdminSalesPage() {
                       データがありません
                     </p>
                   ) : (
+                    <>
                     <table className="w-full table-fixed text-xs tabular-nums shrink-0">
                       <thead>
                         <tr className="border-b border-[color:var(--color-border)] text-[color:var(--color-text-muted)]">
@@ -887,6 +888,7 @@ export default function AdminSalesPage() {
                         </tbody>
                       </table>
                     </div>
+                    </>
                   )}
                   <p className="text-[11px] text-[color:var(--color-text-muted)] mt-2 shrink-0">
                     グラフのポイントをタップするとその期間の詳細が見られます
