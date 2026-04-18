@@ -548,7 +548,9 @@ export default function AdminSalesPage() {
             className={selectCls}
           >
             <option value="sales">売上推移</option>
+            <option disabled>──────────</option>
             <option value="menu">メニュー別売数</option>
+            <option disabled>──────────</option>
             <option value="dow">曜日・時間帯</option>
           </select>
         }
@@ -815,9 +817,6 @@ export default function AdminSalesPage() {
               ) : (
                 /* テーブル別売上 */
                 <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-                  <p className="text-xs font-medium text-[color:var(--color-text-muted)] mb-2 shrink-0">
-                    テーブル別売上
-                  </p>
                   {tableBreakdown.length === 0 ? (
                     <p className="text-xs text-[color:var(--color-text-muted)]">
                       データがありません
@@ -825,12 +824,12 @@ export default function AdminSalesPage() {
                   ) : (
                     <div className="flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable]">
                       <table className="w-full text-xs tabular-nums">
-                        <thead className="text-[color:var(--color-text-muted)] sticky top-0 bg-[color:var(--color-bg-card)]">
+                        <thead>
                           <tr>
-                            <th className="text-left font-normal py-1.5">テーブル</th>
-                            <th className="text-right font-normal py-1.5 w-16">注文数</th>
-                            <th className="text-right font-normal py-1.5 w-24">合計売上</th>
-                            <th className="text-right font-normal py-1.5 w-24">テーブル単価</th>
+                            <th className="sticky top-0 text-left font-normal py-1.5 w-1/4 bg-[color:var(--color-bg-card)] text-[color:var(--color-text-muted)]">テーブル</th>
+                            <th className="sticky top-0 text-right font-normal py-1.5 w-1/4 bg-[color:var(--color-bg-card)] text-[color:var(--color-text-muted)]">注文数</th>
+                            <th className="sticky top-0 text-right font-normal py-1.5 w-1/4 bg-[color:var(--color-bg-card)] text-[color:var(--color-text-muted)]">合計売上</th>
+                            <th className="sticky top-0 text-right font-normal py-1.5 w-1/4 bg-[color:var(--color-bg-card)] text-[color:var(--color-text-muted)]">テーブル単価</th>
                           </tr>
                         </thead>
                         <tbody>
