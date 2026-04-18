@@ -274,6 +274,11 @@ export function CartPanel({ hasOrders }: { hasOrders: boolean }) {
                         maxLength={100}
                         className="w-full rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-bg-subtle)] px-2 py-1 text-[11px] text-[color:var(--color-text-primary)] placeholder-[color:var(--color-text-muted)] focus:outline-none focus:ring-1 focus:ring-[color:var(--color-accent-char)]"
                       />
+                      {item.note.length > 0 && (
+                        <p className={`mt-0.5 text-right text-[10px] ${item.note.length >= 90 ? "text-[color:var(--color-accent-warn)]" : "text-[color:var(--color-text-muted)]"}`}>
+                          {item.note.length}/100
+                        </p>
+                      )}
                     </div>
                   </li>
                 );
