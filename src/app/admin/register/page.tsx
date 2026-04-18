@@ -189,7 +189,8 @@ export default function AdminRegisterPage() {
             const items: OrderItem[] = itemsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<OrderItem, "id">) }));
             return { ...order, items };
           })
-        ).then((data) => { setTodayPaidOrders(data); setTodayLoaded(true); });
+        ).then((data) => { setTodayPaidOrders(data); setTodayLoaded(true); })
+         .catch(() => { setTodayPaidOrders([]); setTodayLoaded(true); });
       },
       () => setTodayLoaded(true)
     );
@@ -212,7 +213,7 @@ export default function AdminRegisterPage() {
             const items: OrderItem[] = itemsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<OrderItem, "id">) }));
             return { ...order, items };
           })
-        ).then(setPaidOrders);
+        ).then(setPaidOrders).catch(() => setPaidOrders([]));
       }
     );
   }, [dateFilter]);
