@@ -283,6 +283,7 @@ export default function AdminSalesPage() {
   const [menus, setMenus] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(true);
   const [analysis, setAnalysis] = useState<Analysis>("sales");
+  const [analysisOpen, setAnalysisOpen] = useState(false);
   const [detailKey, setDetailKey] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
@@ -542,17 +543,33 @@ export default function AdminSalesPage() {
         title="売上分析"
         className="relative z-30 shrink-0"
         rightSlot={
-          <select
-            value={analysis}
-            onChange={(e) => setAnalysis(e.target.value as Analysis)}
-            className={selectCls}
-          >
-            <option value="sales">売上推移</option>
-            <option disabled>─────</option>
-            <option value="menu">メニュー別売数</option>
-            <option disabled>─────</option>
-            <option value="dow">曜日・時間帯</option>
-          </select>
+          <div className="relative">
+            <button
+              onClick={() => setAnalysisOpen((o) => !o)}
+              className={`${selectCls} flex items-center gap-2 min-w-[120px] justify-between`}
+            >
+              <span>{analysis === "sales" ? "売上推移" : analysis === "menu" ? "メニュー別売数" : "曜日・時間帯"}</span>
+              <span className="text-[10px] text-[color:var(--color-text-muted)]">▼</span>
+            </button>
+            {analysisOpen && (
+              <div
+                className="absolute right-0 top-full mt-1 z-50 bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] rounded-lg shadow-lg overflow-hidden min-w-[140px]"
+                onMouseLeave={() => setAnalysisOpen(false)}
+              >
+                {(["sales", "menu", "dow"] as Analysis[]).map((val, i) => (
+                  <div key={val}>
+                    {i > 0 && <div className="border-t border-[color:var(--color-border)]" />}
+                    <button
+                      onClick={() => { setAnalysis(val); setAnalysisOpen(false); }}
+                      className={`w-full text-left px-3 py-1.5 text-sm hover:bg-[color:var(--color-bg-subtle)] ${analysis === val ? "font-medium text-[color:var(--color-accent-char)]" : "text-[color:var(--color-text-primary)]"}`}
+                    >
+                      {val === "sales" ? "売上推移" : val === "menu" ? "メニュー別売数" : "曜日・時間帯"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         }
       />
 
