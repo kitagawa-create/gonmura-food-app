@@ -157,15 +157,8 @@ export default function AdminRegisterPage() {
     return onSnapshot(
       query(collection(db, "orders"), where("status", "in", ["pending", "completed"])),
       (snap) => {
-        const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
-        Promise.all(
-          orderDocs.map(async (o) => {
-            const itemsSnap = await getDocs(collection(db, "orders", o.id, "items"));
-            const items = itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>));
-            return { ...o, items };
-          })
-        ).then((data) => { setUnpaidOrders(data); setOrdersLoaded(true); })
-         .catch(() => { setUnpaidOrders([]); setOrdersLoaded(true); });
+        setUnpaidOrders(snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>)));
+        setOrdersLoaded(true);
       },
       () => { setUnpaidOrders([]); setOrdersLoaded(true); }
     );
@@ -181,15 +174,8 @@ export default function AdminRegisterPage() {
         where("createdAt", "<", Timestamp.fromDate(end)),
         orderBy("createdAt", "desc")),
       (snap) => {
-        const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
-        Promise.all(
-          orderDocs.map(async (o) => {
-            const itemsSnap = await getDocs(collection(db, "orders", o.id, "items"));
-            const items = itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>));
-            return { ...o, items };
-          })
-        ).then((data) => { setTodayPaidOrders(data); setTodayLoaded(true); })
-         .catch(() => { setTodayPaidOrders([]); setTodayLoaded(true); });
+        setTodayPaidOrders(snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>)));
+        setTodayLoaded(true);
       },
       () => setTodayLoaded(true)
     );
@@ -205,14 +191,7 @@ export default function AdminRegisterPage() {
         where("createdAt", "<", Timestamp.fromDate(end)),
         orderBy("createdAt", "desc")),
       (snap) => {
-        const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
-        Promise.all(
-          orderDocs.map(async (o) => {
-            const itemsSnap = await getDocs(collection(db, "orders", o.id, "items"));
-            const items = itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>));
-            return { ...o, items };
-          })
-        ).then(setPaidOrders).catch(() => setPaidOrders([]));
+        setPaidOrders(snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>)));
       }
     );
   }, [dateFilter]);

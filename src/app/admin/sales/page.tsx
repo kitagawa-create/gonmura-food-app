@@ -314,15 +314,7 @@ export default function AdminSalesPage() {
           getDocs(query(collection(db, "orders"), where("status", "==", "paid"))),
           getDocs(collection(db, "customers")),
         ]);
-        const orderDocs = ordersSnap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
-        const ordersWithItems = await Promise.all(
-          orderDocs.map(async (o) => {
-            const itemsSnap = await getDocs(collection(db, "orders", o.id, "items"));
-            const items = itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>));
-            return { ...o, items };
-          })
-        );
-        setOrders(ordersWithItems);
+        setOrders(ordersSnap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>)));
         setCustomers(customersSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Customer));
       } finally {
         setLoading(false);

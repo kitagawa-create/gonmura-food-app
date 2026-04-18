@@ -223,14 +223,8 @@ function NewOrdersView({
         }
         prevOrderCountRef.current = all.length;
 
-        Promise.all(
-          active.map(async (o) => {
-            const itemsSnap = await getDocs(collection(db, "orders", o.id, "items"));
-            const items = itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>));
-            return { ...o, items };
-          })
-        ).then((data) => { setOrders(data); setLoading(false); })
-         .catch(() => { setOrders([]); setLoading(false); });
+        setOrders(active);
+        setLoading(false);
       },
       (e) => {
         onError(e.message);
@@ -757,15 +751,8 @@ function HistoryView({
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
-        Promise.all(
-          orderDocs.map(async (o) => {
-            const itemsSnap = await getDocs(collection(db, "orders", o.id, "items"));
-            const items = itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>));
-            return { ...o, items };
-          })
-        ).then((data) => { setOrders(data); setLoading(false); })
-         .catch(() => { setOrders([]); setLoading(false); });
+        setOrders(snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>)));
+        setLoading(false);
       },
       (e) => {
         onError(e.message);

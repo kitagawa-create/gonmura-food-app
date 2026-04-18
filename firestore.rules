@@ -51,28 +51,14 @@ service cloud.firestore {
     }
 
     match /orders/{orderId} {
-      allow create: if request.resource.data.keys().hasAll(['customerId'])
+      allow create: if request.resource.data.keys().hasAll(['customerId', 'items'])
                     && request.resource.data.customerId is string
-                    && request.resource.data.customerId.size() > 0;
+                    && request.resource.data.customerId.size() > 0
+                    && request.resource.data.items is list
+                    && request.resource.data.items.size() > 0;
       allow read: if true;
       allow update: if isStaff();
       allow delete: if isStaff();
-
-      match /items/{itemId} {
-        allow create: if request.resource.data.keys().hasAll(['menuId', 'name', 'price', 'quantity', 'toppings', 'note', 'checked'])
-          && request.resource.data.menuId is string
-          && request.resource.data.name is string
-          && request.resource.data.price is int
-          && request.resource.data.price >= 0
-          && request.resource.data.quantity is int
-          && request.resource.data.quantity >= 1
-          && request.resource.data.toppings is list
-          && request.resource.data.note is string
-          && request.resource.data.checked is bool;
-        allow read: if true;
-        allow update: if isStaff();
-        allow delete: if isStaff();
-      }
     }
 
     match /customers/{customerId} {

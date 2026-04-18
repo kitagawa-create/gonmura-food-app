@@ -86,12 +86,15 @@ export function normalizeOrderItem(id: string, data: Record<string, unknown>): O
   };
 }
 
-/** Firestore から取得した生データを Order 型に正規化。items はサブコレクションから別途フェッチして付与する。 */
+/** Firestore から取得した生データを Order 型に正規化。items は Order ドキュメントに埋め込まれた配列から読み取る。 */
 export function normalizeOrder(id: string, data: Record<string, unknown>): Order {
+  const rawItems = Array.isArray(data.items) ? (data.items as Record<string, unknown>[]) : [];
   return {
     ...(data as Omit<Order, "id" | "items">),
     id,
-    items: [],
+    items: rawItems.map((item) =>
+      normalizeOrderItem(typeof item.id === "string" ? item.id : "", item)
+    ),
   };
 }
 

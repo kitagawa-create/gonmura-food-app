@@ -134,12 +134,8 @@ export function CartPanel({ hasOrders }: { hasOrders: boolean }) {
       batch.set(orderRef, {
         status: "pending",
         customerId: cid,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-      for (const item of items) {
-        const itemRef = doc(db, "orders", orderRef.id, "items", crypto.randomUUID());
-        batch.set(itemRef, {
+        items: items.map((item) => ({
+          id: crypto.randomUUID(),
           menuId: item.menuId,
           name: item.name,
           price: item.price,
@@ -152,8 +148,10 @@ export function CartPanel({ hasOrders }: { hasOrders: boolean }) {
             price: t.price,
             quantity: t.quantity,
           })),
-        });
-      }
+        })),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
       for (const menuId of idSet) {
         batch.set(doc(db, "orderedMenus", menuId), { menuId }, { merge: true });
       }
