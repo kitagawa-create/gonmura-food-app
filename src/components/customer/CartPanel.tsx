@@ -152,6 +152,8 @@ export function CartPanel({ hasOrders }: { hasOrders: boolean }) {
             price: t.price,
             quantity: t.quantity,
           })),
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
         });
       }
       await batch.commit();

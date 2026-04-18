@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PageLoader } from "@/components/ui/PageLoader";
 import {
+  Timestamp,
   collection,
   collectionGroup,
   getDocs,
@@ -309,16 +310,30 @@ export default function AdminSalesPage() {
   }, [role, router]);
 
   useEffect(() => {
+    if (startDate > endDate) return;
+    setLoading(true);
     async function fetchData() {
       try {
-        const [ordersSnap, customersSnap, allItemsSnap] = await Promise.all([
-          getDocs(query(collection(db, "orders"), where("status", "==", "paid"))),
+        const start = Timestamp.fromDate(new Date(startDate + "T00:00:00"));
+        const end = Timestamp.fromDate(new Date(endDate + "T23:59:59.999"));
+        const [ordersSnap, customersSnap, itemsSnap] = await Promise.all([
+          getDocs(query(
+            collection(db, "orders"),
+            where("status", "==", "paid"),
+            where("createdAt", ">=", start),
+            where("createdAt", "<=", end),
+            orderBy("createdAt"),
+          )),
           getDocs(collection(db, "customers")),
-          getDocs(collectionGroup(db, "items")),
+          getDocs(query(
+            collectionGroup(db, "items"),
+            where("createdAt", ">=", start),
+            where("createdAt", "<=", end),
+          )),
         ]);
         const paidOrderIds = new Set(ordersSnap.docs.map((d) => d.id));
         const itemsByOrderId = new Map<string, OrderItem[]>();
-        for (const d of allItemsSnap.docs) {
+        for (const d of itemsSnap.docs) {
           const orderId = d.ref.parent.parent!.id;
           if (!paidOrderIds.has(orderId)) continue;
           const list = itemsByOrderId.get(orderId) ?? [];
@@ -338,7 +353,7 @@ export default function AdminSalesPage() {
       }
     }
     fetchData();
-  }, []);
+  }, [startDate, endDate]);
 
   useEffect(() => {
     const unsubCats = onSnapshot(

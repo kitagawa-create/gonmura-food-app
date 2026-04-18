@@ -329,6 +329,8 @@ for (let day = new Date(START); day < END; day.setDate(day.getDate() + 1)) {
               note: { stringValue: it.note },
               checked: { booleanValue: true },
               toppings: { arrayValue: { values: [] } },
+              createdAt: { timestampValue: isoTs },
+              updatedAt: { timestampValue: isoTs },
             },
           },
         });
