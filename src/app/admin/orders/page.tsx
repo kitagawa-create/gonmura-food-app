@@ -15,11 +15,10 @@ import {
   serverTimestamp,
   updateDoc,
   where,
-  writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Category, Customer, Menu, OrderItem, OrderWithItems } from "@/types";
-import { normalizeMenu, normalizeOrder, normalizeOrderItem, comboLineTotal } from "@/lib/order-utils";
+import { normalizeMenu, normalizeOrder, comboLineTotal } from "@/lib/order-utils";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 const TIME_FORMATTER = new Intl.DateTimeFormat("ja-JP", {
@@ -71,6 +70,25 @@ function playNotificationSound() {
   } catch {
     /* Audio not supported */
   }
+}
+
+// OrderItem を Firestore に書き込める plain object に変換
+function itemToPlain(item: OrderItem) {
+  return {
+    id: item.id,
+    menuId: item.menuId,
+    name: item.name,
+    price: item.price,
+    quantity: item.quantity,
+    toppings: item.toppings.map((t) => ({
+      menuId: t.menuId,
+      name: t.name,
+      price: t.price,
+      quantity: t.quantity,
+    })),
+    note: item.note,
+    checked: item.checked,
+  };
 }
 
 // ---------- page ----------
@@ -255,10 +273,13 @@ function NewOrdersView({
       );
 
       try {
-        const batch = writeBatch(db);
-        batch.update(doc(db, "orders", order.id, "items", itemId), { checked: newChecked });
-        batch.update(doc(db, "orders", order.id), { updatedAt: serverTimestamp() });
-        await batch.commit();
+        const updatedItems = order.items.map((i) =>
+          i.id === itemId ? { ...i, checked: newChecked } : i
+        );
+        await updateDoc(doc(db, "orders", order.id), {
+          items: updatedItems.map(itemToPlain),
+          updatedAt: serverTimestamp(),
+        });
       } catch (e) {
         setOrders((os) =>
           os.map((o) =>
@@ -299,11 +320,7 @@ function NewOrdersView({
     async (id: string) => {
       onError(null);
       try {
-        const itemsSnap = await getDocs(collection(db, "orders", id, "items"));
-        const batch = writeBatch(db);
-        for (const d of itemsSnap.docs) batch.delete(d.ref);
-        batch.delete(doc(db, "orders", id));
-        await batch.commit();
+        await deleteDoc(doc(db, "orders", id));
       } catch (e) {
         onError(e instanceof Error ? e.message : "削除に失敗しました。");
       }
@@ -316,15 +333,13 @@ function NewOrdersView({
       onError(null);
       const remaining = order.items.filter((i) => i.id !== itemId);
       try {
-        const batch = writeBatch(db);
-        batch.delete(doc(db, "orders", order.id, "items", itemId));
         if (remaining.length === 0) {
-          batch.delete(doc(db, "orders", order.id));
+          await deleteDoc(doc(db, "orders", order.id));
         } else {
-          batch.update(doc(db, "orders", order.id), { updatedAt: serverTimestamp() });
-        }
-        await batch.commit();
-        if (remaining.length > 0) {
+          await updateDoc(doc(db, "orders", order.id), {
+            items: remaining.map(itemToPlain),
+            updatedAt: serverTimestamp(),
+          });
           setOrders((os) => os.map((o) => (o.id === order.id ? { ...o, items: remaining } : o)));
         }
       } catch (e) {
@@ -340,12 +355,10 @@ function NewOrdersView({
       const updatedItems = order.items.map((i) => ({ ...i, checked: true }));
       setOrders((os) => os.map((o) => (o.id === order.id ? { ...o, items: updatedItems } : o)));
       try {
-        const batch = writeBatch(db);
-        for (const item of order.items) {
-          batch.update(doc(db, "orders", order.id, "items", item.id), { checked: true });
-        }
-        batch.update(doc(db, "orders", order.id), { updatedAt: serverTimestamp() });
-        await batch.commit();
+        await updateDoc(doc(db, "orders", order.id), {
+          items: updatedItems.map(itemToPlain),
+          updatedAt: serverTimestamp(),
+        });
       } catch (e) {
         setOrders((os) => os.map((o) => (o.id === order.id ? { ...o, items: order.items } : o)));
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
@@ -360,12 +373,10 @@ function NewOrdersView({
       const updatedItems = order.items.map((i) => ({ ...i, checked: false }));
       setOrders((os) => os.map((o) => (o.id === order.id ? { ...o, items: updatedItems } : o)));
       try {
-        const batch = writeBatch(db);
-        for (const item of order.items) {
-          batch.update(doc(db, "orders", order.id, "items", item.id), { checked: false });
-        }
-        batch.update(doc(db, "orders", order.id), { updatedAt: serverTimestamp() });
-        await batch.commit();
+        await updateDoc(doc(db, "orders", order.id), {
+          items: updatedItems.map(itemToPlain),
+          updatedAt: serverTimestamp(),
+        });
       } catch (e) {
         setOrders((os) => os.map((o) => (o.id === order.id ? { ...o, items: order.items } : o)));
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
@@ -723,12 +734,11 @@ function HistoryView({
       onError(null);
       if (order.status === "paid") return;
       try {
-        const batch = writeBatch(db);
-        batch.update(doc(db, "orders", order.id), { status: "pending", updatedAt: serverTimestamp() });
-        for (const item of order.items) {
-          batch.update(doc(db, "orders", order.id, "items", item.id), { checked: false });
-        }
-        await batch.commit();
+        await updateDoc(doc(db, "orders", order.id), {
+          status: "pending",
+          items: order.items.map((i) => itemToPlain({ ...i, checked: false })),
+          updatedAt: serverTimestamp(),
+        });
       } catch (e) {
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
       }
