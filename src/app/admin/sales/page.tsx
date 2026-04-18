@@ -6,7 +6,6 @@ import { PageLoader } from "@/components/ui/PageLoader";
 import {
   Timestamp,
   collection,
-  collectionGroup,
   getDocs,
   onSnapshot,
   orderBy,
@@ -14,7 +13,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Category, Customer, Menu, OrderItem, OrderWithItems } from "@/types";
+import type { Category, Customer, Menu, OrderWithItems } from "@/types";
 import { normalizeMenu, normalizeOrder, normalizeOrderItem } from "@/lib/order-utils";
 import { useAdminRole } from "@/components/admin/AdminContext";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
@@ -316,7 +315,7 @@ export default function AdminSalesPage() {
       try {
         const start = Timestamp.fromDate(new Date(startDate + "T00:00:00"));
         const end = Timestamp.fromDate(new Date(endDate + "T23:59:59.999"));
-        const [ordersSnap, customersSnap, itemsSnap] = await Promise.all([
+        const [ordersSnap, customersSnap] = await Promise.all([
           getDocs(query(
             collection(db, "orders"),
             where("status", "==", "paid"),
@@ -325,25 +324,21 @@ export default function AdminSalesPage() {
             orderBy("createdAt"),
           )),
           getDocs(collection(db, "customers")),
-          getDocs(query(
-            collectionGroup(db, "items"),
-            where("createdAt", ">=", start),
-            where("createdAt", "<=", end),
-          )),
         ]);
-        const paidOrderIds = new Set(ordersSnap.docs.map((d) => d.id));
-        const itemsByOrderId = new Map<string, OrderItem[]>();
-        for (const d of itemsSnap.docs) {
-          const orderId = d.ref.parent.parent!.id;
-          if (!paidOrderIds.has(orderId)) continue;
-          const list = itemsByOrderId.get(orderId) ?? [];
-          list.push(normalizeOrderItem(d.id, d.data() as Record<string, unknown>));
-          itemsByOrderId.set(orderId, list);
-        }
-        const withItems = ordersSnap.docs.map((d) => ({
-          ...normalizeOrder(d.id, d.data() as Record<string, unknown>),
-          items: itemsByOrderId.get(d.id) ?? [],
-        }));
+        const orderDocs = ordersSnap.docs.map((d) =>
+          normalizeOrder(d.id, d.data() as Record<string, unknown>)
+        );
+        const withItems = await Promise.all(
+          orderDocs.map(async (order) => {
+            const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+            return {
+              ...order,
+              items: itemsSnap.docs.map((d) =>
+                normalizeOrderItem(d.id, d.data() as Record<string, unknown>)
+              ),
+            };
+          })
+        );
         setOrders(withItems);
         setCustomers(customersSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Customer));
       } catch (e) {
