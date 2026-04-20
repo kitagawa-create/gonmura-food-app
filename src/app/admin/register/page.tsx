@@ -223,15 +223,22 @@ export default function AdminRegisterPage() {
         const orderDocs = snap.docs
           .filter((d) => d.ref.parent.parent !== null)
           .map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
-        const withItems = await Promise.all(
-          orderDocs.map(async (order) => {
-            const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.id)));
-            return { ...order, items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)) };
-          })
-        );
-        if (cancelled || current !== gen) return;
-        setUnpaidOrders(withItems);
-        setOrdersLoaded(true);
+        try {
+          const withItems = await Promise.all(
+            orderDocs.map(async (order) => {
+              const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.id)));
+              return { ...order, items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)) };
+            })
+          );
+          if (cancelled || current !== gen) return;
+          setUnpaidOrders(withItems);
+        } catch (e) {
+          console.error("[register] items fetch failed:", e);
+          if (cancelled || current !== gen) return;
+          setUnpaidOrders(orderDocs.map((o) => ({ ...o, items: [] })));
+        } finally {
+          if (!cancelled && current === gen) setOrdersLoaded(true);
+        }
       },
       () => { if (!cancelled) { setUnpaidOrders([]); setOrdersLoaded(true); } }
     );
