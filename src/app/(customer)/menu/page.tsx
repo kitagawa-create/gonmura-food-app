@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, query, where, getDocs, orderBy, onSnapshot } from "firebase/firestore";
+import { collection, query, where, getDocs, orderBy, onSnapshot, doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Menu, Category, CartItemTopping } from "@/types";
 import { normalizeMenu } from "@/lib/order-utils";
@@ -13,6 +13,7 @@ import { CartPanel } from "@/components/customer/CartPanel";
 import Link from "next/link";
 
 const TABLE_KEY = "gonmura-table";
+const TABLE_ID_KEY = "gonmura-table-id";
 
 type SelectionLine = { menu: Menu; quantity: number };
 
@@ -661,11 +662,21 @@ export default function MenuPage() {
               テーブル番号の変更にはPINが必要です
             </p>
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
-                const stored = localStorage.getItem("gonmura-table-pin") || "1234";
-                if (pinInput !== stored) {
-                  setPinError("PINが正しくありません");
+                const tableId = localStorage.getItem(TABLE_ID_KEY);
+                if (!tableId) {
+                  setPinError("端末情報が見つかりません。再セットアップしてください");
+                  return;
+                }
+                try {
+                  const snap = await getDoc(doc(db, "tables", tableId));
+                  if (!snap.exists() || snap.data().pin !== pinInput) {
+                    setPinError("PINが正しくありません");
+                    return;
+                  }
+                } catch {
+                  setPinError("確認に失敗しました。再試行してください");
                   return;
                 }
                 setShowPinDialog(false);
@@ -771,6 +782,10 @@ export default function MenuPage() {
                   }
                   clearCart();
                   setTableNumber(n);
+                  const tableId = localStorage.getItem(TABLE_ID_KEY);
+                  if (tableId) {
+                    updateDoc(doc(db, "tables", tableId), { tableNumber: n, updatedAt: serverTimestamp() }).catch(() => {});
+                  }
                   setShowTableChange(false);
                   setNewTableInput("");
                 }}

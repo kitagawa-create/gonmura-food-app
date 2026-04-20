@@ -77,6 +77,19 @@ service cloud.firestore {
       allow delete: if isStaff();
     }
 
+    match /tables/{tableId} {
+      allow create: if request.resource.data.keys().hasAll(['tableNumber', 'deviceId', 'pin'])
+        && validTableNumber(request.resource.data.tableNumber)
+        && request.resource.data.pin is string
+        && request.resource.data.pin.matches('^[0-9]{4}$')
+        && request.resource.data.deviceId is string
+        && request.resource.data.deviceId.size() > 0;
+      allow read: if true;
+      allow update: if isStaff()
+        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tableNumber', 'updatedAt']);
+      allow delete: if isOwner();
+    }
+
     match /admins/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;
     }

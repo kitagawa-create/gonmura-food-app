@@ -104,6 +104,15 @@ export type CartItemTopping = {
   quantity: number;
 };
 
+export type Table = {
+  id: string;
+  tableNumber: number;
+  deviceId: string;
+  pin: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+};
+
 export type CartItem = {
   /** コンボ識別子 (同一 menuId でも異なる構成のコンボは別 lineId)  */
   lineId: string;

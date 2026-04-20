@@ -2,24 +2,35 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
 
-const PIN_KEY = "gonmura-table-pin";
+const DEVICE_ID_KEY = "gonmura-device-id";
+const TABLE_ID_KEY = "gonmura-table-id";
+
+function getOrCreateDeviceId(): string {
+  const existing = localStorage.getItem(DEVICE_ID_KEY);
+  if (existing) return existing;
+  const id = crypto.randomUUID();
+  localStorage.setItem(DEVICE_ID_KEY, id);
+  return id;
+}
 
 export default function SetupPage() {
   const [tableInput, setTableInput] = useState("");
   const [pinInput, setPinInput] = useState("");
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const { tableNumber, setTableNumber } = useCart();
   const router = useRouter();
 
-  // 既に番号設定済みならメニューに飛ばす
   if (tableNumber !== null) {
     router.replace("/menu");
     return null;
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const num = parseInt(tableInput, 10);
     if (isNaN(num) || num <= 0 || num > 50) {
@@ -30,13 +41,23 @@ export default function SetupPage() {
       setError("PINは4桁の数字で入力してください");
       return;
     }
+    setSaving(true);
     try {
-      localStorage.setItem(PIN_KEY, pinInput);
+      const deviceId = getOrCreateDeviceId();
+      const ref = await addDoc(collection(db, "tables"), {
+        tableNumber: num,
+        deviceId,
+        pin: pinInput,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      localStorage.setItem(TABLE_ID_KEY, ref.id);
+      setTableNumber(num);
+      router.replace("/menu");
     } catch {
-      // ignore
+      setError("セットアップに失敗しました。再試行してください");
+      setSaving(false);
     }
-    setTableNumber(num);
-    router.replace("/menu");
   }
 
   return (
@@ -83,9 +104,10 @@ export default function SetupPage() {
           </div>
           <button
             type="submit"
-            className="w-full bg-[color:var(--color-accent-char)] text-white py-3 rounded-xl font-bold hover:opacity-90 transition-opacity"
+            disabled={saving}
+            className="w-full bg-[color:var(--color-accent-char)] text-white py-3 rounded-xl font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
           >
-            設定完了
+            {saving ? "設定中..." : "設定完了"}
           </button>
         </form>
 
