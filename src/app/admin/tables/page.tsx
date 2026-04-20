@@ -116,8 +116,8 @@ export default function AdminTablesPage() {
                 {table.deviceId.slice(0, 8)}...
               </p>
 
-              <p className="text-xs text-[color:var(--color-text-muted)] mb-1">PIN</p>
-              {editingPin === table.id ? (
+              {role === "owner" && <p className="text-xs text-[color:var(--color-text-muted)] mb-1">PIN</p>}
+              {role === "owner" && editingPin === table.id ? (
                 <div className="flex gap-2 items-start">
                   <div className="flex-1">
                     <input
@@ -146,7 +146,7 @@ export default function AdminTablesPage() {
                     取消
                   </button>
                 </div>
-              ) : (
+              ) : role === "owner" ? (
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-mono text-[color:var(--color-text-primary)] tracking-widest">
                     ••••
@@ -158,7 +158,7 @@ export default function AdminTablesPage() {
                     変更
                   </button>
                 </div>
-              )}
+              ) : null}
             </div>
           ))}
         </div>
