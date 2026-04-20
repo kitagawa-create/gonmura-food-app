@@ -404,7 +404,7 @@ export default function MenuPage() {
                       大きな縦長画像や一部ブラウザで高さが滲むことがあるためこちらを採用。 */}
                   {menu.imageUrl ? (
                     <div
-                      className={`relative w-full shrink-0 overflow-hidden ${
+                      className={`relative w-full shrink-0 overflow-hidden rounded-t-xl ${
                         sold ? "opacity-40 grayscale" : ""
                       }`}
                       style={{ paddingTop: "75%" }}
