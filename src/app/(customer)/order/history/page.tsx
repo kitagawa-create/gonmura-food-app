@@ -40,22 +40,6 @@ export default function OrderHistoryPage() {
     return () => unsub();
   }, [customerId]);
 
-  if (!customerId) {
-    return (
-      <div className="min-h-screen bg-[color:var(--color-bg-base)] flex flex-col items-center justify-center px-4">
-        <p className="text-[color:var(--color-text-muted)] text-lg mb-4">
-          まだ注文がありません
-        </p>
-        <a
-          href="/menu"
-          className="text-[color:var(--color-accent-char)] font-medium hover:underline"
-        >
-          メニューに戻る
-        </a>
-      </div>
-    );
-  }
-
   if (loading) {
     return <FullScreenLoader />;
   }
@@ -70,7 +54,7 @@ export default function OrderHistoryPage() {
       </header>
 
       <main className="px-4 sm:px-6 lg:px-8 py-5 sm:py-6 pb-8">
-        {orders.length === 0 ? (
+        {!customerId || orders.length === 0 ? (
           <p className="text-[color:var(--color-text-muted)] text-center py-12">
             まだ注文がありません
           </p>
