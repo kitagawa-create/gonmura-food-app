@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { collectionGroup, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
 import type { OrderWithItems } from "@/types";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import { BackButton } from "@/components/ui/BackButton";
-import { flattenForReceipt, normalizeOrder, normalizeOrderItem } from "@/lib/order-utils";
+import { normalizeOrder, normalizeOrderItem, comboLineHash, comboLineTotal } from "@/lib/order-utils";
 import Link from "next/link";
 
 export default function BillPage() {
@@ -73,19 +73,21 @@ export default function BillPage() {
     );
   }
 
-  // コンボ内トッピングも独立行に展開して name+price でマージ
-  const allItems: { name: string; price: number; quantity: number }[] = [];
+  type ComboLine = { menuId: string; name: string; price: number; quantity: number; toppings: { menuId: string; name: string; price: number; quantity: number }[] };
+  const allCombos: ComboLine[] = [];
   for (const order of orders) {
-    for (const flat of flattenForReceipt(order.items)) {
-      const existing = allItems.find(
-        (a) => a.name === flat.name && a.price === flat.price
-      );
-      if (existing) existing.quantity += flat.quantity;
-      else allItems.push({ name: flat.name, price: flat.price, quantity: flat.quantity });
+    for (const item of order.items) {
+      const hash = comboLineHash(item.menuId, item.toppings, "");
+      const existing = allCombos.find((c) => comboLineHash(c.menuId, c.toppings, "") === hash);
+      if (existing) {
+        existing.quantity += item.quantity;
+      } else {
+        allCombos.push({ menuId: item.menuId, name: item.name, price: item.price, quantity: item.quantity, toppings: item.toppings.map((t) => ({ ...t })) });
+      }
     }
   }
 
-  const totalAmount = allItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const totalAmount = allCombos.reduce((sum, item) => sum + comboLineTotal(item), 0);
   const tax = Math.floor((totalAmount * 10) / 110);
   const subtotal = totalAmount - tax;
 
@@ -119,16 +121,24 @@ export default function BillPage() {
                 </tr>
               </thead>
               <tbody>
-                {allItems.map((item, i) => (
-                  <tr key={i}>
-                    <td className="py-1 text-[color:var(--color-text-primary)]">{item.name}</td>
-                    <td className="py-1 text-center text-[color:var(--color-text-muted)]">
-                      {item.quantity}
-                    </td>
-                    <td className="py-1 text-right text-[color:var(--color-text-primary)] tabular-nums">
-                      ¥{(item.price * item.quantity).toLocaleString()}
-                    </td>
-                  </tr>
+                {allCombos.map((item, i) => (
+                  <Fragment key={i}>
+                    <tr>
+                      <td className="py-1 text-[color:var(--color-text-primary)]">{item.name}</td>
+                      <td className="py-1 text-center text-[color:var(--color-text-muted)]">{item.quantity}</td>
+                      <td className="py-1 text-right text-[color:var(--color-text-primary)] tabular-nums">
+                        ¥{comboLineTotal(item).toLocaleString()}
+                      </td>
+                    </tr>
+                    {item.toppings.map((t) => (
+                      <tr key={t.menuId}>
+                        <td className="pb-0.5 pl-3 text-xs text-[color:var(--color-text-muted)]">
+                          ＋ {t.name} ×{t.quantity * item.quantity}
+                        </td>
+                        <td /><td />
+                      </tr>
+                    ))}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
