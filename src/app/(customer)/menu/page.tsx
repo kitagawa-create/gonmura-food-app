@@ -105,6 +105,10 @@ export default function MenuPage() {
         prevHasUnpaidRef.current = hasUnpaid;
         setHasUnpaidOrders(hasUnpaid);
         setOrdersLoaded(true);
+      },
+      () => {
+        setHasUnpaidOrders(false);
+        setOrdersLoaded(true);
       }
     );
     return unsub;

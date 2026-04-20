@@ -28,6 +28,15 @@
   "fieldOverrides": [
     {
       "collectionGroup": "orders",
+      "fieldPath": "customerId",
+      "indexes": [
+        { "queryScope": "COLLECTION", "order": "ASCENDING" },
+        { "queryScope": "COLLECTION", "order": "DESCENDING" },
+        { "queryScope": "COLLECTION_GROUP", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "orders",
       "fieldPath": "status",
       "indexes": [
         { "queryScope": "COLLECTION", "order": "ASCENDING" },
