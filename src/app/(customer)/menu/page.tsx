@@ -458,7 +458,7 @@ export default function MenuPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="overflow-y-auto">
-              <div className="relative w-full shrink-0 overflow-hidden bg-[color:var(--color-bg-subtle)]" style={{ paddingTop: "75%" }}>
+              <div className="relative w-full shrink-0 overflow-hidden bg-[color:var(--color-bg-subtle)]" style={{ paddingTop: "50%" }}>
                 <div className="absolute inset-0">
                   {selectedMenu.imageUrl ? (
                     <FadeImage

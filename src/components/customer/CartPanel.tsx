@@ -211,11 +211,6 @@ export function CartPanel({ hasOrders }: { hasOrders: boolean }) {
                         </h3>
                         <p className="text-xs font-bold text-[color:var(--color-accent-char)] tabular-nums">
                           ¥{unitPrice.toLocaleString()}
-                          {item.toppings.length > 0 && (
-                            <span className="ml-1 text-[10px] font-normal text-[color:var(--color-text-muted)]">
-                              /杯
-                            </span>
-                          )}
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
