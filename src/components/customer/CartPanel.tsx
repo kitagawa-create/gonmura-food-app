@@ -143,6 +143,7 @@ export function CartPanel({
       const batch = writeBatch(db);
       batch.set(orderRef, {
         id: orderRef.id,
+        customerId: cid,
         status: "pending",
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),

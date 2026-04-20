@@ -89,12 +89,12 @@ export function normalizeOrderItem(id: string, data: Record<string, unknown>): O
   };
 }
 
-/** Firestore から取得した生データを Order 型に正規化。customerId はドキュメントパスの親 (doc.ref.parent.parent!.id) から渡す。 */
+/** Firestore から取得した生データを Order 型に正規化。data.customerId を優先し、なければ fallback を使う。 */
 export function normalizeOrder(id: string, data: Record<string, unknown>, customerId: string): Order {
   return {
     id,
     status: (data.status as Order["status"]) ?? "pending",
-    customerId,
+    customerId: typeof data.customerId === "string" && data.customerId ? data.customerId : customerId,
     createdAt: data.createdAt as Order["createdAt"],
     updatedAt: data.updatedAt as Order["updatedAt"],
   };

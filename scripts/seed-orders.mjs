@@ -150,7 +150,7 @@ const SEASON_FACTOR = [
   0.9, 0.9, 0.95, 1.0, 1.15, 1.2,  // Jul-Dec
 ];
 // 曜日別セッション数 (月-日)
-const WEEKDAY_SESSIONS = [8, 8, 8, 9, 12, 16, 14];
+const WEEKDAY_SESSIONS = [2, 2, 2, 2, 3, 4, 4];
 
 // ============== 5) 注文・顧客生成 ==============
 console.log("→ 注文・顧客生成中...");

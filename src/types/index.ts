@@ -78,7 +78,7 @@ export type Customer = {
 export type Order = {
   id: string;
   status: OrderStatus;
-  /** ドキュメントパス customers/{customerId}/orders/{orderId} から取得（Firestoreには保存しない） */
+  /** Firestoreに保存済み（`customers/{customerId}/orders/{orderId}` の customerId フィールド） */
   customerId: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
