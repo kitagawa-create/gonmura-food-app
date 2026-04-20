@@ -99,7 +99,7 @@ export default function MenuPage() {
         const statuses = snap.docs.map((d) => (d.data() as { status: string }).status);
         const hasUnpaid = statuses.some((s) => s === "pending" || s === "completed");
         const hasPaid = statuses.some((s) => s === "paid");
-        if (prevHasUnpaidRef.current === true && !hasUnpaid && hasPaid) {
+        if ((prevHasUnpaidRef.current === undefined || prevHasUnpaidRef.current === true) && !hasUnpaid && hasPaid) {
           resetSession();
         }
         prevHasUnpaidRef.current = hasUnpaid;
