@@ -896,19 +896,16 @@ export default function AdminSalesPage() {
                       データがありません
                     </p>
                   ) : (
-                    <>
-                    <table className="w-full table-fixed text-xs tabular-nums shrink-0">
-                      <thead>
-                        <tr className="border-b border-[color:var(--color-border)] text-[color:var(--color-text-muted)]">
-                          <th className="text-left font-normal py-1.5 w-1/4">テーブル</th>
-                          <th className="text-right font-normal py-1.5 w-1/4">注文数</th>
-                          <th className="text-right font-normal py-1.5 w-1/4">合計売上</th>
-                          <th className="text-right font-normal py-1.5 w-1/4">テーブル単価</th>
-                        </tr>
-                      </thead>
-                    </table>
                     <div className="flex-1 min-h-0 overflow-y-auto -mr-4 pr-2 [scrollbar-gutter:stable]">
                       <table className="w-full table-fixed text-xs tabular-nums">
+                        <thead className="sticky top-0 bg-[color:var(--color-bg-subtle)]">
+                          <tr className="border-b border-[color:var(--color-border)] text-[color:var(--color-text-muted)]">
+                            <th className="text-left font-normal py-1.5 w-1/4">テーブル</th>
+                            <th className="text-right font-normal py-1.5 w-1/4">注文数</th>
+                            <th className="text-right font-normal py-1.5 w-1/4">合計売上</th>
+                            <th className="text-right font-normal py-1.5 w-1/4">テーブル単価</th>
+                          </tr>
+                        </thead>
                         <tbody>
                           {tableBreakdown.map((t) => (
                             <tr
@@ -932,7 +929,6 @@ export default function AdminSalesPage() {
                         </tbody>
                       </table>
                     </div>
-                    </>
                   )}
                   <p className="text-[11px] text-[color:var(--color-text-muted)] mt-2 shrink-0">
                     グラフのポイントをタップするとその期間の詳細が見られます
