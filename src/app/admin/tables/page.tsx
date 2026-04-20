@@ -149,10 +149,14 @@ export default function AdminTablesPage() {
               <input
                 type="text"
                 value={newTableNumber}
+                maxLength={20}
                 onChange={(e) => { setNewTableNumber(e.target.value); setAddError(""); }}
                 placeholder="例：1, A-1, テーブル1"
                 className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
               />
+              <p className={`mt-1 text-right text-xs ${newTableNumber.length >= 18 ? "text-[color:var(--color-accent-warn)]" : "text-[color:var(--color-text-muted)]"}`}>
+                {newTableNumber.length}/20
+              </p>
               {addError && <p className="text-xs text-[color:var(--color-accent-warn)] mt-1">{addError}</p>}
             </div>
             <button
