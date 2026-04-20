@@ -22,6 +22,7 @@ import { db } from "@/lib/firebase";
 import type { Order, OrderItem, OrderWithItems } from "@/types";
 import { normalizeOrder, normalizeOrderItem, comboLineTotal } from "@/lib/order-utils";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { DatePicker } from "@/components/admin/DatePicker";
 
 const TIME_FORMATTER = new Intl.DateTimeFormat("ja-JP", {
   hour: "2-digit",
@@ -746,19 +747,10 @@ function HistoryView({
     <div className="flex-1 overflow-y-auto -mr-3 md:-mr-6 pr-3 md:pr-6">
       {/* 日付検索 */}
       <div className="flex items-center gap-3 mb-4">
-        <input
-          type="date"
+        <DatePicker
           value={dateSearch}
-          onChange={(e) => {
-            const v = e.target.value;
-            if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
-              setDateSearch(v);
-              setTableFilter(null);
-            }
-          }}
+          onChange={(v) => { setDateSearch(v); setTableFilter(null); }}
           max={todayISO()}
-          onKeyDown={(e) => e.preventDefault()}
-          className="bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
         />
         <button
           type="button"

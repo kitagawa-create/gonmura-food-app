@@ -19,6 +19,7 @@ import { normalizeMenu, normalizeOrder, normalizeOrderItem } from "@/lib/order-u
 import { useAdminRole } from "@/components/admin/AdminContext";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { comboLineTotal, flattenForReceipt } from "@/lib/order-utils";
+import { DatePicker } from "@/components/admin/DatePicker";
 
 type Period = "daily" | "weekly" | "monthly";
 type Analysis = "sales" | "menu" | "dow";
@@ -584,23 +585,9 @@ export default function AdminSalesPage() {
       {/* 期間 */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 shrink-0 bg-[color:var(--color-bg-card)] rounded-xl border border-black px-4 py-2.5 shadow-sm">
         <span className="text-xs text-[color:var(--color-text-muted)]">開始</span>
-        <input
-          type="date"
-          value={startDate}
-          max={todayISO}
-          onChange={(e) => { if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value) && e.target.value <= todayISO) setStartDate(e.target.value); }}
-          onKeyDown={(e) => e.preventDefault()}
-          className={selectCls}
-        />
+        <DatePicker value={startDate} onChange={setStartDate} max={todayISO} />
         <span className="text-xs text-[color:var(--color-text-muted)]">〜</span>
-        <input
-          type="date"
-          value={endDate}
-          max={todayISO}
-          onChange={(e) => { if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value) && e.target.value <= todayISO) setEndDate(e.target.value); }}
-          onKeyDown={(e) => e.preventDefault()}
-          className={selectCls}
-        />
+        <DatePicker value={endDate} onChange={setEndDate} max={todayISO} />
       </div>
 
       {/* KPI */}
