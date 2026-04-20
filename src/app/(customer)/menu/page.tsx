@@ -93,19 +93,20 @@ export default function MenuPage() {
       setOrdersLoaded(true);
       return;
     }
-    const q = query(
+    const unsub = onSnapshot(
       collection(db, "customers", customerId, "orders"),
-      where("status", "in", ["pending", "completed"])
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      const hasUnpaid = !snap.empty;
-      if (prevHasUnpaidRef.current === true && !hasUnpaid) {
-        resetSession();
+      (snap) => {
+        const statuses = snap.docs.map((d) => (d.data() as { status: string }).status);
+        const hasUnpaid = statuses.some((s) => s === "pending" || s === "completed");
+        const hasPaid = statuses.some((s) => s === "paid");
+        if (prevHasUnpaidRef.current === true && !hasUnpaid && hasPaid) {
+          resetSession();
+        }
+        prevHasUnpaidRef.current = hasUnpaid;
+        setHasUnpaidOrders(hasUnpaid);
+        setOrdersLoaded(true);
       }
-      prevHasUnpaidRef.current = hasUnpaid;
-      setHasUnpaidOrders(hasUnpaid);
-      setOrdersLoaded(true);
-    });
+    );
     return unsub;
   }, [tableNumber, customerId, resetSession]);
 
