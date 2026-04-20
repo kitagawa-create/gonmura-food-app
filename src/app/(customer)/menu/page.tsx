@@ -14,6 +14,7 @@ import Link from "next/link";
 
 const TABLE_KEY = "gonmura-table";
 const TABLE_ID_KEY = "gonmura-table-id";
+const DEVICE_ID_KEY = "gonmura-device-id";
 
 type SelectionLine = { menu: Menu; quantity: number };
 
@@ -42,7 +43,9 @@ export default function MenuPage() {
   const [pinError, setPinError] = useState("");
   const [showTableChange, setShowTableChange] = useState(false);
   const [tableChangeError, setTableChangeError] = useState("");
-  const [newTableInput, setNewTableInput] = useState<string>("");
+  const [availableTables, setAvailableTables] = useState<Array<{ id: string; tableNumber: string }>>([]);
+  const [loadingAvailableTables, setLoadingAvailableTables] = useState(false);
+  const [selectedNewTableId, setSelectedNewTableId] = useState("");
   const [showGuestCountDialog, setShowGuestCountDialog] = useState(false);
   const [guestCountInput, setGuestCountInput] = useState<number>(1);
   const [hasUnpaidOrders, setHasUnpaidOrders] = useState(false);
@@ -694,7 +697,19 @@ export default function MenuPage() {
                 }
                 setShowPinDialog(false);
                 setTableChangeError("");
+                setSelectedNewTableId("");
+                setLoadingAvailableTables(true);
                 setShowTableChange(true);
+                getDocs(query(collection(db, "tables"), where("deviceId", "==", "")))
+                  .then((snap) => {
+                    setAvailableTables(
+                      snap.docs
+                        .map((d) => ({ id: d.id, tableNumber: d.data().tableNumber as string }))
+                        .sort((a, b) => a.tableNumber.localeCompare(b.tableNumber, "ja"))
+                    );
+                    setLoadingAvailableTables(false);
+                  })
+                  .catch(() => setLoadingAvailableTables(false));
               }}
               className="space-y-4"
             >
@@ -746,16 +761,27 @@ export default function MenuPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-lg font-bold text-[color:var(--color-text-primary)] mb-4">
-              テーブル番号を変更
+              テーブルを変更
             </h2>
-            <input
-              type="text"
-              value={newTableInput}
-              onChange={(e) => { setNewTableInput(e.target.value); setTableChangeError(""); }}
-              autoFocus
-              placeholder="例：1, A-1, テーブル1"
-              className="w-full bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-center text-2xl text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)] mb-4"
-            />
+            {loadingAvailableTables ? (
+              <p className="text-center text-sm text-[color:var(--color-text-muted)] py-4">読み込み中...</p>
+            ) : availableTables.length === 0 ? (
+              <p className="text-center text-sm text-[color:var(--color-text-muted)] py-4">
+                空きテーブルがありません。<br />管理者にお問い合わせください。
+              </p>
+            ) : (
+              <select
+                value={selectedNewTableId}
+                onChange={(e) => { setSelectedNewTableId(e.target.value); setTableChangeError(""); }}
+                autoFocus
+                className="w-full bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-center text-2xl text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)] mb-4"
+              >
+                <option value="">選択してください</option>
+                {availableTables.map((t) => (
+                  <option key={t.id} value={t.id}>{t.tableNumber}</option>
+                ))}
+              </select>
+            )}
             {tableChangeError && (
               <p className="text-sm text-[color:var(--color-accent-warn)] text-center mb-3">
                 {tableChangeError}
@@ -776,30 +802,36 @@ export default function MenuPage() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  const n = newTableInput.trim();
-                  if (!n) {
-                    setTableChangeError("テーブル番号を入力してください");
+                disabled={!selectedNewTableId || loadingAvailableTables}
+                onClick={async () => {
+                  if (!selectedNewTableId) {
+                    setTableChangeError("テーブルを選択してください");
                     return;
                   }
-                  if (n === tableNumber) {
-                    setShowTableChange(false);
-                    return;
-                  }
+                  const newTable = availableTables.find((t) => t.id === selectedNewTableId);
+                  if (!newTable) return;
                   if (totalItems > 0) {
                     const ok = window.confirm(`現在のカート (${totalItems}点) は破棄されます。よろしいですか？`);
                     if (!ok) return;
                   }
-                  clearCart();
-                  setTableNumber(n);
-                  const tableId = localStorage.getItem(TABLE_ID_KEY);
-                  if (tableId) {
-                    updateDoc(doc(db, "tables", tableId), { tableNumber: n, updatedAt: serverTimestamp() }).catch(() => {});
+                  const oldTableId = localStorage.getItem(TABLE_ID_KEY);
+                  const deviceId = localStorage.getItem(DEVICE_ID_KEY) ?? "";
+                  try {
+                    if (oldTableId) {
+                      updateDoc(doc(db, "tables", oldTableId), { deviceId: "", pin: "", updatedAt: serverTimestamp() }).catch(() => {});
+                    }
+                    await updateDoc(doc(db, "tables", newTable.id), { deviceId, pin: pinInput, updatedAt: serverTimestamp() });
+                    localStorage.setItem(TABLE_ID_KEY, newTable.id);
+                    clearCart();
+                    setTableNumber(newTable.tableNumber);
+                  } catch {
+                    setTableChangeError("変更に失敗しました。再試行してください");
+                    return;
                   }
                   setShowTableChange(false);
-                  setNewTableInput("");
+                  setSelectedNewTableId("");
                 }}
-                className="flex-1 min-h-[44px] rounded-xl bg-[color:var(--color-accent-char)] text-white font-bold hover:opacity-90 transition-opacity"
+                className="flex-1 min-h-[44px] rounded-xl bg-[color:var(--color-accent-char)] text-white font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
               >
                 変更する
               </button>
