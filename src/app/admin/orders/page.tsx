@@ -158,6 +158,7 @@ function NewOrdersView({
 
     const q = query(
       collectionGroup(db, "orders"),
+      where("status", "==", "pending"),
       where("createdAt", ">=", Timestamp.fromDate(start)),
       where("createdAt", "<", Timestamp.fromDate(end)),
       orderBy("createdAt", "asc")
@@ -167,14 +168,13 @@ function NewOrdersView({
       q,
       (snap) => {
         const all = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
-        const active = all.filter((o) => o.status === "pending");
 
         if (prevOrderCountRef.current !== null && all.length > prevOrderCountRef.current) {
           playNotificationSound();
         }
         prevOrderCountRef.current = all.length;
 
-        setOrders(active);
+        setOrders(all);
         setLoading(false);
       },
       (e) => {
