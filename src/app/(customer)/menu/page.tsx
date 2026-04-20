@@ -64,6 +64,19 @@ export default function MenuPage() {
     }
   }, [tableNumber, router]);
 
+  // 管理者がテーブルをリセット or 削除したらリアルタイムで /setup へ
+  useEffect(() => {
+    const tableId = typeof window !== "undefined" ? localStorage.getItem(TABLE_ID_KEY) : null;
+    if (!tableId) return;
+    return onSnapshot(doc(db, "tables", tableId), (snap) => {
+      if (!snap.exists() || !snap.data().deviceId) {
+        localStorage.removeItem(TABLE_ID_KEY);
+        setTableNumber(null);
+        router.replace("/setup");
+      }
+    });
+  }, [router, setTableNumber]);
+
   useEffect(() => {
     setOrdersLoaded(false);
     prevHasUnpaidRef.current = undefined;
