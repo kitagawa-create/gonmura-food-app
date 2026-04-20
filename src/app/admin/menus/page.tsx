@@ -663,6 +663,7 @@ function MenuFormModal({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim()) return;
+    if (form.categoryIds.length === 0) return;
     setSaving(true);
     await onSave(form, imageFile, menu?.id);
     setSaving(false);
@@ -751,7 +752,7 @@ function MenuFormModal({
               className="w-full text-sm text-[color:var(--color-text-muted)] file:mr-3 file:rounded file:border-0 file:bg-[color:var(--color-bg-subtle)] file:px-3 file:py-2 file:text-sm file:font-medium file:text-[color:var(--color-text-primary)] hover:file:bg-[color:var(--color-border)]"
             />
           </Field>
-          <Field label="カテゴリ(複数選択可)">
+          <Field label="カテゴリ(複数選択可)" required>
             <div className="flex flex-wrap gap-2">
               {categories.length === 0 ? (
                 <p className="text-xs text-[color:var(--color-text-muted)]">
@@ -781,6 +782,9 @@ function MenuFormModal({
                 })
               )}
             </div>
+            {form.categoryIds.length === 0 && (
+              <p className="mt-1 text-xs text-[color:var(--color-accent-warn)]">カテゴリを1つ以上選択してください</p>
+            )}
           </Field>
           <Field label="公開状態" required>
             <select

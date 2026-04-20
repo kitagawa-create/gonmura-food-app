@@ -30,9 +30,8 @@ export default function AdminCategoriesPage() {
   const { show: toast } = useToast();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newName, setNewName] = useState("");
-  const [addNameError, setAddNameError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showAddDialog, setShowAddDialog] = useState(false);
 
   // 並び替え状態 (DnD + 長押し→タップ移動)
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -68,34 +67,24 @@ export default function AdminCategoriesPage() {
     return hit ? `「${trimmed}」は既に登録されています` : null;
   }
 
-  async function handleAdd(e: React.FormEvent) {
-    e.preventDefault();
-    const trimmed = newName.trim();
-    if (!trimmed) return;
-    const dup = findDuplicateName(trimmed);
-    if (dup) {
-      setAddNameError(dup);
-      return;
-    }
-    setAddNameError(null);
+  async function handleAdd(name: string) {
     setError(null);
     try {
-      // 末尾追加: 既存の最大 sortOrder + 1
       const nextOrder =
         categories.length > 0
           ? Math.max(...categories.map((c) => c.sortOrder)) + 1
           : 0;
       await addDoc(collection(db, "categories"), {
-        name: trimmed,
+        name,
         sortOrder: nextOrder,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      setNewName("");
       toast("カテゴリを追加しました");
     } catch (e) {
       setError(e instanceof Error ? e.message : "追加に失敗しました。");
       toast("追加に失敗しました");
+      throw e;
     }
   }
 
@@ -145,7 +134,6 @@ export default function AdminCategoriesPage() {
     }
   }
 
-  // 並び替えを Firestore へ反映 (writeBatchで原子的に)
   async function persistOrder(ordered: Category[]) {
     setSavingOrder(true);
     setError(null);
@@ -186,7 +174,6 @@ export default function AdminCategoriesPage() {
     persistOrder(next);
   }
 
-  // 長押し→タップ移動: 選択中の項目を targetId の位置に移動
   function handleTapMove(targetId: string) {
     if (!movingId || movingId === targetId) {
       setMovingId(null);
@@ -207,47 +194,23 @@ export default function AdminCategoriesPage() {
 
   return (
     <div className="w-full">
-      <AdminPageHeader title="カテゴリ管理" />
+      <AdminPageHeader
+        title="カテゴリ管理"
+        rightSlot={
+          <button
+            onClick={() => setShowAddDialog(true)}
+            className="rounded-lg bg-[color:var(--color-accent-char)] px-4 py-2 text-sm text-white font-bold hover:opacity-90 transition-opacity"
+          >
+            ＋ カテゴリ追加
+          </button>
+        }
+      />
 
       {error && (
         <p className="mb-4 rounded-lg bg-[color:var(--color-accent-warn)]/10 border border-[color:var(--color-accent-warn)]/30 p-3 text-sm text-[color:var(--color-accent-warn)]">
           {error}
         </p>
       )}
-
-      <form
-        onSubmit={handleAdd}
-        className="mb-6 flex flex-wrap items-start gap-2 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-4 shadow-sm"
-      >
-        <div className="flex-1 min-w-[200px]">
-          <label className="mb-1 block text-xs text-[color:var(--color-text-muted)]">名前</label>
-          <input
-            className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
-            maxLength={20}
-            value={newName}
-            onChange={(e) => {
-              setNewName(e.target.value);
-              if (addNameError) setAddNameError(null);
-            }}
-            placeholder="例: 丼もの"
-          />
-          <p className={`mt-1 text-right text-xs ${newName.length >= 18 ? "text-[color:var(--color-accent-warn)]" : "text-[color:var(--color-text-muted)]"}`}>
-            {newName.length}/20
-          </p>
-          {addNameError && (
-            <p className="mt-1 text-sm text-[color:var(--color-accent-warn)]">
-              {addNameError}
-            </p>
-          )}
-        </div>
-        <button
-          type="submit"
-          disabled={!newName.trim() || addNameError !== null}
-          className="mt-5 rounded-xl bg-[color:var(--color-accent-char)] px-4 py-2 text-sm text-white font-bold hover:bg-[color:var(--color-accent-char-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          追加
-        </button>
-      </form>
 
       {loading ? (
         <PageLoader />
@@ -286,6 +249,12 @@ export default function AdminCategoriesPage() {
         </>
       )}
 
+      <CategoryAddDialog
+        open={showAddDialog}
+        onClose={() => setShowAddDialog(false)}
+        onAdd={handleAdd}
+        findDuplicate={findDuplicateName}
+      />
       <ConfirmDialog
         open={deleteTarget !== null}
         title="カテゴリの削除"
@@ -297,6 +266,111 @@ export default function AdminCategoriesPage() {
         onCancel={() => !deleting && setDeleteTarget(null)}
         loading={deleting}
       />
+    </div>
+  );
+}
+
+function CategoryAddDialog({
+  open,
+  onClose,
+  onAdd,
+  findDuplicate,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onAdd: (name: string) => Promise<void>;
+  findDuplicate: (name: string) => string | null;
+}) {
+  const [name, setName] = useState("");
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setName("");
+      setNameError(null);
+    }
+  }, [open]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const dup = findDuplicate(trimmed);
+    if (dup) { setNameError(dup); return; }
+    setNameError(null);
+    setSaving(true);
+    try {
+      await onAdd(trimmed);
+      onClose();
+    } catch {
+      // エラーは親で表示済み
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <form
+        onSubmit={handleSubmit}
+        className="relative flex w-full max-w-sm flex-col rounded-2xl bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] shadow-xl"
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="閉じる"
+          className="absolute top-4 right-4 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+        >
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        <div className="shrink-0 border-b border-[color:var(--color-border)] px-6 py-4 pr-16">
+          <h2 className="text-lg font-bold text-[color:var(--color-text-primary)]">カテゴリ追加</h2>
+        </div>
+
+        <div className="px-6 py-4">
+          <div className="mb-1 flex items-center gap-1.5">
+            <label className="block text-xs text-[color:var(--color-text-muted)]">名前</label>
+            <span className="text-[10px] font-medium text-white bg-[color:var(--color-accent-warn)] rounded px-1 py-0.5 leading-none">必須</span>
+          </div>
+          <input
+            autoFocus
+            className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
+            maxLength={20}
+            value={name}
+            onChange={(e) => { setName(e.target.value); if (nameError) setNameError(null); }}
+            placeholder="例: 丼もの"
+          />
+          <p className={`mt-1 text-right text-xs ${name.length >= 18 ? "text-[color:var(--color-accent-warn)]" : "text-[color:var(--color-text-muted)]"}`}>
+            {name.length}/20
+          </p>
+          {nameError && (
+            <p className="mt-1 text-xs text-[color:var(--color-accent-warn)]">{nameError}</p>
+          )}
+        </div>
+
+        <div className="shrink-0 flex justify-end gap-2 border-t border-[color:var(--color-border)] px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-[color:var(--color-border)] px-4 py-2 text-sm text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+          >
+            キャンセル
+          </button>
+          <button
+            type="submit"
+            disabled={!name.trim() || saving}
+            className="rounded-xl bg-[color:var(--color-accent-char)] px-4 py-2 text-sm text-white font-bold hover:bg-[color:var(--color-accent-char-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? "追加中..." : "追加"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
