@@ -84,7 +84,13 @@ function loadTableString(): string | null {
 export function CartProvider({ children }: { children: React.ReactNode }) {
   // 初回レンダリング時に localStorage から同期的に復元 (SSRでは fallback を返す)
   const [tableNumber, setTableNumberState] = useState<string | null>(() => loadTableString());
-  const [guestCount, setGuestCountState] = useState<number | null>(null);
+  const [guestCount, setGuestCountState] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    const raw = sessionStorage.getItem(GUEST_COUNT_KEY);
+    if (!raw) return null;
+    const n = parseInt(raw, 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  });
   const [customerId, setCustomerIdState] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     return localStorage.getItem(CUSTOMER_ID_KEY) ?? null;
@@ -102,7 +108,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setCustomerIdState(null);
     if (typeof window !== "undefined") {
       localStorage.setItem(TABLE_KEY, JSON.stringify(n));
-      localStorage.removeItem(GUEST_COUNT_KEY);
+      sessionStorage.removeItem(GUEST_COUNT_KEY);
       localStorage.removeItem(CUSTOMER_ID_KEY);
       const savedCart = rehydrateItems(loadFromStorage<unknown>(cartKey(n), []));
       setItems(savedCart);
@@ -113,6 +119,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const setGuestCount = useCallback((n: number) => {
     const count = Math.max(1, Math.trunc(n));
     setGuestCountState(count);
+    if (typeof window !== "undefined") sessionStorage.setItem(GUEST_COUNT_KEY, String(count));
   }, []);
 
   const setCustomerId = useCallback((id: string | null) => {
@@ -205,6 +212,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems([]);
     if (typeof window !== "undefined") {
       localStorage.removeItem(CUSTOMER_ID_KEY);
+      sessionStorage.removeItem(GUEST_COUNT_KEY);
     }
   }, []);
 

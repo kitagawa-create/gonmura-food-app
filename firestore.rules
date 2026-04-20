@@ -69,7 +69,7 @@ service cloud.firestore {
       allow create: if true;
       allow read: if true;
       allow update: if isStaff()
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['tableNumber']);
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['tableId']);
       allow delete: if isStaff();
 
       match /orders/{orderId} {

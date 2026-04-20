@@ -49,12 +49,12 @@ export default function MenuPage() {
   const [selectedNewTableId, setSelectedNewTableId] = useState("");
   const [showGuestCountDialog, setShowGuestCountDialog] = useState(false);
   const [guestCountInput, setGuestCountInput] = useState<number>(1);
-  const [hasUnpaidOrders, setHasUnpaidOrders] = useState(() => customerId !== null);
-  const [ordersLoaded, setOrdersLoaded] = useState(false);
   const { addItem, updateItem, totalItems, tableNumber, setTableNumber, clearCart, resetSession, guestCount, setGuestCount, customerId } =
     useCart();
   const router = useRouter();
   const prevHasUnpaidRef = useRef<boolean | undefined>(undefined);
+  const [hasUnpaidOrders, setHasUnpaidOrders] = useState(() => customerId !== null);
+  const [ordersLoaded, setOrdersLoaded] = useState(false);
 
   useEffect(() => {
     if (tableNumber === null) {
