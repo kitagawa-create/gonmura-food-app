@@ -31,8 +31,9 @@ src/
 │   │   ├── orders/page.tsx      # 注文管理（商品チェックリスト方式、全チェック→提供完了ボタン、履歴ビュー+日付検索）
 │   │   ├── register/page.tsx    # レジ（未精算/精算済みタブ、売上ドーナツ円グラフ、目標達成率）
 │   │   ├── sales/page.tsx       # 売上分析（owner のみ。年月日プルダウン期間指定、KPI4枚、売上推移/メニュー別売数/曜日・時間帯ヒートマップ）
-│   │   ├── menus/page.tsx       # メニューCRUD（owner: 全機能 / staff: 公開+売り切れトグル）
-│   │   └── categories/page.tsx  # カテゴリ管理（owner のみ、長押し→タップ並替え対応）
+│   │   ├── menus/page.tsx       # メニューCRUD（owner: 全機能 / staff: status トグルのみ）
+│   │   ├── categories/page.tsx  # カテゴリ管理（owner のみ、長押し→タップ並替え対応）
+│   │   └── tables/page.tsx      # テーブル管理（owner のみ、テーブル追加/削除/リセット）
 │   ├── global-error.tsx         # Sentryエラーキャッチ画面
 │   ├── layout.tsx               # ルートレイアウト（lang="ja"）
 │   └── page.tsx                 # / → /menu クライアントリダイレクト
@@ -57,52 +58,64 @@ src/
 │   ├── cart-context.tsx          # CartProvider（localStorage永続化、テーブルごとカート分離、数量指定addItem）
 │   ├── admin-auth.ts            # loginWithEmail, logout, getAdminRole, subscribeAuth
 │   ├── analytics.ts             # trackEvent（Firebase Analytics logEvent wrapper）
-│   └── order-utils.ts           # comboUnitPrice, comboLineTotal, orderGrandTotal, flattenForReceipt, comboLineHash
+│   └── order-utils.ts           # comboUnitPrice, comboLineTotal, orderGrandTotal, flattenForReceipt, comboLineHash, normalizeMenu, normalizeOrder, normalizeOrderItem, newLineId
 └── types/
     └── index.ts                 # Category, Menu, Order, OrderItem, OrderStatus, AdminRole, Admin, CartItem
 ```
 
 ## 型定義 (src/types/index.ts)
 ```
+MenuStatus        "active" | "soldout" | "hidden" | "deleted"
 Category          { id, name, sortOrder: number, createdAt, updatedAt }
-Menu              { id, name, description, price: number, categoryIds: string[], imageUrl, isAvailable, isSoldOut?: boolean, sortOrder?: number, createdAt, updatedAt }
-OrderItemTopping  { menuId, name, price: number, quantity: number }  ← quantity は「1杯あたり」
-OrderItem         { menuId, name, price: number, quantity: number, toppings?: OrderItemTopping[] }  ← 注文時スナップショット。price は単品価格（トッピング分は含まない）、quantity はコンボなら「杯数」
+Menu              { id, name, description, price: number, categoryIds: string[], imageUrl: string, status: MenuStatus, sortOrder: number, createdAt, updatedAt }
+OrderItemTopping  { menuId, name, price: number, quantity: number }  ← quantity は「1コンボあたり」
+OrderItem         { id, menuId, name, price: number, quantity: number, toppings: OrderItemTopping[], note: string, checked: boolean }  ← 注文時スナップショット。price は単品価格（トッピング分は含まない）
 OrderStatus       "pending" | "completed" | "paid"
 AdminRole         "owner" | "staff"
-Order             { id, items: OrderItem[], status: OrderStatus, tableNumber: number, customerNote, guestCount?: number, checkedItems?: number[], createdAt, updatedAt }
+Order             { id, status: OrderStatus, customerId: string, tableNumber: string, guestCount: number, createdAt, updatedAt }  ← items はサブコレクション
+OrderWithItems    Order & { items: OrderItem[] }  ← ランタイム結合型
 Admin             { uid, email, role, createdAt, updatedAt }
-CartItemTopping   { menuId, name, price: number, quantity: number }  ← quantity は「1杯あたり」
-CartItem          { lineId, menuId, name, price: number, quantity: number, toppings?: CartItemTopping[] }  ← localStorage保存、Firestore不使用。lineId でコンボを識別（同 menuId でも構成が違えば別 line）
+Table             { id, tableNumber: string, deviceId: string, pin: string, createdAt, updatedAt }
+CartItemTopping   { menuId, name, price: number, quantity: number }  ← quantity は「1コンボあたり」
+CartItem          { lineId, menuId, name, price: number, quantity: number, toppings: CartItemTopping[], note: string }  ← localStorage保存、Firestore不使用。lineId でコンボを識別（同 menuId でも構成が違えば別 line）
 ```
 
 ## Firestore コレクション
-- `categories/{categoryId}` → Category型。name, sortOrder（長押し→タップ or DnD で変更）
-- `menus/{menuId}` → Menu型。price整数, categoryIds配列, isAvailable で非公開制御, isSoldOut で売り切れ制御, sortOrder? で並び替え
-- `orders/{orderId}` → Order型。items配列にスナップショット, statusで遷移管理, checkedItems で商品チェック状態。guestCount は注文時にlocalStorageから付与
-- `admins/{uid}` → Admin型。Firebase Auth uidがドキュメントID
+- `categories/{categoryId}` → Category型。name, sortOrder（長押し→タップ並替え対応）
+- `menus/{menuId}` → Menu型。price整数, categoryIds配列, status で公開/売切/非公開/削除を制御, sortOrder で並び替え
+- `customers/{customerId}` → 顧客セッション（createdAt, updatedAt のみ）
+- `customers/{customerId}/orders/{orderId}` → Order型。items はサブコレクション。status で遷移管理
+- `customers/{customerId}/orders/{orderId}/items/{itemId}` → OrderItem型。checked で調理チェック状態管理
+- `tables/{tableId}` → Table型。deviceId でタブレット紐付け、pin でテーブル変更認証
+- `admins/{uid}` → Admin型。Firebase Auth uid がドキュメントID
 
 ## ステータス遷移
 ```
 pending → completed → paid（正常フロー）
-注文管理画面で商品を1つずつチェック → 全チェック後「提供完了」ボタンで completed に遷移
-取消は deleteDoc でドキュメント削除（ConfirmDialogで確認）
+注文管理画面で item.checked を1つずつトグル → 全チェック後「提供完了」ボタンで completed に遷移（5秒自動完了あり）
+取消は注文ドキュメント + items サブコレクションをすべて writeBatch で削除
 paid への変更は管理者のみ（レジ画面から）
 ```
 
 ## Security Rules (firestore.rules)
 - categories: 誰でも読める、owner のみ書ける
-- menus: 誰でも読める / create・delete は owner / update は owner、staff は isAvailable + isSoldOut + updatedAt のみ可
-- orders: 誰でも作成・読める（tableNumber バリデーション 1-50）、更新・削除は staff 以上（owner も可）
+- menus: 誰でも読める / create・delete は owner / update は owner、staff は status + updatedAt のみ可
+- customers: 誰でも作成・読める / update・delete は staff 以上（tableNumber 変更は不可）
+- customers/orders: 誰でも作成・読める / update・delete は staff 以上
+- customers/orders/items: 誰でも作成・読める / update・delete は staff 以上
+- tables: 誰でも読める / create は staff / update は staff または未割当タブレットの自己登録 / delete は owner
 - admins: 自分のuidのドキュメントのみ読める
-- storage menus/: 誰でも読める、認証済みユーザーのみ書ける
 - 管理者ロールは admins/{uid}.role: "owner" | "staff"。role 未設定は staff 扱い
 
 ## localStorage キー
-- `gonmura-table` — テーブル番号（/setup で設定）
-- `gonmura-table-pin` — テーブル変更用PIN（4桁、デフォルト "1234"）
-- `gonmura-cart-{N}` — テーブルNのカート（精算時にクリア）
+- `gonmura-table` — テーブル番号 (文字列、JSON.stringify して保存)
+- `gonmura-table-id` — tables/{tableId} のドキュメントID
+- `gonmura-device-id` — タブレット固有ID（crypto.randomUUID、初回生成後固定）
+- `gonmura-guest-count` — 人数（新規セッション開始時にダイアログで設定）
+- `gonmura-customer-id` — customers/{customerId} のドキュメントID（精算後リセット）
+- `gonmura-cart-{tableNumber}` — テーブルごとのカート（CartItem[] を JSON 保存、精算後クリア）
 - `gonmura-sales-goal` — 本日売上目標（管理画面で編集、default ¥100,000）
+- `gonmura-table-names` — テーブルの表示名マップ（レジ画面で編集、Record<tableNumber, name>）
 
 ## コマンド
 - `npm run dev` — 開発サーバー起動
@@ -131,8 +144,8 @@ paid への変更は管理者のみ（レジ画面から）
 | 型定義 | PascalCase 単数形 | `Category`, `Order`, `OrderItem`, `AdminRole` |
 | Props型 | PascalCase + `Props` | `FadeImageProps`, `BackButtonProps` |
 | Firestoreコレクション | lowercase複数形 | `orders`, `menus`, `categories`, `admins` |
-| Firestoreフィールド | camelCase | `tableNumber`, `isAvailable`, `isSoldOut`, `checkedItems` |
-| localStorageキー | kebab-case `gonmura-`プレフィックス | `gonmura-table`, `gonmura-table-pin`, `gonmura-cart-{N}` |
+| Firestoreフィールド | camelCase | `tableNumber`, `status`, `checked`, `guestCount` |
+| localStorageキー | kebab-case `gonmura-`プレフィックス | `gonmura-table`, `gonmura-table-id`, `gonmura-cart-{tableNumber}` |
 
 ## 注意事項
 - .env.local は絶対にコミット・pushしないこと

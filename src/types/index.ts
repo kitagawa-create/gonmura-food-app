@@ -62,14 +62,6 @@ export type OrderItem = {
   checked: boolean;
 };
 
-export type Customer = {
-  id: string;
-  tableNumber: string;
-  guestCount: number;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-};
-
 export type OrderStatus = "pending" | "completed" | "paid";
 
 export type AdminRole = "owner" | "staff";
@@ -77,8 +69,12 @@ export type AdminRole = "owner" | "staff";
 export type Order = {
   id: string;
   status: OrderStatus;
-  /** customers コレクションへの参照（必須）。tableNumber・guestCount はここから取得 */
+  /** ドキュメントパス customers/{customerId}/orders/{orderId} から取得（Firestoreには保存しない） */
   customerId: string;
+  /** 注文時スナップショット */
+  tableNumber: string;
+  /** 注文時スナップショット */
+  guestCount: number;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };

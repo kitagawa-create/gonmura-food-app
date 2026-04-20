@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { collection, query, where, getDocs, orderBy, onSnapshot, doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Menu, Category, CartItemTopping } from "@/types";
+import type { Menu, Category, CartItemTopping, CartItem } from "@/types";
 import { normalizeMenu } from "@/lib/order-utils";
 import { useCart } from "@/lib/cart-context";
 import { FadeImage } from "@/components/ui/FadeImage";
@@ -38,6 +38,7 @@ export default function MenuPage() {
   const [selectedNote, setSelectedNote] = useState("");
   // ラーメンモーダルのトッピング/サイド選択 (menuId → quantity)
   const [extraQty, setExtraQty] = useState<Record<string, number>>({});
+  const [editingLineId, setEditingLineId] = useState<string | null>(null);
   const [showPinDialog, setShowPinDialog] = useState(false);
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState("");
@@ -50,7 +51,7 @@ export default function MenuPage() {
   const [guestCountInput, setGuestCountInput] = useState<number>(1);
   const [hasUnpaidOrders, setHasUnpaidOrders] = useState(false);
   const [ordersLoaded, setOrdersLoaded] = useState(false);
-  const { addItem, totalItems, tableNumber, setTableNumber, clearCart, resetSession, guestCount, setGuestCount, customerId } =
+  const { addItem, updateItem, totalItems, tableNumber, setTableNumber, clearCart, resetSession, guestCount, setGuestCount, customerId } =
     useCart();
   const router = useRouter();
   const prevHasUnpaidRef = useRef<boolean | undefined>(undefined);
@@ -93,8 +94,7 @@ export default function MenuPage() {
       return;
     }
     const q = query(
-      collection(db, "orders"),
-      where("customerId", "==", customerId),
+      collection(db, "customers", customerId, "orders"),
       where("status", "in", ["pending", "completed"])
     );
     const unsub = onSnapshot(q, (snap) => {
@@ -230,6 +230,25 @@ export default function MenuPage() {
   const baseSubtotal = selectedMenu ? selectedMenu.price * effectiveQty : 0;
   const extrasSubtotal = extraLines.reduce((s, l) => s + l.menu.price * l.quantity, 0);
   const modalTotal = baseSubtotal + extrasSubtotal;
+
+  function closeModal() {
+    setSelectedMenu(null);
+    setExtraQty({});
+    setSelectedNote("");
+    setEditingLineId(null);
+  }
+
+  function handleEditCartItem(item: CartItem) {
+    const menu = menus.find((m) => m.id === item.menuId);
+    if (!menu) return;
+    setEditingLineId(item.lineId);
+    setSelectedMenu(menu);
+    setSelectedQuantity(item.quantity);
+    setSelectedNote(item.note);
+    const qty: Record<string, number> = {};
+    for (const t of item.toppings) qty[t.menuId] = t.quantity;
+    setExtraQty(qty);
+  }
 
   // --- スワイプ / マウスドラッグでカテゴリ切替 ---
   const pointerRef = useRef<{ x: number; y: number } | null>(null);
@@ -384,7 +403,7 @@ export default function MenuPage() {
                       大きな縦長画像や一部ブラウザで高さが滲むことがあるためこちらを採用。 */}
                   {menu.imageUrl ? (
                     <div
-                      className={`relative w-full shrink-0 overflow-hidden rounded-xl ${
+                      className={`relative w-full shrink-0 overflow-hidden ${
                         sold ? "opacity-40 grayscale" : ""
                       }`}
                       style={{ paddingTop: "75%" }}
@@ -399,7 +418,7 @@ export default function MenuPage() {
                     </div>
                   ) : (
                     <div
-                      className={`relative w-full shrink-0 overflow-hidden rounded-xl bg-[color:var(--color-bg-subtle)] ${
+                      className={`relative w-full shrink-0 overflow-hidden bg-[color:var(--color-bg-subtle)] ${
                         sold ? "opacity-40 grayscale" : ""
                       }`}
                       style={{ paddingTop: "75%" }}
@@ -440,18 +459,14 @@ export default function MenuPage() {
       </div>
       {/* カート (sm+ は右カラム 100dvh / sm 未満は下段 max 45dvh) */}
       <aside className="shrink-0 max-h-[45dvh] overflow-hidden border-t border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] sm:max-h-none sm:border-t-0 sm:border-l">
-        <CartPanel hasOrders={hasUnpaidOrders} />
+        <CartPanel hasOrders={hasUnpaidOrders} onEditItem={handleEditCartItem} />
       </aside>
 
       {/* 商品詳細モーダル */}
       {selectedMenu && (
         <div
           className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 p-0 md:p-6"
-          onClick={() => {
-            setSelectedMenu(null);
-            setExtraQty({});
-            setSelectedNote("");
-          }}
+          onClick={closeModal}
         >
           <div
             className="w-full max-w-lg md:max-w-xl lg:max-w-2xl max-h-[100dvh] md:max-h-[90dvh] flex flex-col bg-[color:var(--color-bg-card)] rounded-t-2xl md:rounded-2xl overflow-hidden animate-slide-up"
@@ -607,10 +622,7 @@ export default function MenuPage() {
 
             <div className="border-t border-[color:var(--color-border)] p-4 flex gap-3 bg-[color:var(--color-bg-card)]">
               <button
-                onClick={() => {
-                  setSelectedMenu(null);
-                  setExtraQty({});
-                }}
+                onClick={closeModal}
                 className="flex-1 py-3 rounded-xl border border-[color:var(--color-border)] text-[color:var(--color-text-primary)] font-medium hover:opacity-80 transition-opacity"
               >
                 閉じる
@@ -619,42 +631,46 @@ export default function MenuPage() {
                 onClick={() => {
                   if (!selectedMenu) return;
                   if (isRamenFlow) {
-                    // ラーメン: 1 杯 = 1 コンボ。トッピングはネスト (1杯あたり個数)
                     const toppings: CartItemTopping[] = extraLines.map((l) => ({
                       menuId: l.menu.id,
                       name: l.menu.name,
                       price: l.menu.price,
                       quantity: l.quantity,
                     }));
-                    addItem(
-                      {
-                        menuId: selectedMenu.id,
-                        name: selectedMenu.name,
-                        price: selectedMenu.price,
-                        toppings,
-                        ...(selectedNote.trim() ? { note: selectedNote.trim() } : {}),
-                      },
-                      1
-                    );
+                    if (editingLineId) {
+                      updateItem(editingLineId, { quantity: 1, toppings, note: selectedNote.trim() });
+                    } else {
+                      addItem(
+                        {
+                          menuId: selectedMenu.id,
+                          name: selectedMenu.name,
+                          price: selectedMenu.price,
+                          toppings,
+                          ...(selectedNote.trim() ? { note: selectedNote.trim() } : {}),
+                        },
+                        1
+                      );
+                    }
                   } else {
-                    // 非ラーメン (単品): qty × 個数、トッピングなし
-                    addItem(
-                      {
-                        menuId: selectedMenu.id,
-                        name: selectedMenu.name,
-                        price: selectedMenu.price,
-                        ...(selectedNote.trim() ? { note: selectedNote.trim() } : {}),
-                      },
-                      selectedQuantity
-                    );
+                    if (editingLineId) {
+                      updateItem(editingLineId, { quantity: selectedQuantity, toppings: [], note: selectedNote.trim() });
+                    } else {
+                      addItem(
+                        {
+                          menuId: selectedMenu.id,
+                          name: selectedMenu.name,
+                          price: selectedMenu.price,
+                          ...(selectedNote.trim() ? { note: selectedNote.trim() } : {}),
+                        },
+                        selectedQuantity
+                      );
+                    }
                   }
-                  setSelectedMenu(null);
-                  setExtraQty({});
-                  setSelectedNote("");
+                  closeModal();
                 }}
                 className="flex-[2] py-3 rounded-xl bg-[color:var(--color-accent-char)] text-white font-bold hover:opacity-90 transition-opacity"
               >
-                カートに追加 ¥{modalTotal.toLocaleString()}
+                {editingLineId ? `変更を保存 ¥${modalTotal.toLocaleString()}` : `カートに追加 ¥${modalTotal.toLocaleString()}`}
               </button>
             </div>
           </div>

@@ -6,6 +6,7 @@ import { PageLoader } from "@/components/ui/PageLoader";
 import {
   Timestamp,
   collection,
+  collectionGroup,
   getDocs,
   onSnapshot,
   orderBy,
@@ -13,7 +14,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Category, Customer, Menu, OrderWithItems } from "@/types";
+import type { Category, Menu, OrderWithItems } from "@/types";
 import { normalizeMenu, normalizeOrder, normalizeOrderItem } from "@/lib/order-utils";
 import { useAdminRole } from "@/components/admin/AdminContext";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
@@ -292,7 +293,6 @@ export default function AdminSalesPage() {
   const role = useAdminRole();
   const router = useRouter();
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [menus, setMenus] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(true);
@@ -330,22 +330,19 @@ export default function AdminSalesPage() {
       try {
         const start = Timestamp.fromDate(new Date(startDate + "T00:00:00"));
         const end = Timestamp.fromDate(new Date(endDate + "T23:59:59.999"));
-        const [ordersSnap, customersSnap] = await Promise.all([
-          getDocs(query(
-            collection(db, "orders"),
-            where("status", "==", "paid"),
-            where("createdAt", ">=", start),
-            where("createdAt", "<=", end),
-            orderBy("createdAt"),
-          )),
-          getDocs(collection(db, "customers")),
-        ]);
+        const ordersSnap = await getDocs(query(
+          collectionGroup(db, "orders"),
+          where("status", "==", "paid"),
+          where("createdAt", ">=", start),
+          where("createdAt", "<=", end),
+          orderBy("createdAt"),
+        ));
         const orderDocs = ordersSnap.docs.map((d) =>
-          normalizeOrder(d.id, d.data() as Record<string, unknown>)
+          normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id)
         );
         const withItems = await Promise.all(
           orderDocs.map(async (order) => {
-            const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+            const itemsSnap = await getDocs(collection(db, "customers", order.customerId, "orders", order.id, "items"));
             return {
               ...order,
               items: itemsSnap.docs.map((d) =>
@@ -355,7 +352,6 @@ export default function AdminSalesPage() {
           })
         );
         setOrders(withItems);
-        setCustomers(customersSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Customer));
       } catch (e) {
         console.error("[sales] fetchData failed:", e);
       } finally {
@@ -449,11 +445,9 @@ export default function AdminSalesPage() {
     const sessionMap = new Map<string, { revenue: number; guestCount: number }>();
     for (const o of filteredOrders) {
       if (!o.customerId) continue;
-      const customer = customers.find((c) => c.id === o.customerId);
-      if (!customer) continue;
       const s = sessionMap.get(o.customerId) ?? {
         revenue: 0,
-        guestCount: customer.guestCount,
+        guestCount: o.guestCount,
       };
       s.revenue += orderTotal(o);
       sessionMap.set(o.customerId, s);
@@ -463,7 +457,7 @@ export default function AdminSalesPage() {
     const totalGuestRevenue = sessions.reduce((s, sess) => s + sess.revenue, 0);
     const guestAtv = totalGuests === 0 ? null : Math.round(totalGuestRevenue / totalGuests);
     return { revenue, count, dailyAvgRevenue, dailyAvgCount, guestAtv };
-  }, [filteredOrders, customers, isDateRangeValid, startDate, endDate]);
+  }, [filteredOrders, isDateRangeValid, startDate, endDate]);
 
   const menuBarItems = useMemo(() => {
     const map = new Map<string, { menuId: string; name: string; qty: number }>();
@@ -496,13 +490,11 @@ export default function AdminSalesPage() {
     return grid;
   }, [filteredOrders]);
 
-  const customerByIdMap = useMemo(() => new Map(customers.map((c) => [c.id, c])), [customers]);
-
   const tableBreakdown = useMemo(() => {
     if (analysis !== "sales") return [];
     const map = new Map<string, { table: string; count: number; revenue: number }>();
     for (const o of filteredOrders) {
-      const t = customerByIdMap.get(o.customerId)?.tableNumber ?? "";
+      const t = o.tableNumber;
       const e = map.get(t) ?? { table: t, count: 0, revenue: 0 };
       e.count++;
       e.revenue += orderTotal(o);
@@ -511,7 +503,7 @@ export default function AdminSalesPage() {
     return Array.from(map.values())
       .sort((a, b) => b.revenue - a.revenue)
       .map((e) => ({ ...e, atv: e.count === 0 ? 0 : Math.round(e.revenue / e.count) }));
-  }, [analysis, filteredOrders, customerByIdMap]);
+  }, [analysis, filteredOrders]);
 
   const detail = useMemo(() => {
     if (!detailKey) return null;

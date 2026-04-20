@@ -21,15 +21,14 @@ export default function BillPage() {
 
     async function fetchOrders() {
       const q = query(
-        collection(db, "orders"),
-        where("customerId", "==", customerId),
+        collection(db, "customers", customerId!, "orders"),
         where("status", "in", ["pending", "completed"])
       );
       const snap = await getDocs(q);
-      const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
+      const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, customerId!));
       const withItems: OrderWithItems[] = await Promise.all(
         orderDocs.map(async (order) => {
-          const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+          const itemsSnap = await getDocs(collection(db, "customers", customerId!, "orders", order.id, "items"));
           return {
             ...order,
             items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)),

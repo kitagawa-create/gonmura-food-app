@@ -25,14 +25,6 @@ export function orderGrandTotal(items: ItemLike[]): number {
   return items.reduce((s, i) => s + comboLineTotal(i), 0);
 }
 
-/** 注文全体の品数 (コンボは杯数。トッピングも個数分カウント)。 */
-export function orderTotalQuantity(items: ItemLike[]): number {
-  return items.reduce((s, i) => {
-    const topQty = i.toppings.reduce((a, t) => a + t.quantity * i.quantity, 0);
-    return s + i.quantity + topQty;
-  }, 0);
-}
-
 /** レシート/売上集計用: コンボを分解してフラットな {menuId,name,price,quantity} に展開。 */
 export function flattenForReceipt(
   items: (CartItem | OrderItem)[]
@@ -52,32 +44,26 @@ export function flattenForReceipt(
   return out;
 }
 
-/** コンボ識別ハッシュ: menuId + ソート済 toppings で決定論的に。merge 判定に使う。 */
+/** コンボ識別ハッシュ: menuId + ソート済 toppings + note で決定論的に。merge 判定に使う。 */
 export function comboLineHash(
   menuId: string,
-  toppings: { menuId: string; quantity: number }[] = []
+  toppings: { menuId: string; quantity: number }[] = [],
+  note: string = ""
 ): string {
   const t = toppings
     .slice()
     .sort((a, b) => a.menuId.localeCompare(b.menuId))
     .map((x) => `${x.menuId}:${x.quantity}`)
     .join("|");
-  return `${menuId}#${t}`;
+  return `${menuId}#${t}@${note}`;
 }
 
 /** Firestore から取得した生データを Menu 型に正規化。旧 isAvailable/isSoldOut/isDeleted フィールドにも後方互換で対応。 */
 export function normalizeMenu(id: string, data: Record<string, unknown>): Menu {
   const VALID_STATUSES: MenuStatus[] = ["active", "soldout", "hidden", "deleted"];
-  let status: MenuStatus;
-  if (typeof data.status === "string" && (VALID_STATUSES as string[]).includes(data.status)) {
-    status = data.status as MenuStatus;
-  } else {
-    // 旧フィールドから変換
-    if (data.isDeleted === true) status = "deleted";
-    else if (data.isAvailable === false) status = "hidden";
-    else if (data.isSoldOut === true) status = "soldout";
-    else status = "active";
-  }
+  const status: MenuStatus = (typeof data.status === "string" && (VALID_STATUSES as string[]).includes(data.status))
+    ? data.status as MenuStatus
+    : "active";
   return {
     id,
     name: typeof data.name === "string" ? data.name : "",
@@ -103,12 +89,14 @@ export function normalizeOrderItem(id: string, data: Record<string, unknown>): O
   };
 }
 
-/** Firestore から取得した生データを Order 型に正規化。items は orders/{id}/items サブコレクションから別途取得すること。 */
-export function normalizeOrder(id: string, data: Record<string, unknown>): Order {
+/** Firestore から取得した生データを Order 型に正規化。customerId はドキュメントパスの親 (doc.ref.parent.parent!.id) から渡す。 */
+export function normalizeOrder(id: string, data: Record<string, unknown>, customerId: string): Order {
   return {
     id,
     status: (data.status as Order["status"]) ?? "pending",
-    customerId: typeof data.customerId === "string" ? data.customerId : "",
+    customerId,
+    tableNumber: typeof data.tableNumber === "string" ? data.tableNumber : "",
+    guestCount: typeof data.guestCount === "number" ? Math.trunc(data.guestCount) : 1,
     createdAt: data.createdAt as Order["createdAt"],
     updatedAt: data.updatedAt as Order["updatedAt"],
   };

@@ -6,6 +6,7 @@ import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import {
   Timestamp,
   collection,
+  collectionGroup,
   deleteDoc,
   doc,
   getDocs,
@@ -18,8 +19,8 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Category, Customer, Menu, Order, OrderItem, OrderWithItems } from "@/types";
-import { normalizeMenu, normalizeOrder, normalizeOrderItem, comboLineTotal } from "@/lib/order-utils";
+import type { Order, OrderItem, OrderWithItems } from "@/types";
+import { normalizeOrder, normalizeOrderItem, comboLineTotal } from "@/lib/order-utils";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 const TIME_FORMATTER = new Intl.DateTimeFormat("ja-JP", {
@@ -78,14 +79,6 @@ function playNotificationSound() {
 export default function AdminOrdersPage() {
   const [view, setView] = useState<"orders" | "history">("orders");
   const [error, setError] = useState<string | null>(null);
-  const toppingMenuIds = useToppingMenuIds();
-  const [customerMap, setCustomerMap] = useState<Map<string, Customer>>(new Map());
-
-  useEffect(() => {
-    return onSnapshot(collection(db, "customers"), (snap) => {
-      setCustomerMap(new Map(snap.docs.map((d) => [d.id, { id: d.id, ...(d.data() as Omit<Customer, "id">) }])));
-    });
-  }, []);
 
   return (
     <div className="h-full flex flex-col">
@@ -126,63 +119,20 @@ export default function AdminOrdersPage() {
       )}
 
       {view === "orders" ? (
-        <NewOrdersView onError={setError} toppingMenuIds={toppingMenuIds} customerMap={customerMap} />
+        <NewOrdersView onError={setError} />
       ) : (
-        <HistoryView onError={setError} toppingMenuIds={toppingMenuIds} customerMap={customerMap} />
+        <HistoryView onError={setError} />
       )}
     </div>
   );
-}
-
-// menus + categories から「トッピング」カテゴリに属する menuId の Set を取得。
-function useToppingMenuIds(): Set<string> {
-  const [menus, setMenus] = useState<Menu[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [menusSnap, catsSnap] = await Promise.all([
-          getDocs(collection(db, "menus")),
-          getDocs(collection(db, "categories")),
-        ]);
-        if (cancelled) return;
-        setMenus(menusSnap.docs.map((d) => normalizeMenu(d.id, d.data() as Record<string, unknown>)));
-        setCategories(
-          catsSnap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Category, "id">) }))
-        );
-      } catch {
-        /* 失敗時は空のまま (グルーピングなしで表示継続) */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return useMemo(() => {
-    const toppingCatIds = new Set(
-      categories.filter((c) => c.name === "トッピング").map((c) => c.id)
-    );
-    const ids = new Set<string>();
-    for (const m of menus) {
-      if (m.categoryIds?.some((cid) => toppingCatIds.has(cid))) ids.add(m.id);
-    }
-    return ids;
-  }, [menus, categories]);
 }
 
 // ========== 新規注文ビュー ==========
 
 function NewOrdersView({
   onError,
-  toppingMenuIds,
-  customerMap,
 }: {
   onError: (msg: string | null) => void;
-  toppingMenuIds: Set<string>;
-  customerMap: Map<string, Customer>;
 }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [itemsByOrder, setItemsByOrder] = useState<Map<string, OrderItem[]>>(new Map());
@@ -207,7 +157,7 @@ function NewOrdersView({
     const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
 
     const q = query(
-      collection(db, "orders"),
+      collectionGroup(db, "orders"),
       where("createdAt", ">=", Timestamp.fromDate(start)),
       where("createdAt", "<", Timestamp.fromDate(end)),
       orderBy("createdAt", "asc")
@@ -216,7 +166,7 @@ function NewOrdersView({
     const unsub = onSnapshot(
       q,
       (snap) => {
-        const all = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
+        const all = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
         const active = all.filter((o) => o.status === "pending");
 
         if (prevOrderCountRef.current !== null && all.length > prevOrderCountRef.current) {
@@ -238,7 +188,7 @@ function NewOrdersView({
   useEffect(() => {
     if (orders.length === 0) return;
     const unsubscribers = orders.map((order) =>
-      onSnapshot(collection(db, "orders", order.id, "items"), (snap) => {
+      onSnapshot(collection(db, "customers", order.customerId, "orders", order.id, "items"), (snap) => {
         setItemsByOrder((prev) => {
           const next = new Map(prev);
           next.set(order.id, snap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)));
@@ -268,7 +218,7 @@ function NewOrdersView({
       });
 
       try {
-        await updateDoc(doc(db, "orders", order.id, "items", itemId), {
+        await updateDoc(doc(db, "customers", order.customerId, "orders", order.id, "items", itemId), {
           checked: newChecked,
           updatedAt: serverTimestamp(),
         });
@@ -287,10 +237,10 @@ function NewOrdersView({
   const completeOrder = useCallback(
     async (order: OrderWithItems) => {
       onError(null);
-      const orderBase: Order = { id: order.id, status: order.status, customerId: order.customerId, createdAt: order.createdAt, updatedAt: order.updatedAt };
+      const orderBase: Order = { id: order.id, status: order.status, customerId: order.customerId, tableNumber: order.tableNumber, guestCount: order.guestCount, createdAt: order.createdAt, updatedAt: order.updatedAt };
       setOrders((os) => os.filter((o) => o.id !== order.id));
       try {
-        await updateDoc(doc(db, "orders", order.id), {
+        await updateDoc(doc(db, "customers", order.customerId, "orders", order.id), {
           status: "completed",
           updatedAt: serverTimestamp(),
         });
@@ -303,13 +253,13 @@ function NewOrdersView({
   );
 
   const deleteOrder = useCallback(
-    async (id: string) => {
+    async (order: OrderWithItems) => {
       onError(null);
       try {
-        const itemsSnap = await getDocs(collection(db, "orders", id, "items"));
+        const itemsSnap = await getDocs(collection(db, "customers", order.customerId, "orders", order.id, "items"));
         const batch = writeBatch(db);
         for (const d of itemsSnap.docs) batch.delete(d.ref);
-        batch.delete(doc(db, "orders", id));
+        batch.delete(doc(db, "customers", order.customerId, "orders", order.id));
         await batch.commit();
       } catch (e) {
         onError(e instanceof Error ? e.message : "削除に失敗しました。");
@@ -324,13 +274,13 @@ function NewOrdersView({
       const isLast = order.items.length === 1;
       try {
         if (isLast) {
-          const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+          const itemsSnap = await getDocs(collection(db, "customers", order.customerId, "orders", order.id, "items"));
           const batch = writeBatch(db);
           for (const d of itemsSnap.docs) batch.delete(d.ref);
-          batch.delete(doc(db, "orders", order.id));
+          batch.delete(doc(db, "customers", order.customerId, "orders", order.id));
           await batch.commit();
         } else {
-          await deleteDoc(doc(db, "orders", order.id, "items", itemId));
+          await deleteDoc(doc(db, "customers", order.customerId, "orders", order.id, "items", itemId));
         }
       } catch (e) {
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
@@ -348,7 +298,7 @@ function NewOrdersView({
         return next;
       });
       try {
-        const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+        const itemsSnap = await getDocs(collection(db, "customers", order.customerId, "orders", order.id, "items"));
         const batch = writeBatch(db);
         const ts = serverTimestamp();
         for (const d of itemsSnap.docs) batch.update(d.ref, { checked: true, updatedAt: ts });
@@ -374,7 +324,7 @@ function NewOrdersView({
         return next;
       });
       try {
-        const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+        const itemsSnap = await getDocs(collection(db, "customers", order.customerId, "orders", order.id, "items"));
         const batch = writeBatch(db);
         const ts = serverTimestamp();
         for (const d of itemsSnap.docs) batch.update(d.ref, { checked: false, updatedAt: ts });
@@ -412,8 +362,6 @@ function NewOrdersView({
             key={order.id}
             order={order}
             now={now}
-            toppingMenuIds={toppingMenuIds}
-            customerMap={customerMap}
             onToggle={toggleCheck}
             onComplete={completeOrder}
             onDelete={deleteOrder}
@@ -432,8 +380,6 @@ function NewOrdersView({
 function ActiveOrderCard({
   order,
   now,
-  toppingMenuIds,
-  customerMap,
   onToggle,
   onComplete,
   onDelete,
@@ -443,11 +389,9 @@ function ActiveOrderCard({
 }: {
   order: OrderWithItems;
   now: number;
-  toppingMenuIds: Set<string>;
-  customerMap: Map<string, Customer>;
   onToggle: (order: OrderWithItems, itemId: string) => void;
   onComplete: (order: OrderWithItems) => void;
-  onDelete: (id: string) => void;
+  onDelete: (order: OrderWithItems) => void;
   onCancelItem: (order: OrderWithItems, itemId: string) => void;
   onBulkCheck: (order: OrderWithItems) => void;
   onBulkUncheck: (order: OrderWithItems) => void;
@@ -456,7 +400,7 @@ function ActiveOrderCard({
   const [cancelItemId, setCancelItemId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [autoCompleteCountdown, setAutoCompleteCountdown] = useState<number | null>(null);
-  const tableNumber = customerMap.get(order.customerId)?.tableNumber;
+  const tableNumber = order.tableNumber;
   const total = order.items.reduce((s, i) => s + comboLineTotal(i), 0);
   const created = order.createdAt?.toDate?.();
   const elapsed = created ? timeAgo(created) : "";
@@ -558,7 +502,6 @@ function ActiveOrderCard({
         {order.items.map((item) => {
           const done = item.checked;
           const hasNestedToppings = item.toppings.length > 0;
-          const isLegacyTopping = !hasNestedToppings && toppingMenuIds.has(item.menuId);
           return (
             <li key={item.id} className="flex items-stretch gap-1">
               <button
@@ -596,16 +539,11 @@ function ActiveOrderCard({
                   </span>
                   <span
                     className={`flex-1 text-lg leading-tight ${
-                      isLegacyTopping ? "pl-5" : ""
-                    } ${
                       done
                         ? "line-through text-[color:var(--color-text-muted)]"
                         : "text-[color:var(--color-text-primary)]"
                     }`}
                   >
-                    {isLegacyTopping && (
-                      <span className="mr-1 text-[color:var(--color-text-muted)]">＋</span>
-                    )}
                     {item.name}
                   </span>
                   <span
@@ -693,7 +631,7 @@ function ActiveOrderCard({
         confirmLabel="削除する"
         confirmColor="red"
         onConfirm={() => {
-          onDelete(order.id);
+          onDelete(order);
           setShowCancel(false);
         }}
         onCancel={() => setShowCancel(false)}
@@ -723,12 +661,8 @@ function ActiveOrderCard({
 
 function HistoryView({
   onError,
-  toppingMenuIds,
-  customerMap,
 }: {
   onError: (msg: string | null) => void;
-  toppingMenuIds: Set<string>;
-  customerMap: Map<string, Customer>;
 }) {
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(true);
@@ -740,11 +674,11 @@ function HistoryView({
       onError(null);
       if (order.status === "paid") return;
       try {
-        const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+        const itemsSnap = await getDocs(collection(db, "customers", order.customerId, "orders", order.id, "items"));
         const batch = writeBatch(db);
         const ts = serverTimestamp();
         for (const d of itemsSnap.docs) batch.update(d.ref, { checked: false, updatedAt: ts });
-        batch.update(doc(db, "orders", order.id), { status: "pending", updatedAt: ts });
+        batch.update(doc(db, "customers", order.customerId, "orders", order.id), { status: "pending", updatedAt: ts });
         await batch.commit();
       } catch (e) {
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
@@ -759,7 +693,7 @@ function HistoryView({
     const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
 
     const q = query(
-      collection(db, "orders"),
+      collectionGroup(db, "orders"),
       where("status", "in", ["completed", "paid"]),
       where("createdAt", ">=", Timestamp.fromDate(start)),
       where("createdAt", "<", Timestamp.fromDate(end)),
@@ -768,10 +702,10 @@ function HistoryView({
     const unsub = onSnapshot(
       q,
       async (snap) => {
-        const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
+        const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
         const withItems = await Promise.all(
           orderDocs.map(async (order) => {
-            const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+            const itemsSnap = await getDocs(collection(db, "customers", order.customerId, "orders", order.id, "items"));
             return {
               ...order,
               items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)),
@@ -791,22 +725,17 @@ function HistoryView({
 
   const availableTables = useMemo(
     () =>
-      [
-        ...new Set(
-          orders
-            .map((o) => customerMap.get(o.customerId)?.tableNumber)
-            .filter((n): n is string => n !== undefined)
-        ),
-      ].sort((a, b) => a.localeCompare(b, "ja")),
-    [orders, customerMap]
+      [...new Set(orders.map((o) => o.tableNumber).filter((n) => n !== ""))]
+        .sort((a, b) => a.localeCompare(b, "ja")),
+    [orders]
   );
 
   const filteredOrders = useMemo(
     () =>
       tableFilter !== null
-        ? orders.filter((o) => customerMap.get(o.customerId)?.tableNumber === tableFilter)
+        ? orders.filter((o) => o.tableNumber === tableFilter)
         : orders,
-    [orders, tableFilter, customerMap]
+    [orders, tableFilter]
   );
 
   return (
@@ -867,8 +796,6 @@ function HistoryView({
             <HistoryOrderCard
               key={order.id}
               order={order}
-              toppingMenuIds={toppingMenuIds}
-              customerMap={customerMap}
               onRevert={revertOrder}
             />
           ))}
@@ -882,17 +809,13 @@ function HistoryView({
 
 function HistoryOrderCard({
   order,
-  toppingMenuIds,
-  customerMap,
   onRevert,
 }: {
   order: OrderWithItems;
-  toppingMenuIds: Set<string>;
-  customerMap: Map<string, Customer>;
   onRevert: (order: OrderWithItems) => void;
 }) {
   const [showRevert, setShowRevert] = useState(false);
-  const tableNumber = customerMap.get(order.customerId)?.tableNumber;
+  const tableNumber = order.tableNumber;
   const total = order.items.reduce((s, i) => s + comboLineTotal(i), 0);
   const created = order.createdAt?.toDate?.();
   const isPaid = order.status === "paid";
@@ -926,16 +849,10 @@ function HistoryOrderCard({
       <ul className="text-sm text-[color:var(--color-text-primary)] space-y-0.5">
         {order.items.map((item) => {
           const hasNestedToppings = item.toppings.length > 0;
-          const isLegacyTopping = !hasNestedToppings && toppingMenuIds.has(item.menuId);
           return (
             <li key={item.id}>
-              <div className={`flex justify-between ${isLegacyTopping ? "pl-4" : ""}`}>
-                <span>
-                  {isLegacyTopping && (
-                    <span className="mr-1 text-[color:var(--color-text-muted)]">＋</span>
-                  )}
-                  {item.name}
-                </span>
+              <div className="flex justify-between">
+                <span>{item.name}</span>
                 <span className="text-[color:var(--color-text-muted)]">×{item.quantity}</span>
               </div>
               {hasNestedToppings && (

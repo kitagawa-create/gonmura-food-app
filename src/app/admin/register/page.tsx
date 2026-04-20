@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Timestamp,
   collection,
+  collectionGroup,
   doc,
   getDocs,
   onSnapshot,
@@ -18,13 +19,14 @@ import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { useToast } from "@/components/ui/Snackbar";
-import type { Customer, OrderWithItems } from "@/types";
+import type { OrderWithItems } from "@/types";
 import { comboLineTotal, flattenForReceipt, normalizeOrder, normalizeOrderItem } from "@/lib/order-utils";
 
 type Tab = "tables" | "paid";
 type TableBill = {
   customerId: string;
   tableNumber: string;
+  guestCount: number;
   orders: OrderWithItems[];
   totalAmount: number;
   firstOrderAt: Date | null;
@@ -58,7 +60,7 @@ function persistTableName(num: string, name: string) {
   } catch {}
 }
 
-function groupByCustomer(orders: OrderWithItems[], customerMap: Map<string, Customer>): TableBill[] {
+function groupByCustomer(orders: OrderWithItems[]): TableBill[] {
   const map = new Map<string, OrderWithItems[]>();
   for (const o of orders) {
     map.set(o.customerId, [...(map.get(o.customerId) ?? []), o]);
@@ -66,7 +68,8 @@ function groupByCustomer(orders: OrderWithItems[], customerMap: Map<string, Cust
   return Array.from(map.entries())
     .map(([customerId, tableOrders]) => ({
       customerId,
-      tableNumber: customerMap.get(customerId)?.tableNumber ?? "",
+      tableNumber: tableOrders[0]?.tableNumber ?? "",
+      guestCount: tableOrders[0]?.guestCount ?? 1,
       orders: tableOrders,
       totalAmount: tableOrders.reduce((s, o) => s + o.items.reduce((ss, i) => ss + comboLineTotal(i), 0), 0),
       firstOrderAt: tableOrders.reduce<Date | null>((earliest, o) => {
@@ -118,7 +121,6 @@ export default function AdminRegisterPage() {
   const { show: toast } = useToast();
 
   const [tableNames, setTableNames] = useState<Map<string, string>>(new Map());
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [unpaidOrders, setUnpaidOrders] = useState<OrderWithItems[]>([]);
   const [paidOrders, setPaidOrders] = useState<OrderWithItems[]>([]);
   const [todayPaidOrders, setTodayPaidOrders] = useState<OrderWithItems[]>([]);
@@ -148,19 +150,12 @@ export default function AdminRegisterPage() {
 
   useEffect(() => {
     return onSnapshot(
-      collection(db, "customers"),
-      (snap) => setCustomers(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Customer))
-    );
-  }, []);
-
-  useEffect(() => {
-    return onSnapshot(
-      query(collection(db, "orders"), where("status", "in", ["pending", "completed"])),
+      query(collectionGroup(db, "orders"), where("status", "in", ["pending", "completed"])),
       async (snap) => {
-        const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
+        const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
         const withItems = await Promise.all(
           orderDocs.map(async (order) => {
-            const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+            const itemsSnap = await getDocs(collection(db, "customers", order.customerId, "orders", order.id, "items"));
             return { ...order, items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)) };
           })
         );
@@ -175,16 +170,16 @@ export default function AdminRegisterPage() {
     const start = new Date(); start.setHours(0, 0, 0, 0);
     const end = new Date(start.getTime() + 86_400_000);
     return onSnapshot(
-      query(collection(db, "orders"),
+      query(collectionGroup(db, "orders"),
         where("status", "==", "paid"),
         where("createdAt", ">=", Timestamp.fromDate(start)),
         where("createdAt", "<", Timestamp.fromDate(end)),
         orderBy("createdAt", "desc")),
       async (snap) => {
-        const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
+        const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
         const withItems = await Promise.all(
           orderDocs.map(async (order) => {
-            const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+            const itemsSnap = await getDocs(collection(db, "customers", order.customerId, "orders", order.id, "items"));
             return { ...order, items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)) };
           })
         );
@@ -199,16 +194,16 @@ export default function AdminRegisterPage() {
     const start = new Date(`${dateFilter}T00:00:00`);
     const end = new Date(start.getTime() + 86_400_000);
     return onSnapshot(
-      query(collection(db, "orders"),
+      query(collectionGroup(db, "orders"),
         where("status", "==", "paid"),
         where("createdAt", ">=", Timestamp.fromDate(start)),
         where("createdAt", "<", Timestamp.fromDate(end)),
         orderBy("createdAt", "desc")),
       async (snap) => {
-        const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>));
+        const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
         const withItems = await Promise.all(
           orderDocs.map(async (order) => {
-            const itemsSnap = await getDocs(collection(db, "orders", order.id, "items"));
+            const itemsSnap = await getDocs(collection(db, "customers", order.customerId, "orders", order.id, "items"));
             return { ...order, items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)) };
           })
         );
@@ -217,9 +212,8 @@ export default function AdminRegisterPage() {
     );
   }, [dateFilter]);
 
-  const customerById = useMemo(() => new Map(customers.map((c) => [c.id, c])), [customers]);
-  const unpaidBills = useMemo(() => groupByCustomer(unpaidOrders, customerById), [unpaidOrders, customerById]);
-  const paidBills = useMemo(() => groupByCustomer(paidOrders, customerById), [paidOrders, customerById]);
+  const unpaidBills = useMemo(() => groupByCustomer(unpaidOrders), [unpaidOrders]);
+  const paidBills = useMemo(() => groupByCustomer(paidOrders), [paidOrders]);
 
   const todaySales = useMemo(
     () => todayPaidOrders.reduce((s, o) => s + o.items.reduce((ss, i) => ss + comboLineTotal(i), 0), 0),
@@ -248,7 +242,7 @@ export default function AdminRegisterPage() {
     try {
       const batch = writeBatch(db);
       for (const o of payTarget.orders) {
-        batch.update(doc(db, "orders", o.id), { status: "paid", updatedAt: serverTimestamp() });
+        batch.update(doc(db, "customers", o.customerId, "orders", o.id), { status: "paid", updatedAt: serverTimestamp() });
       }
       await batch.commit();
       setPayTarget(null);
@@ -348,7 +342,6 @@ export default function AdminRegisterPage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {unpaidBills.map((bill) => {
-                const customer = customerById.get(bill.customerId);
                 const allItems = mergeItems(bill.orders);
                 const tax = Math.floor((bill.totalAmount * 10) / 110);
                 const subtotal = bill.totalAmount - tax;
@@ -390,15 +383,13 @@ export default function AdminRegisterPage() {
                     </div>
 
                     {/* 在席情報 */}
-                    {customer && (
-                      <p className="text-xs text-[color:var(--color-text-muted)] mb-3">
-                        {customer.guestCount}名
-                        {bill.firstOrderAt && (
-                          <> · 入店 <span className="font-medium">{new Intl.DateTimeFormat("ja-JP", { hour: "2-digit", minute: "2-digit" }).format(bill.firstOrderAt)}</span></>
-                        )}
-                        <span className="ml-2">({bill.orders.length}件)</span>
-                      </p>
-                    )}
+                    <p className="text-xs text-[color:var(--color-text-muted)] mb-3">
+                      {bill.guestCount}名
+                      {bill.firstOrderAt && (
+                        <> · 入店 <span className="font-medium">{new Intl.DateTimeFormat("ja-JP", { hour: "2-digit", minute: "2-digit" }).format(bill.firstOrderAt)}</span></>
+                      )}
+                      <span className="ml-2">({bill.orders.length}件)</span>
+                    </p>
 
                     {/* 注文一覧 */}
                     <ul className="mb-2 space-y-1 border-t border-[color:var(--color-border)] pt-2">
@@ -448,7 +439,7 @@ export default function AdminRegisterPage() {
                 const tax = Math.floor((table.totalAmount * 10) / 110);
                 const subtotal = table.totalAmount - tax;
                 const tableName = tableNames.get(table.tableNumber);
-                const guestCount = customerById.get(table.customerId)?.guestCount ?? null;
+                const guestCount = table.guestCount;
                 return (
                   <div key={table.tableNumber} className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-subtle)] p-4">
                     <div className="flex items-center justify-between mb-3">
@@ -466,7 +457,7 @@ export default function AdminRegisterPage() {
                       </div>
                       <div className="text-right">
                         <p className="text-xl font-bold text-[color:var(--color-accent-char)]">¥{table.totalAmount.toLocaleString()}</p>
-                        {guestCount != null && guestCount > 0 && (
+                        {guestCount > 0 && (
                           <p className="text-xs text-[color:var(--color-text-muted)]">
                             {guestCount}名 · 客単価 ¥{Math.floor(table.totalAmount / guestCount).toLocaleString()}
                           </p>

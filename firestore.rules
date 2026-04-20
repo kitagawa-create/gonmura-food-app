@@ -49,31 +49,26 @@ service cloud.firestore {
                 .hasOnly(["status", "updatedAt"]));
     }
 
-    match /orders/{orderId} {
-      allow create: if request.resource.data.keys().hasAll(['customerId'])
-                    && request.resource.data.customerId is string
-                    && request.resource.data.customerId.size() > 0;
-      allow read: if true;
-      allow update: if isStaff();
-      allow delete: if isStaff();
-
-      match /items/{itemId} {
-        allow read: if true;
-        allow create: if true;
-        allow update: if isStaff();
-        allow delete: if isStaff();
-      }
-    }
-
     match /customers/{customerId} {
-      allow create: if request.resource.data.keys().hasAll(['tableNumber', 'guestCount'])
-        && validTableNumber(request.resource.data.tableNumber)
-        && request.resource.data.guestCount is int
-        && request.resource.data.guestCount >= 1;
+      allow create: if true;
       allow read: if true;
       allow update: if isStaff()
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['tableNumber']);
       allow delete: if isStaff();
+
+      match /orders/{orderId} {
+        allow create: if true;
+        allow read: if true;
+        allow update: if isStaff();
+        allow delete: if isStaff();
+
+        match /items/{itemId} {
+          allow read: if true;
+          allow create: if true;
+          allow update: if isStaff();
+          allow delete: if isStaff();
+        }
+      }
     }
 
     match /tables/{tableId} {

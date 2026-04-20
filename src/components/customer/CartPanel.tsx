@@ -16,10 +16,17 @@ import {
 import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
 import { trackEvent } from "@/lib/analytics";
+import type { CartItem } from "@/types";
 import { FadeImage } from "@/components/ui/FadeImage";
 import { comboUnitPrice } from "@/lib/order-utils";
 
-export function CartPanel({ hasOrders }: { hasOrders: boolean }) {
+export function CartPanel({
+  hasOrders,
+  onEditItem,
+}: {
+  hasOrders: boolean;
+  onEditItem?: (item: CartItem) => void;
+}) {
   const {
     items,
     updateQuantity,
@@ -120,8 +127,6 @@ export function CartPanel({ hasOrders }: { hasOrders: boolean }) {
       } else {
         const customerRef = doc(collection(db, "customers"));
         await setDoc(customerRef, {
-          tableNumber,
-          guestCount: guestCount ?? 1,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
@@ -129,17 +134,18 @@ export function CartPanel({ hasOrders }: { hasOrders: boolean }) {
         setCustomerId(cid);
       }
 
-      const orderRef = doc(collection(db, "orders"));
+      const orderRef = doc(collection(db, "customers", cid, "orders"));
       const batch = writeBatch(db);
       batch.set(orderRef, {
         status: "pending",
-        customerId: cid,
+        tableNumber,
+        guestCount: guestCount ?? 1,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
       for (const item of items) {
         const itemId = crypto.randomUUID();
-        batch.set(doc(db, "orders", orderRef.id, "items", itemId), {
+        batch.set(doc(db, "customers", cid, "orders", orderRef.id, "items", itemId), {
           menuId: item.menuId,
           name: item.name,
           price: item.price,
@@ -198,21 +204,34 @@ export function CartPanel({ hasOrders }: { hasOrders: boolean }) {
                 return (
                   <li key={item.lineId} className="px-3 py-2">
                     <div className="flex items-center gap-2">
-                      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-[color:var(--color-bg-subtle)]">
-                        {img ? (
-                          <FadeImage src={img} alt={item.name} className="h-full w-full" />
-                        ) : (
-                          <div className="h-full w-full" aria-hidden />
+                      <button
+                        type="button"
+                        onClick={() => onEditItem?.(item)}
+                        disabled={!onEditItem}
+                        aria-label={`${item.name}を編集`}
+                        className="flex min-w-0 flex-1 items-center gap-2 text-left disabled:pointer-events-none"
+                      >
+                        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-[color:var(--color-bg-subtle)]">
+                          {img ? (
+                            <FadeImage src={img} alt={item.name} className="h-full w-full" />
+                          ) : (
+                            <div className="h-full w-full" aria-hidden />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="truncate text-xs font-semibold text-[color:var(--color-text-primary)]">
+                            {item.name}
+                          </h3>
+                          <p className="text-xs font-bold text-[color:var(--color-accent-char)] tabular-nums">
+                            ¥{unitPrice.toLocaleString()}
+                          </p>
+                        </div>
+                        {onEditItem && (
+                          <svg className="h-3.5 w-3.5 shrink-0 text-[color:var(--color-text-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
                         )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h3 className="truncate text-xs font-semibold text-[color:var(--color-text-primary)]">
-                          {item.name}
-                        </h3>
-                        <p className="text-xs font-bold text-[color:var(--color-accent-char)] tabular-nums">
-                          ¥{unitPrice.toLocaleString()}
-                        </p>
-                      </div>
+                      </button>
                       <div className="flex shrink-0 items-center gap-1">
                         <button
                           type="button"

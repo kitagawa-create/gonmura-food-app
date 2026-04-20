@@ -27,6 +27,7 @@ type CartContextType = {
   removeItem: (lineId: string) => void;
   updateQuantity: (lineId: string, quantity: number) => void;
   updateItemNote: (lineId: string, note: string) => void;
+  updateItem: (lineId: string, updates: Partial<Pick<CartItem, "quantity" | "toppings" | "note">>) => void;
   clearCart: () => void;
   resetSession: () => void;
   totalAmount: number;
@@ -68,21 +69,16 @@ function rehydrateItems(raw: unknown): CartItem[] {
     .filter((x) => x.menuId);
 }
 
-// 旧バージョン (JSON.stringify(number)) との後方互換を保ちつつ文字列として返す
 function loadTableString(): string | null {
   if (typeof window === "undefined") return null;
-  const raw = (() => {
-    try { return localStorage.getItem(TABLE_KEY); }
-    catch { return null; }
-  })();
-  if (raw === null || raw === "" || raw === "null") return null;
   try {
+    const raw = localStorage.getItem(TABLE_KEY);
+    if (!raw || raw === "null") return null;
     const parsed = JSON.parse(raw);
-    if (typeof parsed === "number" && Number.isFinite(parsed)) return String(parsed);
-    if (typeof parsed === "string" && parsed) return parsed;
-    if (parsed === null) return null;
-  } catch {}
-  return raw || null;
+    return typeof parsed === "string" && parsed ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
@@ -144,10 +140,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const addItem = useCallback((input: CartItemInput, quantity: number = 1) => {
     const qty = Math.max(1, Math.trunc(quantity));
-    const hash = comboLineHash(input.menuId, input.toppings);
+    const note = input.note ?? "";
+    const hash = comboLineHash(input.menuId, input.toppings, note);
     setItems((prev) => {
       const existing = prev.find(
-        (i) => comboLineHash(i.menuId, i.toppings) === hash
+        (i) => comboLineHash(i.menuId, i.toppings, i.note) === hash
       );
       if (existing) {
         return prev.map((i) =>
@@ -189,6 +186,25 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     );
   }, []);
 
+  const updateItem = useCallback(
+    (lineId: string, updates: Partial<Pick<CartItem, "quantity" | "toppings" | "note">>) => {
+      setItems((prev) =>
+        prev.map((i) => {
+          if (i.lineId !== lineId) return i;
+          return {
+            ...i,
+            ...(updates.quantity !== undefined
+              ? { quantity: Math.max(1, Math.trunc(updates.quantity)) }
+              : {}),
+            ...(updates.toppings !== undefined ? { toppings: updates.toppings } : {}),
+            ...(updates.note !== undefined ? { note: updates.note } : {}),
+          };
+        })
+      );
+    },
+    []
+  );
+
   const clearCart = useCallback(() => setItems([]), []);
 
   // 精算完了後の新セッション開始用: guestCount・customerId をリセットしてカートもクリア
@@ -221,6 +237,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         removeItem,
         updateQuantity,
         updateItemNote,
+        updateItem,
         clearCart,
         resetSession,
         totalAmount,
