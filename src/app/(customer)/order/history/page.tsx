@@ -23,7 +23,10 @@ export default function OrderHistoryPage() {
       where("status", "in", ["pending", "completed"])
     );
 
+    let cancelled = false;
+    let gen = 0;
     const unsub = onSnapshot(q, async (snap) => {
+      const current = ++gen;
       const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, customerId!));
       const withItems: OrderWithItems[] = await Promise.all(
         orderDocs.map(async (order) => {
@@ -34,10 +37,11 @@ export default function OrderHistoryPage() {
           };
         })
       );
+      if (cancelled || current !== gen) return;
       setOrders(withItems.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0)));
       setLoading(false);
-    }, () => { setOrders([]); setLoading(false); });
-    return () => unsub();
+    }, () => { if (!cancelled) { setOrders([]); setLoading(false); } });
+    return () => { cancelled = true; unsub(); };
   }, [customerId]);
 
   if (loading) {

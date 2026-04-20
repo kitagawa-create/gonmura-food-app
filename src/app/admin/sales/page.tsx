@@ -368,6 +368,7 @@ export default function AdminSalesPage() {
   useEffect(() => {
     if (startDate > endDate) return;
     setLoading(true);
+    let cancelled = false;
     async function fetchData() {
       try {
         const start = Timestamp.fromDate(new Date(startDate + "T00:00:00"));
@@ -393,17 +394,20 @@ export default function AdminSalesPage() {
             };
           })
         );
+        if (cancelled) return;
         setOrders(withItems);
         const ids = [...new Set(orderDocs.map((o) => o.customerId))];
         const ctMap = await fetchCustomerTableInfo(ids);
+        if (cancelled) return;
         setCustomerInfoMap(ctMap);
       } catch (e) {
-        console.error("[sales] fetchData failed:", e);
+        if (!cancelled) console.error("[sales] fetchData failed:", e);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     fetchData();
+    return () => { cancelled = true; };
   }, [startDate, endDate]);
 
   useEffect(() => {

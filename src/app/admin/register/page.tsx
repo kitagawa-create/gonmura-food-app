@@ -214,9 +214,12 @@ export default function AdminRegisterPage() {
   }, [unpaidOrders, todayPaidOrders, paidOrders]);
 
   useEffect(() => {
-    return onSnapshot(
+    let cancelled = false;
+    let gen = 0;
+    const unsub = onSnapshot(
       query(collectionGroup(db, "orders"), where("status", "in", ["pending", "completed"])),
       async (snap) => {
+        const current = ++gen;
         const orderDocs = snap.docs
           .filter((d) => d.ref.parent.parent !== null)
           .map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
@@ -226,23 +229,28 @@ export default function AdminRegisterPage() {
             return { ...order, items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)) };
           })
         );
+        if (cancelled || current !== gen) return;
         setUnpaidOrders(withItems);
         setOrdersLoaded(true);
       },
-      () => { setUnpaidOrders([]); setOrdersLoaded(true); }
+      () => { if (!cancelled) { setUnpaidOrders([]); setOrdersLoaded(true); } }
     );
+    return () => { cancelled = true; unsub(); };
   }, []);
 
   useEffect(() => {
     const start = new Date(); start.setHours(0, 0, 0, 0);
     const end = new Date(start.getTime() + 86_400_000);
-    return onSnapshot(
+    let cancelled = false;
+    let gen = 0;
+    const unsub = onSnapshot(
       query(collectionGroup(db, "orders"),
         where("status", "==", "paid"),
         where("createdAt", ">=", Timestamp.fromDate(start)),
         where("createdAt", "<", Timestamp.fromDate(end)),
         orderBy("createdAt", "desc")),
       async (snap) => {
+        const current = ++gen;
         const orderDocs = snap.docs
           .filter((d) => d.ref.parent.parent !== null)
           .map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
@@ -252,23 +260,28 @@ export default function AdminRegisterPage() {
             return { ...order, items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)) };
           })
         );
+        if (cancelled || current !== gen) return;
         setTodayPaidOrders(withItems);
         setTodayLoaded(true);
       },
-      () => setTodayLoaded(true)
+      () => { if (!cancelled) setTodayLoaded(true); }
     );
+    return () => { cancelled = true; unsub(); };
   }, []);
 
   useEffect(() => {
     const start = new Date(`${dateFilter}T00:00:00`);
     const end = new Date(start.getTime() + 86_400_000);
-    return onSnapshot(
+    let cancelled = false;
+    let gen = 0;
+    const unsub = onSnapshot(
       query(collectionGroup(db, "orders"),
         where("status", "==", "paid"),
         where("createdAt", ">=", Timestamp.fromDate(start)),
         where("createdAt", "<", Timestamp.fromDate(end)),
         orderBy("createdAt", "desc")),
       async (snap) => {
+        const current = ++gen;
         const orderDocs = snap.docs
           .filter((d) => d.ref.parent.parent !== null)
           .map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
@@ -278,9 +291,11 @@ export default function AdminRegisterPage() {
             return { ...order, items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)) };
           })
         );
+        if (cancelled || current !== gen) return;
         setPaidOrders(withItems);
       }
     );
+    return () => { cancelled = true; unsub(); };
   }, [dateFilter]);
 
   const unpaidBills = useMemo(() => groupByCustomer(unpaidOrders, customerInfoMap), [unpaidOrders, customerInfoMap]);

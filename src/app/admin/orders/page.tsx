@@ -763,9 +763,12 @@ function HistoryView({
       where("createdAt", "<", Timestamp.fromDate(end)),
       orderBy("createdAt", "desc")
     );
+    let cancelled = false;
+    let gen = 0;
     const unsub = onSnapshot(
       q,
       async (snap) => {
+        const current = ++gen;
         const orderDocs = snap.docs
           .filter((d) => d.ref.parent.parent !== null)
           .map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
@@ -780,16 +783,16 @@ function HistoryView({
         );
         const ids = [...new Set(orderDocs.map((o) => o.customerId))];
         const ctMap = await fetchCustomerTableInfo(ids);
+        if (cancelled || current !== gen) return;
         setCustomerTableMap(ctMap);
         setOrders(withItems);
         setLoading(false);
       },
       (e) => {
-        onError(e.message);
-        setLoading(false);
+        if (!cancelled) { onError(e.message); setLoading(false); }
       }
     );
-    return unsub;
+    return () => { cancelled = true; unsub(); };
   }, [dateSearch, onError]);
 
   const availableTables = useMemo(
