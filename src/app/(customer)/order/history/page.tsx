@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collectionGroup, getDocs, query, where, onSnapshot } from "firebase/firestore";
+import { collection, getDocs, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
 import type { OrderWithItems } from "@/types";
@@ -18,8 +18,7 @@ export default function OrderHistoryPage() {
     if (!customerId) return;
 
     const q = query(
-      collectionGroup(db, "orders"),
-      where("customerId", "==", customerId),
+      collection(db, "customers", customerId!, "orders"),
       where("status", "in", ["pending", "completed"])
     );
 
@@ -27,7 +26,7 @@ export default function OrderHistoryPage() {
       const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, customerId!));
       const withItems: OrderWithItems[] = await Promise.all(
         orderDocs.map(async (order) => {
-          const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.id)));
+          const itemsSnap = await getDocs(collection(db, "customers", customerId!, "orders", order.id, "items"));
           return {
             ...order,
             items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)),

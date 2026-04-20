@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, collectionGroup, query, where, getDocs, orderBy, onSnapshot, doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, getDocs, orderBy, onSnapshot, doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Menu, Category, CartItemTopping, CartItem } from "@/types";
 import { normalizeMenu } from "@/lib/order-utils";
@@ -94,7 +94,7 @@ export default function MenuPage() {
       return;
     }
     const unsub = onSnapshot(
-      query(collectionGroup(db, "orders"), where("customerId", "==", customerId)),
+      collection(db, "customers", customerId, "orders"),
       (snap) => {
         const statuses = snap.docs.map((d) => (d.data() as { status: string }).status);
         const hasUnpaid = statuses.some((s) => s === "pending" || s === "completed");

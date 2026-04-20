@@ -384,7 +384,7 @@ export default function AdminSalesPage() {
           .map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
         const withItems = await Promise.all(
           orderDocs.map(async (order) => {
-            const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.id)));
+            const itemsSnap = await getDocs(collection(db, "customers", order.customerId, "orders", order.id, "items"));
             return {
               ...order,
               items: itemsSnap.docs.map((d) =>
