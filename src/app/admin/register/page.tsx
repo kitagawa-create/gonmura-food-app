@@ -152,7 +152,9 @@ export default function AdminRegisterPage() {
     return onSnapshot(
       query(collectionGroup(db, "orders"), where("status", "in", ["pending", "completed"])),
       async (snap) => {
-        const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
+        const orderDocs = snap.docs
+          .filter((d) => d.ref.parent.parent !== null)
+          .map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
         const withItems = await Promise.all(
           orderDocs.map(async (order) => {
             const itemsSnap = await getDocs(collection(db, "customers", order.customerId, "orders", order.id, "items"));
@@ -176,7 +178,9 @@ export default function AdminRegisterPage() {
         where("createdAt", "<", Timestamp.fromDate(end)),
         orderBy("createdAt", "desc")),
       async (snap) => {
-        const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
+        const orderDocs = snap.docs
+          .filter((d) => d.ref.parent.parent !== null)
+          .map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
         const withItems = await Promise.all(
           orderDocs.map(async (order) => {
             const itemsSnap = await getDocs(collection(db, "customers", order.customerId, "orders", order.id, "items"));
@@ -200,7 +204,9 @@ export default function AdminRegisterPage() {
         where("createdAt", "<", Timestamp.fromDate(end)),
         orderBy("createdAt", "desc")),
       async (snap) => {
-        const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
+        const orderDocs = snap.docs
+          .filter((d) => d.ref.parent.parent !== null)
+          .map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
         const withItems = await Promise.all(
           orderDocs.map(async (order) => {
             const itemsSnap = await getDocs(collection(db, "customers", order.customerId, "orders", order.id, "items"));
