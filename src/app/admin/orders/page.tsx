@@ -733,7 +733,7 @@ function HistoryView({
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateSearch, setDateSearch] = useState<string>(todayISO());
-  const [tableFilter, setTableFilter] = useState<number | null>(null);
+  const [tableFilter, setTableFilter] = useState<string | null>(null);
 
   const revertOrder = useCallback(
     async (order: OrderWithItems) => {
@@ -795,9 +795,9 @@ function HistoryView({
         ...new Set(
           orders
             .map((o) => customerMap.get(o.customerId)?.tableNumber)
-            .filter((n): n is number => n !== undefined)
+            .filter((n): n is string => n !== undefined)
         ),
-      ].sort((a, b) => a - b),
+      ].sort((a, b) => a.localeCompare(b, "ja")),
     [orders, customerMap]
   );
 
@@ -837,7 +837,7 @@ function HistoryView({
         <select
           value={tableFilter ?? ""}
           onChange={(e) =>
-            setTableFilter(e.target.value === "" ? null : Number(e.target.value))
+            setTableFilter(e.target.value === "" ? null : e.target.value)
           }
           className="bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
         >

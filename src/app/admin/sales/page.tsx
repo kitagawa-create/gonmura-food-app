@@ -500,9 +500,9 @@ export default function AdminSalesPage() {
 
   const tableBreakdown = useMemo(() => {
     if (analysis !== "sales") return [];
-    const map = new Map<number, { table: number; count: number; revenue: number }>();
+    const map = new Map<string, { table: string; count: number; revenue: number }>();
     for (const o of filteredOrders) {
-      const t = customerByIdMap.get(o.customerId)?.tableNumber ?? 0;
+      const t = customerByIdMap.get(o.customerId)?.tableNumber ?? "";
       const e = map.get(t) ?? { table: t, count: 0, revenue: 0 };
       e.count++;
       e.revenue += orderTotal(o);

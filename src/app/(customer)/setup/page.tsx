@@ -22,7 +22,7 @@ export default function SetupPage() {
   const [pinInput, setPinInput] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [tables, setTables] = useState<Array<{ id: string; tableNumber: number }>>([]);
+  const [tables, setTables] = useState<Array<{ id: string; tableNumber: string }>>([]);
   const [loadingTables, setLoadingTables] = useState(true);
   const { setTableNumber } = useCart();
   const router = useRouter();
@@ -36,8 +36,8 @@ export default function SetupPage() {
       .then((snap) => {
         setTables(
           snap.docs
-            .map((d) => ({ id: d.id, tableNumber: d.data().tableNumber as number }))
-            .sort((a, b) => a.tableNumber - b.tableNumber)
+            .map((d) => ({ id: d.id, tableNumber: d.data().tableNumber as string }))
+            .sort((a, b) => a.tableNumber.localeCompare(b.tableNumber, "ja"))
         );
         setLoadingTables(false);
       })

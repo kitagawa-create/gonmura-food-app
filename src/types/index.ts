@@ -64,7 +64,7 @@ export type OrderItem = {
 
 export type Customer = {
   id: string;
-  tableNumber: number;
+  tableNumber: string;
   guestCount: number;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -106,7 +106,7 @@ export type CartItemTopping = {
 
 export type Table = {
   id: string;
-  tableNumber: number;
+  tableNumber: string;
   deviceId: string;
   pin: string;
   createdAt: Timestamp;

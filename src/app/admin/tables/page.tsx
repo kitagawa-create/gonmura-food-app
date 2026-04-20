@@ -57,9 +57,9 @@ export default function AdminTablesPage() {
   }, []);
 
   const addTable = useCallback(async () => {
-    const num = parseInt(newTableNumber, 10);
-    if (isNaN(num) || num < 1 || num > 50) {
-      setAddError("1〜50の数字で入力してください");
+    const num = newTableNumber.trim();
+    if (!num || num.length > 20) {
+      setAddError("テーブル番号を入力してください（20文字以内）");
       return;
     }
     const dup = await getDocs(query(collection(db, "tables"), where("tableNumber", "==", num)));
@@ -146,18 +146,13 @@ export default function AdminTablesPage() {
           <p className="text-sm font-medium text-[color:var(--color-text-primary)] mb-3">新しいテーブルを追加</p>
           <div className="flex gap-2 items-start">
             <div className="flex-1">
-              <select
+              <input
+                type="text"
                 value={newTableNumber}
                 onChange={(e) => { setNewTableNumber(e.target.value); setAddError(""); }}
+                placeholder="例：1, A-1, テーブル1"
                 className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
-              >
-                <option value="">テーブル番号を選択</option>
-                {Array.from({ length: 50 }, (_, i) => i + 1)
-                  .filter((n) => !tables.some((t) => t.tableNumber === n))
-                  .map((n) => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-              </select>
+              />
               {addError && <p className="text-xs text-[color:var(--color-accent-warn)] mt-1">{addError}</p>}
             </div>
             <button
@@ -252,7 +247,7 @@ export default function AdminTablesPage() {
                   ) : (
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-mono text-[color:var(--color-text-primary)] tracking-widest">
-                        ••••
+                        {table.pin}
                       </span>
                       <button
                         onClick={() => { setEditingPin(table.id); setPinInput(""); setPinError(""); }}

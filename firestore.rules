@@ -14,8 +14,7 @@ service cloud.firestore {
     }
 
     function validTableNumber(n) {
-      return (n is int && n >= 1 && n <= 50)
-          || (n is string && n.matches('^([1-9]|[1-4][0-9]|50)$'));
+      return n is string && n.size() >= 1 && n.size() <= 20;
     }
 
     function validCategoryName(s) {

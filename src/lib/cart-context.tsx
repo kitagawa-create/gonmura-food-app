@@ -8,7 +8,7 @@ const TABLE_KEY = "gonmura-table";
 const GUEST_COUNT_KEY = "gonmura-guest-count";
 const CUSTOMER_ID_KEY = "gonmura-customer-id";
 
-function cartKey(table: number | null): string {
+function cartKey(table: string | null): string {
   return table ? `gonmura-cart-${table}` : "gonmura-cart";
 }
 
@@ -31,8 +31,8 @@ type CartContextType = {
   resetSession: () => void;
   totalAmount: number;
   totalItems: number;
-  tableNumber: number | null;
-  setTableNumber: (n: number | null) => void;
+  tableNumber: string | null;
+  setTableNumber: (n: string | null) => void;
   guestCount: number | null;
   setGuestCount: (n: number) => void;
   customerId: string | null;
@@ -68,32 +68,26 @@ function rehydrateItems(raw: unknown): CartItem[] {
     .filter((x) => x.menuId);
 }
 
-// 旧バージョンが String(n) で保存するケースがあるため、JSON 失敗時は数値として再解釈
-function loadTableNumber(): number | null {
+// 旧バージョン (JSON.stringify(number)) との後方互換を保ちつつ文字列として返す
+function loadTableString(): string | null {
   if (typeof window === "undefined") return null;
   const raw = (() => {
-    try {
-      return localStorage.getItem(TABLE_KEY);
-    } catch {
-      return null;
-    }
+    try { return localStorage.getItem(TABLE_KEY); }
+    catch { return null; }
   })();
   if (raw === null || raw === "" || raw === "null") return null;
-  // JSON 経由 (cart-context 旧書き込み)
   try {
     const parsed = JSON.parse(raw);
-    if (typeof parsed === "number" && Number.isFinite(parsed)) return parsed;
+    if (typeof parsed === "number" && Number.isFinite(parsed)) return String(parsed);
+    if (typeof parsed === "string" && parsed) return parsed;
     if (parsed === null) return null;
-  } catch {
-    // JSON でない: admin/tables の生 String(n) 書き込み形式
-  }
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
+  } catch {}
+  return raw || null;
 }
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   // 初回レンダリング時に localStorage から同期的に復元 (SSRでは fallback を返す)
-  const [tableNumber, setTableNumberState] = useState<number | null>(() => loadTableNumber());
+  const [tableNumber, setTableNumberState] = useState<string | null>(() => loadTableString());
   const [guestCount, setGuestCountState] = useState<number | null>(() => {
     if (typeof window === "undefined") return null;
     const raw = localStorage.getItem(GUEST_COUNT_KEY);
@@ -106,13 +100,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     return localStorage.getItem(CUSTOMER_ID_KEY) ?? null;
   });
   const [items, setItems] = useState<CartItem[]>(() => {
-    const t = loadTableNumber();
+    const t = loadTableString();
     return rehydrateItems(loadFromStorage<unknown>(cartKey(t), []));
   });
-  const currentTableRef = useRef<number | null>(tableNumber);
+  const currentTableRef = useRef<string | null>(tableNumber);
 
   // テーブル番号を設定（カートも切り替え、客数・顧客IDもリセット）
-  const setTableNumber = useCallback((n: number | null) => {
+  const setTableNumber = useCallback((n: string | null) => {
     setTableNumberState(n);
     setGuestCountState(null);
     setCustomerIdState(null);

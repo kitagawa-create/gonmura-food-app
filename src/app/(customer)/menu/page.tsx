@@ -735,17 +735,14 @@ export default function MenuPage() {
             <h2 className="text-lg font-bold text-[color:var(--color-text-primary)] mb-4">
               テーブル番号を変更
             </h2>
-            <select
+            <input
+              type="text"
               value={newTableInput}
               onChange={(e) => { setNewTableInput(e.target.value); setTableChangeError(""); }}
               autoFocus
+              placeholder="例：1, A-1, テーブル1"
               className="w-full bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-center text-2xl text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)] mb-4"
-            >
-              <option value="">選択してください</option>
-              {Array.from({ length: 50 }, (_, i) => i + 1).map((n) => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
+            />
             {tableChangeError && (
               <p className="text-sm text-[color:var(--color-accent-warn)] text-center mb-3">
                 {tableChangeError}
@@ -767,9 +764,9 @@ export default function MenuPage() {
               <button
                 type="button"
                 onClick={() => {
-                  const n = parseInt(newTableInput, 10);
-                  if (isNaN(n) || n < 1 || n > 50) {
-                    setTableChangeError("1〜50の番号を入力してください");
+                  const n = newTableInput.trim();
+                  if (!n) {
+                    setTableChangeError("テーブル番号を入力してください");
                     return;
                   }
                   if (n === tableNumber) {

@@ -24,7 +24,7 @@ import { comboLineTotal, flattenForReceipt, normalizeOrder, normalizeOrderItem }
 type Tab = "tables" | "paid";
 type TableBill = {
   customerId: string;
-  tableNumber: number;
+  tableNumber: string;
   orders: OrderWithItems[];
   totalAmount: number;
   firstOrderAt: Date | null;
@@ -39,21 +39,21 @@ function todayISO() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function loadTableNames(): Map<number, string> {
+function loadTableNames(): Map<string, string> {
   try {
     const raw = localStorage.getItem(TABLE_NAMES_KEY);
     if (!raw) return new Map();
     const obj = JSON.parse(raw) as Record<string, string>;
-    return new Map(Object.entries(obj).map(([k, v]) => [parseInt(k, 10), v]));
+    return new Map(Object.entries(obj));
   } catch { return new Map(); }
 }
 
-function persistTableName(num: number, name: string) {
+function persistTableName(num: string, name: string) {
   try {
     const raw = localStorage.getItem(TABLE_NAMES_KEY);
     const obj = raw ? (JSON.parse(raw) as Record<string, string>) : {};
-    if (name.trim()) obj[String(num)] = name.trim();
-    else delete obj[String(num)];
+    if (name.trim()) obj[num] = name.trim();
+    else delete obj[num];
     localStorage.setItem(TABLE_NAMES_KEY, JSON.stringify(obj));
   } catch {}
 }
@@ -66,7 +66,7 @@ function groupByCustomer(orders: OrderWithItems[], customerMap: Map<string, Cust
   return Array.from(map.entries())
     .map(([customerId, tableOrders]) => ({
       customerId,
-      tableNumber: customerMap.get(customerId)?.tableNumber ?? 0,
+      tableNumber: customerMap.get(customerId)?.tableNumber ?? "",
       orders: tableOrders,
       totalAmount: tableOrders.reduce((s, o) => s + o.items.reduce((ss, i) => ss + comboLineTotal(i), 0), 0),
       firstOrderAt: tableOrders.reduce<Date | null>((earliest, o) => {
@@ -75,7 +75,7 @@ function groupByCustomer(orders: OrderWithItems[], customerMap: Map<string, Cust
         return !earliest || d < earliest ? d : earliest;
       }, null),
     }))
-    .sort((a, b) => a.tableNumber - b.tableNumber);
+    .sort((a, b) => a.tableNumber.localeCompare(b.tableNumber, "ja"));
 }
 
 function mergeItems(orders: OrderWithItems[]) {
@@ -117,7 +117,7 @@ function DonutChart({ percent }: { percent: number }) {
 export default function AdminRegisterPage() {
   const { show: toast } = useToast();
 
-  const [tableNames, setTableNames] = useState<Map<number, string>>(new Map());
+  const [tableNames, setTableNames] = useState<Map<string, string>>(new Map());
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [unpaidOrders, setUnpaidOrders] = useState<OrderWithItems[]>([]);
   const [paidOrders, setPaidOrders] = useState<OrderWithItems[]>([]);
@@ -133,11 +133,11 @@ export default function AdminRegisterPage() {
   const [goalInput, setGoalInput] = useState("");
   const [editingGoal, setEditingGoal] = useState(false);
 
-  const [editingTable, setEditingTable] = useState<number | null>(null);
+  const [editingTable, setEditingTable] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
 
   const [payTarget, setPayTarget] = useState<TableBill | null>(null);
-  const [processing, setProcessing] = useState<number | null>(null);
+  const [processing, setProcessing] = useState<string | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -234,7 +234,7 @@ export default function AdminRegisterPage() {
     setEditingGoal(false);
   }
 
-  function saveName(num: number) {
+  function saveName(num: string) {
     persistTableName(num, editingName);
     setTableNames(loadTableNames());
     setEditingTable(null);
