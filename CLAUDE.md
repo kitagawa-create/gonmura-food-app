@@ -21,9 +21,9 @@ src/
 │   ├── (customer)/              # お客様側（テーブルタブレット）
 │   │   ├── layout.tsx           # CartProvider + AnalyticsProvider + force-dynamic
 │   │   ├── setup/page.tsx       # テーブル番号 + PIN 初期設定
-│   │   ├── menu/page.tsx        # メニュー一覧（カテゴリタブ+スワイプ切替、商品モーダル、ラーメン→トッピング追加、売り切れオーバーレイ、PIN認証テーブル変更）+ サイドカートで注文確定
+│   │   ├── menu/page.tsx        # メニュー一覧（カテゴリタブ+スワイプ切替、商品モーダル、ラーメン→トッピング追加、売り切れオーバーレイ、PIN認証テーブル変更）+ サイドカートで注文確定。カートアイテムタップで商品詳細モーダルを初期値入り編集モードで開く（editingLineId で判定）
 │   │   ├── order/page.tsx       # /menu へのリダイレクトのみ（注文確定はCartPanelに移行済み）
-│   │   ├── order/history/       # テーブル注文履歴
+│   │   ├── order/history/       # テーブル注文履歴（sticky ヘッダー）
 │   │   └── bill/page.tsx        # お会計伝票（未精算注文をまとめ表示）
 │   ├── admin/                   # 管理側（iPad / PC）
 │   │   ├── layout.tsx           # AdminAuthGuard + AdminSidebar + ToastProvider（loginは除外）
@@ -46,7 +46,7 @@ src/
 │   │   └── ConfirmDialog.tsx    # 確認ダイアログ（画面中央モーダル、赤/緑ボタン）
 │   ├── customer/
 │   │   ├── AnalyticsProvider.tsx # Firebase Analytics初期化（page_viewイベント）
-│   │   └── CartPanel.tsx        # サイドカート（注文確定・在庫チェック・完了ダイアログ、/menu内で使用）
+│   │   └── CartPanel.tsx        # サイドカート（注文確定・在庫チェック・完了ダイアログ、/menu内で使用）。onEditItem prop でアイテムタップ編集に対応
 │   └── ui/
 │       ├── BackButton.tsx       # 戻るボタン（size="default"|"sm"、variant="light"|"dark"）
 │       ├── FadeImage.tsx        # 画像ローディング（スケルトン → フェードイン）
@@ -55,10 +55,10 @@ src/
 │       └── Snackbar.tsx         # ToastProvider + useToast()（右下固定/3秒/最新1件）
 ├── lib/
 │   ├── firebase.ts              # Firebase初期化（db, auth, storage export、measurementId含む）
-│   ├── cart-context.tsx          # CartProvider（localStorage永続化、テーブルごとカート分離、数量指定addItem）
+│   ├── cart-context.tsx          # CartProvider（localStorage永続化、テーブルごとカート分離、数量指定addItem、updateItem でin-place更新）
 │   ├── admin-auth.ts            # loginWithEmail, logout, getAdminRole, subscribeAuth
 │   ├── analytics.ts             # trackEvent（Firebase Analytics logEvent wrapper）
-│   └── order-utils.ts           # comboUnitPrice, comboLineTotal, orderGrandTotal, flattenForReceipt, comboLineHash, normalizeMenu, normalizeOrder, normalizeOrderItem, newLineId
+│   └── order-utils.ts           # comboUnitPrice, comboLineTotal, orderGrandTotal, flattenForReceipt, comboLineHash（menuId+toppings+noteの3要素でハッシュ）, normalizeMenu, normalizeOrder, normalizeOrderItem, newLineId
 └── types/
     └── index.ts                 # Category, Menu, Order, OrderItem, OrderStatus, AdminRole, Admin, CartItem
 ```
@@ -157,6 +157,8 @@ paid への変更は管理者のみ（レジ画面から）
 - 複合クエリ（status + createdAt等）にはインデックスが必要（firestore.indexes.json）
 - cartKeyはテーブル番号ごとに分離（gonmura-cart-{N}）
 - ラーメン/トッピングの判定はカテゴリ名ベース（「ラーメン」「トッピング」カテゴリ）
+- 同一商品でも備考(note)が異なれば別カートライン扱い（comboLineHashにnoteを含むため）
+- カートアイテムをタップすると商品詳細モーダルが編集モードで開く（editingLineIdがnon-nullのとき「変更を保存」ボタンになりupdateItemを呼ぶ）
 - 管理画面のサイドバーは h-[100dvh] + overflow-y-auto で固定
 - middleware.ts で全ページの Cache-Control を no-store に設定（CDN キャッシュ問題対策）
 - 顧客レイアウトに force-dynamic を設定（静的プリレンダリング防止）
