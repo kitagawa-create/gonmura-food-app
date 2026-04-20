@@ -724,7 +724,7 @@ export default function MenuPage() {
                     setAvailableTables(
                       snap.docs
                         .map((d) => ({ id: d.id, tableNumber: d.data().tableNumber as string }))
-                        .sort((a, b) => a.tableNumber.localeCompare(b.tableNumber, "ja"))
+                        .sort((a, b) => a.tableNumber.localeCompare(b.tableNumber, "ja", { numeric: true }))
                     );
                     setLoadingAvailableTables(false);
                   })
