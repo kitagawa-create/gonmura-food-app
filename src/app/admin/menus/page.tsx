@@ -5,7 +5,6 @@ import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { FadeImage } from "@/components/ui/FadeImage";
 import { PageLoader } from "@/components/ui/PageLoader";
 import {
-  addDoc,
   collection,
   doc,
   onSnapshot,
@@ -388,21 +387,14 @@ export default function AdminMenusPage() {
           (m, x) => x.sortOrder < Number.MAX_SAFE_INTEGER ? Math.max(m, x.sortOrder) : m,
           -1
         );
-        if (newDocId) {
-          await setDoc(doc(db, "menus", newDocId), {
-            ...saveData,
-            sortOrder: maxOrder + 1,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          });
-        } else {
-          await addDoc(collection(db, "menus"), {
-            ...saveData,
-            sortOrder: maxOrder + 1,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          });
-        }
+        const menuDocId = newDocId ?? doc(collection(db, "menus")).id;
+        await setDoc(doc(db, "menus", menuDocId), {
+          id: menuDocId,
+          ...saveData,
+          sortOrder: maxOrder + 1,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
         toast("メニューを追加しました");
       }
       setShowForm(false);

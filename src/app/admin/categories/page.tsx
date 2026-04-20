@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAdminRole } from "@/components/admin/AdminContext";
 import {
-  addDoc,
   collection,
   deleteDoc,
   doc,
@@ -13,6 +12,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where,
   writeBatch,
@@ -74,7 +74,9 @@ export default function AdminCategoriesPage() {
         categories.length > 0
           ? Math.max(...categories.map((c) => c.sortOrder)) + 1
           : 0;
-      await addDoc(collection(db, "categories"), {
+      const categoryRef = doc(collection(db, "categories"));
+      await setDoc(categoryRef, {
+        id: categoryRef.id,
         name,
         sortOrder: nextOrder,
         createdAt: serverTimestamp(),

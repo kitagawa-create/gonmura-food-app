@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import {
-  addDoc,
   collection,
   deleteDoc,
   doc,
@@ -11,6 +10,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where,
 } from "firebase/firestore";
@@ -57,7 +57,9 @@ export default function AdminTablesPage() {
   async function handleAddTable(tableNumber: string) {
     const dup = await getDocs(query(collection(db, "tables"), where("tableNumber", "==", tableNumber)));
     if (!dup.empty) throw new Error("このテーブル番号はすでに登録されています");
-    await addDoc(collection(db, "tables"), {
+    const tableRef = doc(collection(db, "tables"));
+    await setDoc(tableRef, {
+      id: tableRef.id,
       tableNumber,
       deviceId: "",
       pin: "",

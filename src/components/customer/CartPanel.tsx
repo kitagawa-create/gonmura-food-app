@@ -129,6 +129,7 @@ export function CartPanel({
       } else {
         const customerRef = doc(collection(db, "customers"));
         await setDoc(customerRef, {
+          id: customerRef.id,
           tableId,
           guestCount: guestCount ?? 1,
           createdAt: serverTimestamp(),
@@ -141,6 +142,7 @@ export function CartPanel({
       const orderRef = doc(collection(db, "customers", cid, "orders"));
       const batch = writeBatch(db);
       batch.set(orderRef, {
+        id: orderRef.id,
         status: "pending",
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -160,6 +162,8 @@ export function CartPanel({
             price: t.price,
             quantity: t.quantity,
           })),
+          customerId: cid,
+          orderId: orderRef.id,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
