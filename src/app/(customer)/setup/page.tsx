@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { collection, doc, getDocs, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
 
@@ -18,23 +18,36 @@ function getOrCreateDeviceId(): string {
 }
 
 export default function SetupPage() {
-  const [tableInput, setTableInput] = useState("");
+  const [selectedTableId, setSelectedTableId] = useState("");
   const [pinInput, setPinInput] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const { tableNumber, setTableNumber } = useCart();
+  const [tables, setTables] = useState<Array<{ id: string; tableNumber: number }>>([]);
+  const [loadingTables, setLoadingTables] = useState(true);
+  const { setTableNumber } = useCart();
   const router = useRouter();
 
-  if (typeof window !== "undefined" && localStorage.getItem(TABLE_ID_KEY)) {
-    router.replace("/menu");
-    return null;
-  }
+  useEffect(() => {
+    if (typeof window !== "undefined" && localStorage.getItem(TABLE_ID_KEY)) {
+      router.replace("/menu");
+      return;
+    }
+    getDocs(query(collection(db, "tables"), where("deviceId", "==", "")))
+      .then((snap) => {
+        setTables(
+          snap.docs
+            .map((d) => ({ id: d.id, tableNumber: d.data().tableNumber as number }))
+            .sort((a, b) => a.tableNumber - b.tableNumber)
+        );
+        setLoadingTables(false);
+      })
+      .catch(() => setLoadingTables(false));
+  }, [router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const num = parseInt(tableInput, 10);
-    if (isNaN(num) || num <= 0 || num > 50) {
-      setError("テーブル番号は1〜50で入力してください");
+    if (!selectedTableId) {
+      setError("テーブルを選択してください");
       return;
     }
     if (!/^\d{4}$/.test(pinInput)) {
@@ -44,20 +57,27 @@ export default function SetupPage() {
     setSaving(true);
     try {
       const deviceId = getOrCreateDeviceId();
-      const ref = await addDoc(collection(db, "tables"), {
-        tableNumber: num,
+      await updateDoc(doc(db, "tables", selectedTableId), {
         deviceId,
         pin: pinInput,
-        createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      localStorage.setItem(TABLE_ID_KEY, ref.id);
-      setTableNumber(num);
+      localStorage.setItem(TABLE_ID_KEY, selectedTableId);
+      const selected = tables.find((t) => t.id === selectedTableId);
+      if (selected) setTableNumber(selected.tableNumber);
       router.replace("/menu");
     } catch {
       setError("セットアップに失敗しました。再試行してください");
       setSaving(false);
     }
+  }
+
+  if (loadingTables) {
+    return (
+      <div className="min-h-screen bg-[color:var(--color-bg-base)] flex items-center justify-center">
+        <p className="text-[color:var(--color-text-muted)]">読み込み中...</p>
+      </div>
+    );
   }
 
   return (
@@ -67,49 +87,55 @@ export default function SetupPage() {
           テーブル設定
         </h1>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm text-[color:var(--color-text-muted)] mb-1">
-              テーブル番号
-            </label>
-            <select
-              required
-              value={tableInput}
-              onChange={(e) => { setTableInput(e.target.value); setError(""); }}
-              className="w-full bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-center text-2xl text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-soy)]"
+        {tables.length === 0 ? (
+          <p className="text-center text-sm text-[color:var(--color-text-muted)] py-8">
+            利用可能なテーブルがありません。<br />管理者にお問い合わせください。
+          </p>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm text-[color:var(--color-text-muted)] mb-1">
+                テーブル番号
+              </label>
+              <select
+                required
+                value={selectedTableId}
+                onChange={(e) => { setSelectedTableId(e.target.value); setError(""); }}
+                className="w-full bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-center text-2xl text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-soy)]"
+              >
+                <option value="">選択してください</option>
+                {tables.map((t) => (
+                  <option key={t.id} value={t.id}>{t.tableNumber}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-[color:var(--color-text-muted)] mb-1">
+                PIN（4桁の数字）
+              </label>
+              <p className="text-xs text-[color:var(--color-text-muted)] mb-2">
+                テーブル番号を変更する際に必要です
+              </p>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                required
+                value={pinInput}
+                onChange={(e) => { setPinInput(e.target.value.replace(/\D/g, "").slice(0, 4)); setError(""); }}
+                placeholder="0000"
+                className="w-full bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-center text-2xl tracking-[0.5em] text-[color:var(--color-text-primary)] placeholder-[color:var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-soy)]"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={saving}
+              className="w-full bg-[color:var(--color-accent-char)] text-white py-3 rounded-xl font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
             >
-              <option value="">選択してください</option>
-              {Array.from({ length: 50 }, (_, i) => i + 1).map((n) => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm text-[color:var(--color-text-muted)] mb-1">
-              PIN（4桁の数字）
-            </label>
-            <p className="text-xs text-[color:var(--color-text-muted)] mb-2">
-              テーブル番号を変更する際に必要です
-            </p>
-            <input
-              type="password"
-              inputMode="numeric"
-              maxLength={4}
-              required
-              value={pinInput}
-              onChange={(e) => { setPinInput(e.target.value.replace(/\D/g, "").slice(0, 4)); setError(""); }}
-              placeholder="0000"
-              className="w-full bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-center text-2xl tracking-[0.5em] text-[color:var(--color-text-primary)] placeholder-[color:var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-soy)]"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={saving}
-            className="w-full bg-[color:var(--color-accent-char)] text-white py-3 rounded-xl font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
-          >
-            {saving ? "設定中..." : "設定完了"}
-          </button>
-        </form>
+              {saving ? "設定中..." : "設定完了"}
+            </button>
+          </form>
+        )}
 
         {error && (
           <p className="mt-4 text-center text-sm text-[color:var(--color-accent-warn)]">{error}</p>
