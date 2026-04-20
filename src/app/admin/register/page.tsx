@@ -21,6 +21,7 @@ import { PageLoader } from "@/components/ui/PageLoader";
 import { useToast } from "@/components/ui/Snackbar";
 import type { OrderWithItems } from "@/types";
 import { comboLineTotal, flattenForReceipt, normalizeOrder, normalizeOrderItem } from "@/lib/order-utils";
+import { DatePicker } from "@/components/admin/DatePicker";
 
 type Tab = "tables" | "paid";
 type TableBill = {
@@ -251,6 +252,12 @@ export default function AdminRegisterPage() {
         batch.update(doc(db, "customers", o.customerId, "orders", o.id), { status: "paid", updatedAt: serverTimestamp() });
       }
       await batch.commit();
+      const paidIds = new Set(payTarget.orders.map((o) => o.id));
+      setUnpaidOrders((prev) => prev.filter((o) => !paidIds.has(o.id)));
+      setPaidOrders((prev) => [
+        ...prev,
+        ...payTarget.orders.map((o) => ({ ...o, status: "paid" as const })),
+      ]);
       setPayTarget(null);
     } catch (e) { setPayError(e instanceof Error ? e.message : "精算に失敗しました"); }
     finally { setProcessing(null); }
@@ -264,12 +271,10 @@ export default function AdminRegisterPage() {
         title="レジ"
         rightSlot={
           tab === "paid" ? (
-            <input
-              type="date" value={dateFilter}
-              onChange={(e) => { if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) setDateFilter(e.target.value); }}
+            <DatePicker
+              value={dateFilter}
+              onChange={setDateFilter}
               max={todayISO()}
-              onKeyDown={(e) => e.preventDefault()}
-              className="bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
             />
           ) : undefined
         }
