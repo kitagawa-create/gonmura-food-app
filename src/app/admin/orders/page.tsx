@@ -9,6 +9,7 @@ import {
   collectionGroup,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   onSnapshot,
   orderBy,
@@ -75,6 +76,46 @@ function playNotificationSound() {
   }
 }
 
+// ---------- customer+table info helper ----------
+
+type CustomerTableInfo = { tableNumber: string; guestCount: number };
+
+async function fetchCustomerTableInfo(customerIds: string[]): Promise<Map<string, CustomerTableInfo>> {
+  if (customerIds.length === 0) return new Map();
+
+  const customerSnaps = await Promise.all(customerIds.map((id) => getDoc(doc(db, "customers", id))));
+
+  const customerData = new Map<string, { tableId: string; guestCount: number }>();
+  for (const snap of customerSnaps) {
+    if (!snap.exists()) continue;
+    const d = snap.data();
+    customerData.set(snap.id, {
+      tableId: typeof d.tableId === "string" ? d.tableId : "",
+      guestCount: typeof d.guestCount === "number" ? Math.trunc(d.guestCount) : 1,
+    });
+  }
+
+  const uniqueTableIds = [...new Set([...customerData.values()].map((c) => c.tableId).filter(Boolean))];
+  const tableNumberMap = new Map<string, string>();
+  if (uniqueTableIds.length > 0) {
+    const tableSnaps = await Promise.all(uniqueTableIds.map((id) => getDoc(doc(db, "tables", id))));
+    for (const snap of tableSnaps) {
+      if (!snap.exists()) continue;
+      const d = snap.data();
+      tableNumberMap.set(snap.id, typeof d.tableNumber === "string" ? d.tableNumber : "");
+    }
+  }
+
+  const result = new Map<string, CustomerTableInfo>();
+  for (const [customerId, info] of customerData) {
+    result.set(customerId, {
+      tableNumber: tableNumberMap.get(info.tableId) ?? "",
+      guestCount: info.guestCount,
+    });
+  }
+  return result;
+}
+
 // ---------- page ----------
 
 export default function AdminOrdersPage() {
@@ -137,6 +178,8 @@ function NewOrdersView({
 }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [itemsByOrder, setItemsByOrder] = useState<Map<string, OrderItem[]>>(new Map());
+  const [customerTableMap, setCustomerTableMap] = useState<Map<string, CustomerTableInfo>>(new Map());
+  const customerTableMapRef = useRef<Map<string, CustomerTableInfo>>(new Map());
   const [loading, setLoading] = useState(true);
   const [dateFilter, setDateFilter] = useState<string>(todayISO());
   const [now, setNow] = useState(() => Date.now());
@@ -187,6 +230,22 @@ function NewOrdersView({
     );
     return unsub;
   }, [dateFilter, onError]);
+
+  // orders が更新されるたびに未取得の customer+table 情報を追加取得
+  useEffect(() => {
+    const missingIds = orders
+      .map((o) => o.customerId)
+      .filter((id) => !customerTableMapRef.current.has(id));
+    if (missingIds.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const newData = await fetchCustomerTableInfo(missingIds);
+      if (cancelled) return;
+      customerTableMapRef.current = new Map([...customerTableMapRef.current, ...newData]);
+      setCustomerTableMap(new Map(customerTableMapRef.current));
+    })();
+    return () => { cancelled = true; };
+  }, [orders]);
 
   useEffect(() => {
     if (orders.length === 0) return;
@@ -240,7 +299,7 @@ function NewOrdersView({
   const completeOrder = useCallback(
     async (order: OrderWithItems) => {
       onError(null);
-      const orderBase: Order = { id: order.id, status: order.status, customerId: order.customerId, tableNumber: order.tableNumber, guestCount: order.guestCount, createdAt: order.createdAt, updatedAt: order.updatedAt };
+      const orderBase: Order = { id: order.id, status: order.status, customerId: order.customerId, createdAt: order.createdAt, updatedAt: order.updatedAt };
       setOrders((os) => os.filter((o) => o.id !== order.id));
       try {
         await updateDoc(doc(db, "customers", order.customerId, "orders", order.id), {
@@ -364,6 +423,7 @@ function NewOrdersView({
           <ActiveOrderCard
             key={order.id}
             order={order}
+            tableNumber={customerTableMap.get(order.customerId)?.tableNumber ?? "?"}
             now={now}
             onToggle={toggleCheck}
             onComplete={completeOrder}
@@ -382,6 +442,7 @@ function NewOrdersView({
 
 function ActiveOrderCard({
   order,
+  tableNumber,
   now,
   onToggle,
   onComplete,
@@ -391,6 +452,7 @@ function ActiveOrderCard({
   onBulkUncheck,
 }: {
   order: OrderWithItems;
+  tableNumber: string;
   now: number;
   onToggle: (order: OrderWithItems, itemId: string) => void;
   onComplete: (order: OrderWithItems) => void;
@@ -403,7 +465,6 @@ function ActiveOrderCard({
   const [cancelItemId, setCancelItemId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [autoCompleteCountdown, setAutoCompleteCountdown] = useState<number | null>(null);
-  const tableNumber = order.tableNumber;
   const total = order.items.reduce((s, i) => s + comboLineTotal(i), 0);
   const created = order.createdAt?.toDate?.();
   const elapsed = created ? timeAgo(created) : "";
@@ -668,6 +729,7 @@ function HistoryView({
   onError: (msg: string | null) => void;
 }) {
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
+  const [customerTableMap, setCustomerTableMap] = useState<Map<string, CustomerTableInfo>>(new Map());
   const [loading, setLoading] = useState(true);
   const [dateSearch, setDateSearch] = useState<string>(todayISO());
   const [tableFilter, setTableFilter] = useState<string | null>(null);
@@ -717,6 +779,9 @@ function HistoryView({
             } as OrderWithItems;
           })
         );
+        const ids = [...new Set(orderDocs.map((o) => o.customerId))];
+        const ctMap = await fetchCustomerTableInfo(ids);
+        setCustomerTableMap(ctMap);
         setOrders(withItems);
         setLoading(false);
       },
@@ -730,17 +795,17 @@ function HistoryView({
 
   const availableTables = useMemo(
     () =>
-      [...new Set(orders.map((o) => o.tableNumber).filter((n) => n !== ""))]
+      [...new Set(orders.map((o) => customerTableMap.get(o.customerId)?.tableNumber ?? "").filter(Boolean))]
         .sort((a, b) => a.localeCompare(b, "ja")),
-    [orders]
+    [orders, customerTableMap]
   );
 
   const filteredOrders = useMemo(
     () =>
       tableFilter !== null
-        ? orders.filter((o) => o.tableNumber === tableFilter)
+        ? orders.filter((o) => customerTableMap.get(o.customerId)?.tableNumber === tableFilter)
         : orders,
-    [orders, tableFilter]
+    [orders, tableFilter, customerTableMap]
   );
 
   return (
@@ -792,6 +857,7 @@ function HistoryView({
             <HistoryOrderCard
               key={order.id}
               order={order}
+              tableNumber={customerTableMap.get(order.customerId)?.tableNumber ?? "?"}
               onRevert={revertOrder}
             />
           ))}
@@ -805,13 +871,14 @@ function HistoryView({
 
 function HistoryOrderCard({
   order,
+  tableNumber,
   onRevert,
 }: {
   order: OrderWithItems;
+  tableNumber: string;
   onRevert: (order: OrderWithItems) => void;
 }) {
   const [showRevert, setShowRevert] = useState(false);
-  const tableNumber = order.tableNumber;
   const total = order.items.reduce((s, i) => s + comboLineTotal(i), 0);
   const created = order.createdAt?.toDate?.();
   const isPaid = order.status === "paid";

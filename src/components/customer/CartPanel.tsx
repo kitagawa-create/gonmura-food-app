@@ -121,12 +121,16 @@ export function CartPanel({
         return;
       }
 
+      const tableId = localStorage.getItem("gonmura-table-id") ?? "";
+
       let cid: string;
       if (customerId) {
         cid = customerId;
       } else {
         const customerRef = doc(collection(db, "customers"));
         await setDoc(customerRef, {
+          tableId,
+          guestCount: guestCount ?? 1,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
@@ -138,8 +142,6 @@ export function CartPanel({
       const batch = writeBatch(db);
       batch.set(orderRef, {
         status: "pending",
-        tableNumber,
-        guestCount: guestCount ?? 1,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });

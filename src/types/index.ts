@@ -66,15 +66,20 @@ export type OrderStatus = "pending" | "completed" | "paid";
 
 export type AdminRole = "owner" | "staff";
 
+export type Customer = {
+  id: string;
+  /** tables/{tableId} への参照 */
+  tableId: string;
+  guestCount: number;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+};
+
 export type Order = {
   id: string;
   status: OrderStatus;
   /** ドキュメントパス customers/{customerId}/orders/{orderId} から取得（Firestoreには保存しない） */
   customerId: string;
-  /** 注文時スナップショット */
-  tableNumber: string;
-  /** 注文時スナップショット */
-  guestCount: number;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };

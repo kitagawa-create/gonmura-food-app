@@ -7,6 +7,8 @@ import {
   Timestamp,
   collection,
   collectionGroup,
+  doc,
+  getDoc,
   getDocs,
   onSnapshot,
   orderBy,
@@ -20,6 +22,44 @@ import { useAdminRole } from "@/components/admin/AdminContext";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { comboLineTotal, flattenForReceipt } from "@/lib/order-utils";
 import { DatePicker } from "@/components/admin/DatePicker";
+
+type CustomerTableInfo = { tableNumber: string; guestCount: number };
+
+async function fetchCustomerTableInfo(customerIds: string[]): Promise<Map<string, CustomerTableInfo>> {
+  if (customerIds.length === 0) return new Map();
+
+  const customerSnaps = await Promise.all(customerIds.map((id) => getDoc(doc(db, "customers", id))));
+
+  const customerData = new Map<string, { tableId: string; guestCount: number }>();
+  for (const snap of customerSnaps) {
+    if (!snap.exists()) continue;
+    const d = snap.data();
+    customerData.set(snap.id, {
+      tableId: typeof d.tableId === "string" ? d.tableId : "",
+      guestCount: typeof d.guestCount === "number" ? Math.trunc(d.guestCount) : 1,
+    });
+  }
+
+  const uniqueTableIds = [...new Set([...customerData.values()].map((c) => c.tableId).filter(Boolean))];
+  const tableNumberMap = new Map<string, string>();
+  if (uniqueTableIds.length > 0) {
+    const tableSnaps = await Promise.all(uniqueTableIds.map((id) => getDoc(doc(db, "tables", id))));
+    for (const snap of tableSnaps) {
+      if (!snap.exists()) continue;
+      const d = snap.data();
+      tableNumberMap.set(snap.id, typeof d.tableNumber === "string" ? d.tableNumber : "");
+    }
+  }
+
+  const result = new Map<string, CustomerTableInfo>();
+  for (const [customerId, info] of customerData) {
+    result.set(customerId, {
+      tableNumber: tableNumberMap.get(info.tableId) ?? "",
+      guestCount: info.guestCount,
+    });
+  }
+  return result;
+}
 
 type Period = "daily" | "weekly" | "monthly";
 type Analysis = "sales" | "menu" | "dow";
@@ -294,6 +334,7 @@ export default function AdminSalesPage() {
   const role = useAdminRole();
   const router = useRouter();
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
+  const [customerInfoMap, setCustomerInfoMap] = useState<Map<string, CustomerTableInfo>>(new Map());
   const [categories, setCategories] = useState<Category[]>([]);
   const [menus, setMenus] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(true);
@@ -353,6 +394,9 @@ export default function AdminSalesPage() {
           })
         );
         setOrders(withItems);
+        const ids = [...new Set(orderDocs.map((o) => o.customerId))];
+        const ctMap = await fetchCustomerTableInfo(ids);
+        setCustomerInfoMap(ctMap);
       } catch (e) {
         console.error("[sales] fetchData failed:", e);
       } finally {
@@ -448,7 +492,7 @@ export default function AdminSalesPage() {
       if (!o.customerId) continue;
       const s = sessionMap.get(o.customerId) ?? {
         revenue: 0,
-        guestCount: o.guestCount,
+        guestCount: customerInfoMap.get(o.customerId)?.guestCount ?? 0,
       };
       s.revenue += orderTotal(o);
       sessionMap.set(o.customerId, s);
@@ -458,7 +502,7 @@ export default function AdminSalesPage() {
     const totalGuestRevenue = sessions.reduce((s, sess) => s + sess.revenue, 0);
     const guestAtv = totalGuests === 0 ? null : Math.round(totalGuestRevenue / totalGuests);
     return { revenue, count, dailyAvgRevenue, dailyAvgCount, guestAtv };
-  }, [filteredOrders, isDateRangeValid, startDate, endDate]);
+  }, [filteredOrders, isDateRangeValid, startDate, endDate, customerInfoMap]);
 
   const menuBarItems = useMemo(() => {
     const map = new Map<string, { menuId: string; name: string; qty: number }>();
@@ -495,7 +539,7 @@ export default function AdminSalesPage() {
     if (analysis !== "sales") return [];
     const map = new Map<string, { table: string; count: number; revenue: number }>();
     for (const o of filteredOrders) {
-      const t = o.tableNumber;
+      const t = customerInfoMap.get(o.customerId)?.tableNumber ?? "";
       const e = map.get(t) ?? { table: t, count: 0, revenue: 0 };
       e.count++;
       e.revenue += orderTotal(o);
@@ -504,7 +548,7 @@ export default function AdminSalesPage() {
     return Array.from(map.values())
       .sort((a, b) => b.revenue - a.revenue)
       .map((e) => ({ ...e, atv: e.count === 0 ? 0 : Math.round(e.revenue / e.count) }));
-  }, [analysis, filteredOrders]);
+  }, [analysis, filteredOrders, customerInfoMap]);
 
   const detail = useMemo(() => {
     if (!detailKey) return null;

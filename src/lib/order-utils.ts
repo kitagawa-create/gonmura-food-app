@@ -95,8 +95,6 @@ export function normalizeOrder(id: string, data: Record<string, unknown>, custom
     id,
     status: (data.status as Order["status"]) ?? "pending",
     customerId,
-    tableNumber: typeof data.tableNumber === "string" ? data.tableNumber : "",
-    guestCount: typeof data.guestCount === "number" ? Math.trunc(data.guestCount) : 1,
     createdAt: data.createdAt as Order["createdAt"],
     updatedAt: data.updatedAt as Order["updatedAt"],
   };
