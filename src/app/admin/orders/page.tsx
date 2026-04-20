@@ -5,7 +5,6 @@ import { PageLoader } from "@/components/ui/PageLoader";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import {
   Timestamp,
-  collection,
   collectionGroup,
   deleteDoc,
   doc,
@@ -250,7 +249,7 @@ function NewOrdersView({
   useEffect(() => {
     if (orders.length === 0) return;
     const unsubscribers = orders.map((order) =>
-      onSnapshot(collection(db, "customers", order.customerId, "orders", order.id, "items"), (snap) => {
+      onSnapshot(query(collectionGroup(db, "items"), where("orderId", "==", order.id)), (snap) => {
         setItemsByOrder((prev) => {
           const next = new Map(prev);
           next.set(order.id, snap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)));
@@ -318,7 +317,7 @@ function NewOrdersView({
     async (order: OrderWithItems) => {
       onError(null);
       try {
-        const itemsSnap = await getDocs(collection(db, "customers", order.customerId, "orders", order.id, "items"));
+        const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.id)));
         const batch = writeBatch(db);
         for (const d of itemsSnap.docs) batch.delete(d.ref);
         batch.delete(doc(db, "customers", order.customerId, "orders", order.id));
@@ -336,7 +335,7 @@ function NewOrdersView({
       const isLast = order.items.length === 1;
       try {
         if (isLast) {
-          const itemsSnap = await getDocs(collection(db, "customers", order.customerId, "orders", order.id, "items"));
+          const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.id)));
           const batch = writeBatch(db);
           for (const d of itemsSnap.docs) batch.delete(d.ref);
           batch.delete(doc(db, "customers", order.customerId, "orders", order.id));
@@ -360,7 +359,7 @@ function NewOrdersView({
         return next;
       });
       try {
-        const itemsSnap = await getDocs(collection(db, "customers", order.customerId, "orders", order.id, "items"));
+        const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.id)));
         const batch = writeBatch(db);
         const ts = serverTimestamp();
         for (const d of itemsSnap.docs) batch.update(d.ref, { checked: true, updatedAt: ts });
@@ -386,7 +385,7 @@ function NewOrdersView({
         return next;
       });
       try {
-        const itemsSnap = await getDocs(collection(db, "customers", order.customerId, "orders", order.id, "items"));
+        const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.id)));
         const batch = writeBatch(db);
         const ts = serverTimestamp();
         for (const d of itemsSnap.docs) batch.update(d.ref, { checked: false, updatedAt: ts });
@@ -739,7 +738,7 @@ function HistoryView({
       onError(null);
       if (order.status === "paid") return;
       try {
-        const itemsSnap = await getDocs(collection(db, "customers", order.customerId, "orders", order.id, "items"));
+        const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.id)));
         const batch = writeBatch(db);
         const ts = serverTimestamp();
         for (const d of itemsSnap.docs) batch.update(d.ref, { checked: false, updatedAt: ts });
@@ -772,7 +771,7 @@ function HistoryView({
           .map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
         const withItems = await Promise.all(
           orderDocs.map(async (order) => {
-            const itemsSnap = await getDocs(collection(db, "customers", order.customerId, "orders", order.id, "items"));
+            const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.id)));
             return {
               ...order,
               items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)),

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collectionGroup, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
 import type { OrderWithItems } from "@/types";
@@ -21,14 +21,15 @@ export default function BillPage() {
 
     async function fetchOrders() {
       const q = query(
-        collection(db, "customers", customerId!, "orders"),
+        collectionGroup(db, "orders"),
+        where("customerId", "==", customerId),
         where("status", "in", ["pending", "completed"])
       );
       const snap = await getDocs(q);
       const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, customerId!));
       const withItems: OrderWithItems[] = await Promise.all(
         orderDocs.map(async (order) => {
-          const itemsSnap = await getDocs(collection(db, "customers", customerId!, "orders", order.id, "items"));
+          const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.id)));
           return {
             ...order,
             items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)),
