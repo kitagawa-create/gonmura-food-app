@@ -46,11 +46,23 @@ function shortLabel(key: string, period: Period): string {
   const [, m, d] = key.split("-");
   return `${Number(m)}/${Number(d)}`;
 }
+function rangeLabel(key: string, period: Period): string {
+  if (period === "daily") return shortLabel(key, period);
+  if (period === "weekly") {
+    const start = new Date(key + "T00:00:00");
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    return `${start.getMonth() + 1}/${start.getDate()}〜${end.getMonth() + 1}/${end.getDate()}`;
+  }
+  const [y, m] = key.split("-");
+  const lastDay = new Date(Number(y), Number(m), 0).getDate();
+  return `${Number(m)}/1〜${Number(m)}/${lastDay}`;
+}
 function orderTotal(o: OrderWithItems): number {
   return o.items.reduce((s, i) => s + comboLineTotal(i), 0);
 }
 
-type Bucket = { key: string; label: string; revenue: number; count: number };
+type Bucket = { key: string; label: string; rangeLabel: string; revenue: number; count: number };
 type Series = {
   name: string;
   color: string;
@@ -60,12 +72,14 @@ type Series = {
 
 function LineChart({
   labels,
+  tooltipLabels,
   series,
   height = 240,
   activeIdx = null,
   onPointClick,
 }: {
   labels: string[];
+  tooltipLabels?: string[];
   series: Series[];
   height?: number;
   activeIdx?: number | null;
@@ -184,7 +198,7 @@ function LineChart({
       {hoverIdx !== null && (
         <div className="pointer-events-none absolute top-2 right-2 rounded-lg border border-black bg-[color:var(--color-bg-card)]/95 px-3 py-2 text-xs shadow-lg backdrop-blur-sm">
           <div className="text-[color:var(--color-text-muted)] mb-1">
-            {labels[hoverIdx]}
+            {(tooltipLabels ?? labels)[hoverIdx]}
           </div>
           {series.map((s) => (
             <div key={s.name} className="flex items-center gap-2">
@@ -413,6 +427,7 @@ export default function AdminSalesPage() {
       const b = map.get(key) ?? {
         key,
         label: shortLabel(key, period),
+        rangeLabel: rangeLabel(key, period),
         revenue: 0,
         count: 0,
       };
@@ -519,7 +534,8 @@ export default function AdminSalesPage() {
     }
     const breakdown = Array.from(menuMap.values()).sort((a, b) => b.revenue - a.revenue);
     const label = buckets.find((b) => b.key === detailKey)?.label ?? detailKey;
-    return { label, count, revenue, atv, breakdown };
+    const rl = buckets.find((b) => b.key === detailKey)?.rangeLabel ?? detailKey;
+    return { label: rl, count, revenue, atv, breakdown };
   }, [detailKey, filteredOrders, period, buckets]);
 
   if (role !== "owner") return null;
@@ -580,7 +596,7 @@ export default function AdminSalesPage() {
           type="date"
           value={startDate}
           max={todayISO}
-          onChange={(e) => { if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) setStartDate(e.target.value); }}
+          onChange={(e) => { if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value) && e.target.value <= todayISO) setStartDate(e.target.value); }}
           onKeyDown={(e) => e.preventDefault()}
           className={selectCls}
         />
@@ -589,7 +605,7 @@ export default function AdminSalesPage() {
           type="date"
           value={endDate}
           max={todayISO}
-          onChange={(e) => { if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) setEndDate(e.target.value); }}
+          onChange={(e) => { if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value) && e.target.value <= todayISO) setEndDate(e.target.value); }}
           onKeyDown={(e) => e.preventDefault()}
           className={selectCls}
         />
@@ -663,7 +679,7 @@ export default function AdminSalesPage() {
           </p>
         ) : analysis === "menu" ? (
           /* ===== メニュー別棒グラフ ===== */
-          <div className="flex-1 min-h-0 overflow-y-auto pr-2 [scrollbar-gutter:stable]">
+          <div className="flex-1 min-h-0 overflow-y-auto -mr-4 pr-2 [scrollbar-gutter:stable]">
             {menuBarItems.length === 0 ? (
               <p className="text-sm text-[color:var(--color-text-muted)] py-10 text-center">
                 該当メニューがありません
@@ -687,7 +703,7 @@ export default function AdminSalesPage() {
                   <div className="h-3 w-32 rounded-sm" style={{ background: "linear-gradient(to right, rgba(59,130,246,0.1), rgba(59,130,246,0.8))" }} />
                   <span className="text-xs text-[color:var(--color-text-muted)]">多</span>
                 </div>
-              <div className="flex-1 min-h-0 overflow-auto pb-2 pr-2 [scrollbar-gutter:stable]">
+              <div className="flex-1 min-h-0 overflow-auto pb-2 -mr-4 pr-2 [scrollbar-gutter:stable]">
                 <table className="text-xs tabular-nums min-w-full" style={{ borderCollapse: "collapse" }}>
                   <thead>
                     <tr>
@@ -757,6 +773,7 @@ export default function AdminSalesPage() {
             <div className="shrink-0">
               <LineChart
                 labels={buckets.map((b) => b.label)}
+                tooltipLabels={buckets.map((b) => b.rangeLabel)}
                 series={[
                   {
                     name: "売上",
@@ -814,7 +831,7 @@ export default function AdminSalesPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex-1 min-h-0 overflow-y-auto pr-2 [scrollbar-gutter:stable]">
+                  <div className="flex-1 min-h-0 overflow-y-auto -mr-4 pr-2 [scrollbar-gutter:stable]">
                     <table className="w-full text-xs tabular-nums">
                       <thead className="text-[color:var(--color-text-muted)] sticky top-0 bg-[color:var(--color-bg-subtle)]">
                         <tr>
@@ -863,7 +880,7 @@ export default function AdminSalesPage() {
                         </tr>
                       </thead>
                     </table>
-                    <div className="flex-1 min-h-0 overflow-y-auto pr-2 [scrollbar-gutter:stable]">
+                    <div className="flex-1 min-h-0 overflow-y-auto -mr-4 pr-2 [scrollbar-gutter:stable]">
                       <table className="w-full table-fixed text-xs tabular-nums">
                         <tbody>
                           {tableBreakdown.map((t) => (
