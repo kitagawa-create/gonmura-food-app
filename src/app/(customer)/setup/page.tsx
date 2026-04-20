@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { collection, doc, getDocs, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
 
@@ -28,20 +28,35 @@ export default function SetupPage() {
   const router = useRouter();
 
   useEffect(() => {
-    if (typeof window !== "undefined" && localStorage.getItem(TABLE_ID_KEY)) {
-      router.replace("/menu");
-      return;
-    }
-    getDocs(query(collection(db, "tables"), where("deviceId", "==", "")))
-      .then((snap) => {
+    async function init() {
+      const existingId = typeof window !== "undefined" ? localStorage.getItem(TABLE_ID_KEY) : null;
+
+      if (existingId) {
+        try {
+          const snap = await getDoc(doc(db, "tables", existingId));
+          if (snap.exists() && snap.data().deviceId) {
+            router.replace("/menu");
+            return;
+          }
+          // ドキュメントが削除 or 管理者にリセットされた場合はローカルをクリア
+          localStorage.removeItem(TABLE_ID_KEY);
+        } catch {
+          localStorage.removeItem(TABLE_ID_KEY);
+        }
+      }
+
+      try {
+        const snap = await getDocs(query(collection(db, "tables"), where("deviceId", "==", "")));
         setTables(
           snap.docs
             .map((d) => ({ id: d.id, tableNumber: d.data().tableNumber as string }))
             .sort((a, b) => a.tableNumber.localeCompare(b.tableNumber, "ja"))
         );
-        setLoadingTables(false);
-      })
-      .catch(() => setLoadingTables(false));
+      } catch {}
+      setLoadingTables(false);
+    }
+
+    init();
   }, [router]);
 
   async function handleSubmit(e: React.FormEvent) {

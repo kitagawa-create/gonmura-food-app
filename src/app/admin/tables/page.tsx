@@ -39,6 +39,8 @@ export default function AdminTablesPage() {
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState("");
   const [savingPin, setSavingPin] = useState(false);
+  const [resetTarget, setResetTarget] = useState<Table | null>(null);
+  const [resetting, setResetting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Table | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -105,6 +107,20 @@ export default function AdminTablesPage() {
       setSavingPin(false);
     }
   }, [pinInput, toast]);
+
+  const confirmReset = useCallback(async () => {
+    if (!resetTarget) return;
+    setResetting(true);
+    try {
+      await updateDoc(doc(db, "tables", resetTarget.id), { deviceId: "", pin: "", updatedAt: serverTimestamp() });
+      toast("端末の紐付けを解除しました");
+      setResetTarget(null);
+    } catch {
+      toast("リセットに失敗しました");
+    } finally {
+      setResetting(false);
+    }
+  }, [resetTarget, toast]);
 
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return;
@@ -199,12 +215,22 @@ export default function AdminTablesPage() {
                     </span>
                   )}
                 </div>
-                <button
-                  onClick={() => setDeleteTarget(table)}
-                  className="rounded-lg border border-[color:var(--color-border)] px-3 py-1 text-xs text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors"
-                >
-                  削除
-                </button>
+                <div className="flex gap-2">
+                  {!unclaimed(table) && (
+                    <button
+                      onClick={() => setResetTarget(table)}
+                      className="rounded-lg border border-[color:var(--color-border)] px-3 py-1 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+                    >
+                      リセット
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setDeleteTarget(table)}
+                    className="rounded-lg border border-[color:var(--color-border)] px-3 py-1 text-xs text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors"
+                  >
+                    削除
+                  </button>
+                </div>
               </div>
 
               {!unclaimed(table) && (
@@ -268,6 +294,16 @@ export default function AdminTablesPage() {
         </div>
       )}
 
+      <ConfirmDialog
+        open={resetTarget !== null}
+        title={`テーブル ${resetTarget?.tableNumber} の端末をリセット`}
+        message="このテーブルの端末紐付けを解除します。タブレット側は再セットアップが必要になります。"
+        confirmLabel="リセットする"
+        confirmColor="red"
+        onConfirm={confirmReset}
+        onCancel={() => setResetTarget(null)}
+        loading={resetting}
+      />
       <ConfirmDialog
         open={deleteTarget !== null}
         title={`テーブル ${deleteTarget?.tableNumber} を削除`}
