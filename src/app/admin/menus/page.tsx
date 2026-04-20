@@ -12,10 +12,11 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
   writeBatch,
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import type { Category, Menu, MenuStatus } from "@/types";
 import { normalizeMenu } from "@/lib/order-utils";
@@ -41,6 +42,76 @@ const EMPTY_FORM: MenuFormData = {
   status: "active",
 };
 
+function resizeToJpeg(blob: Blob, size = 800): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("canvas context unavailable")); return; }
+      const { naturalWidth: w, naturalHeight: h } = img;
+      const side = Math.min(w, h);
+      ctx.drawImage(img, (w - side) / 2, (h - side) / 2, side, side, 0, 0, size, size);
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error("toBlob failed"))),
+        "image/jpeg",
+        0.85
+      );
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+// Pexels フリー素材 (メニューID → URL)
+const FRESH_IMAGE_URLS: Record<string, string> = {
+  // ラーメン
+  F2zoFM33eWfwECWUG7PN: "https://images.pexels.com/photos/33493350/pexels-photo-33493350.jpeg",
+  INOvuctqwz2Ut7h0mJCH: "https://images.pexels.com/photos/28701170/pexels-photo-28701170.jpeg",
+  kYutrrRUh75etMp0lnTj: "https://images.pexels.com/photos/31417032/pexels-photo-31417032.jpeg",
+  mdpR6UkQ9yFYuuri28e7: "https://images.pexels.com/photos/28701167/pexels-photo-28701167.jpeg",
+  UfB59LNm8KfuWiOx5qn8: "https://images.pexels.com/photos/36237035/pexels-photo-36237035.jpeg",
+  "8rvuPjZM4959CMwOz1DQ": "https://images.pexels.com/photos/31418932/pexels-photo-31418932.jpeg",
+  RKu84R1GkTffQGGatbEQ: "https://images.pexels.com/photos/28758599/pexels-photo-28758599.jpeg",
+  koY0hUl1hJbMjydT22TP: "https://images.pexels.com/photos/31745184/pexels-photo-31745184.jpeg",
+  "02zqBdnGtzAzkGrqrO4e": "https://images.pexels.com/photos/4354410/pexels-photo-4354410.jpeg",
+  paVoBuX86Twy7u164Qmo: "https://images.pexels.com/photos/28397635/pexels-photo-28397635.jpeg",
+  "0nnYYWsNmpX1z4i9D5bh": "https://images.pexels.com/photos/33143858/pexels-photo-33143858.jpeg",
+  CSrdmcSQTObvQHmal5i8: "https://images.pexels.com/photos/27219790/pexels-photo-27219790.jpeg",
+  LJoEr5KWxRbfTnIPugck: "https://images.pexels.com/photos/27219797/pexels-photo-27219797.jpeg",
+  BPrS25LoUsZWAHSiSBw1: "https://images.pexels.com/photos/31418932/pexels-photo-31418932.jpeg",
+  // トッピング
+  "1l82tbhksuOgEduBvx6O": "https://images.pexels.com/photos/2402495/pexels-photo-2402495.jpeg",
+  Skj5cujaYOOT4wlSVzOK: "https://images.pexels.com/photos/36924469/pexels-photo-36924469.jpeg",
+  "6N32LzNt5m9zBVbHInRI": "https://images.pexels.com/photos/13677969/pexels-photo-13677969.jpeg",
+  nnXYRzzLVuMqkJOend7Q: "https://images.pexels.com/photos/8954279/pexels-photo-8954279.jpeg",
+  ZqBYIDrLQ4iGBEwqaoeV: "https://images.pexels.com/photos/36346265/pexels-photo-36346265.jpeg",
+  tnlUhG8LCec1L77RVMms: "https://images.pexels.com/photos/8956732/pexels-photo-8956732.jpeg",
+  // サイドメニュー
+  "5hBjrrPXK8ZpkXxs4QdB": "https://images.pexels.com/photos/31555433/pexels-photo-31555433.jpeg",
+  "0s3HQqw08SX7stV7g6sJ": "https://images.pexels.com/photos/31346219/pexels-photo-31346219.jpeg",
+  XszUjVsqeCr5yytL4xKa: "https://images.pexels.com/photos/36293910/pexels-photo-36293910.jpeg",
+  SU2O7fGiZyiEXBeYOMnb: "https://images.pexels.com/photos/16068593/pexels-photo-16068593.jpeg",
+  e6kjLsFg4tqVDluV0XrE: "https://images.pexels.com/photos/35873825/pexels-photo-35873825.jpeg",
+  "6X0SqER3O3NVMgY6Sn53": "https://images.pexels.com/photos/31264136/pexels-photo-31264136.jpeg",
+  jMtXqBeAmal9I2xzAatX: "https://images.pexels.com/photos/30682900/pexels-photo-30682900.jpeg",
+  fm1oR7ZTtfYjfF2CKsna: "https://images.pexels.com/photos/12356601/pexels-photo-12356601.jpeg",
+  // ドリンク
+  f2Ayn4ItsEuS8dFWrI5r: "https://images.pexels.com/photos/24860312/pexels-photo-24860312.jpeg",
+  ZhsoWOOoBde8BJ0vbfZm: "https://images.pexels.com/photos/4121868/pexels-photo-4121868.jpeg",
+  "0xdO4mZ7lXLyT4dVoVQN": "https://images.pexels.com/photos/5740974/pexels-photo-5740974.jpeg",
+  qZ6SpgKdZshrAq7J2r10: "https://images.pexels.com/photos/14609144/pexels-photo-14609144.jpeg",
+  "8AJnF0LNLTS7KDaQs5KS": "https://images.pexels.com/photos/8329983/pexels-photo-8329983.jpeg",
+  mE2iYIuQgDHmapOWRR3v: "https://images.pexels.com/photos/29465139/pexels-photo-29465139.jpeg",
+  "6BVtPDoInnCl1bUjfdmw": "https://images.pexels.com/photos/10952402/pexels-photo-10952402.jpeg",
+  L8ayA1uIPTXPd76qVwQQ: "https://images.pexels.com/photos/37046025/pexels-photo-37046025.jpeg",
+  vd6CVU0BhSE2cQu8Vaop: "https://images.pexels.com/photos/7208653/pexels-photo-7208653.jpeg",
+};
+
 
 export default function AdminMenusPage() {
   const role = useAdminRole();
@@ -62,6 +133,15 @@ export default function AdminMenusPage() {
   const [draggingMenuId, setDraggingMenuId] = useState<string | null>(null);
   const [dragOverMenuId, setDragOverMenuId] = useState<string | null>(null);
   const [savingMenuOrder, setSavingMenuOrder] = useState(false);
+  const [migrating, setMigrating] = useState(false);
+  const [migrationProgress, setMigrationProgress] = useState("");
+  const [migrationDone, setMigrationDone] = useState(false);
+  const [freshImgMigrating, setFreshImgMigrating] = useState(false);
+  const [freshImgProgress, setFreshImgProgress] = useState("");
+  const [freshImgDone, setFreshImgDone] = useState(false);
+  const [converting, setConverting] = useState(false);
+  const [convertProgress, setConvertProgress] = useState("");
+  const [convertDone, setConvertDone] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   const handleTabChange = useCallback((tabId: string) => {
@@ -140,38 +220,189 @@ export default function AdminMenusPage() {
     return sections;
   }, [menus, categories, categoryMap]);
 
+  function getStoragePath(url: string): string | null {
+    try {
+      const m = new URL(url).pathname.match(/\/o\/(.+)/);
+      return m ? decodeURIComponent(m[1]) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function normalizeExt(ext: string): string {
+    const lower = ext.toLowerCase();
+    return lower === "jpeg" ? "jpg" : lower;
+  }
+
+  async function handleMigrateImages() {
+    const targets = menus.filter((m) => {
+      if (!m.imageUrl) return false;
+      const path = getStoragePath(m.imageUrl);
+      if (!path) return false;
+      const match = path.match(/^menus\/[A-Za-z0-9]{20}\.([^.]+)$/);
+      if (!match) return true; // 旧形式
+      return match[1] !== normalizeExt(match[1]); // 拡張子が非正規化
+    });
+
+    if (targets.length === 0) {
+      toast("移行対象の画像はありません");
+      setMigrationDone(true);
+      return;
+    }
+
+    setMigrating(true);
+    let done = 0;
+    setMigrationProgress(`0 / ${targets.length}`);
+
+    for (const menu of targets) {
+      try {
+        const oldPath = getStoragePath(menu.imageUrl)!;
+        const res = await fetch(menu.imageUrl);
+        const blob = await res.blob();
+        const converted = await resizeToJpeg(blob);
+        const newRef = ref(storage, `menus/${menu.id}.jpg`);
+        await uploadBytes(newRef, converted);
+        const newUrl = await getDownloadURL(newRef);
+
+        await updateDoc(doc(db, "menus", menu.id), {
+          imageUrl: newUrl,
+          updatedAt: serverTimestamp(),
+        });
+
+        await deleteObject(ref(storage, oldPath)).catch(() => {});
+
+        done++;
+        setMigrationProgress(`${done} / ${targets.length}`);
+      } catch {
+        // 1件失敗しても続行
+      }
+    }
+
+    setMigrating(false);
+    setMigrationDone(true);
+    toast(`${done} 件の画像を移行しました`);
+  }
+
+  async function handleFreshImages() {
+    setFreshImgMigrating(true);
+    const entries = Object.entries(FRESH_IMAGE_URLS);
+    let done = 0;
+    setFreshImgProgress(`0 / ${entries.length}`);
+
+    for (const [menuId, srcUrl] of entries) {
+      const menu = menus.find((m) => m.id === menuId);
+      if (!menu) continue;
+      try {
+        if (menu.imageUrl) {
+          const oldPath = getStoragePath(menu.imageUrl);
+          if (oldPath) await deleteObject(ref(storage, oldPath)).catch(() => {});
+        }
+        const res = await fetch(srcUrl);
+        const blob = await res.blob();
+        const converted = await resizeToJpeg(blob);
+        const newRef = ref(storage, `menus/${menuId}.jpg`);
+        await uploadBytes(newRef, converted);
+        const newUrl = await getDownloadURL(newRef);
+        await updateDoc(doc(db, "menus", menuId), {
+          imageUrl: newUrl,
+          updatedAt: serverTimestamp(),
+        });
+        done++;
+        setFreshImgProgress(`${done} / ${entries.length}`);
+      } catch {
+        // 1件失敗しても続行
+      }
+    }
+
+    setFreshImgMigrating(false);
+    setFreshImgDone(true);
+    toast(`${done} 件の画像を更新しました`);
+  }
+
+  async function handleConvertImages() {
+    const targets = menus.filter((m) => m.imageUrl);
+    setConverting(true);
+    let done = 0;
+    setConvertProgress(`0 / ${targets.length}`);
+
+    for (const menu of targets) {
+      try {
+        const oldPath = getStoragePath(menu.imageUrl);
+        const res = await fetch(menu.imageUrl);
+        const blob = await res.blob();
+        const converted = await resizeToJpeg(blob);
+        const newRef = ref(storage, `menus/${menu.id}.jpg`);
+        await uploadBytes(newRef, converted);
+        const newUrl = await getDownloadURL(newRef);
+        await updateDoc(doc(db, "menus", menu.id), {
+          imageUrl: newUrl,
+          updatedAt: serverTimestamp(),
+        });
+        if (oldPath && oldPath !== `menus/${menu.id}.jpg`) {
+          await deleteObject(ref(storage, oldPath)).catch(() => {});
+        }
+        done++;
+        setConvertProgress(`${done} / ${targets.length}`);
+      } catch {
+        // 1件失敗しても続行
+      }
+    }
+
+    setConverting(false);
+    setConvertDone(true);
+    toast(`${done} 件の画像を変換しました`);
+  }
+
   async function handleSave(data: MenuFormData, imageFile: File | null, id?: string) {
     setError(null);
     try {
       let imageUrl = data.imageUrl;
+      let newDocId: string | undefined;
+
       if (imageFile) {
-        const fileRef = ref(storage, `menus/${Date.now()}_${imageFile.name}`);
-        await uploadBytes(fileRef, imageFile);
+        const menuId = id ?? doc(collection(db, "menus")).id;
+        if (!id) newDocId = menuId;
+
+        if (id && data.imageUrl) {
+          const oldPath = getStoragePath(data.imageUrl);
+          if (oldPath) await deleteObject(ref(storage, oldPath)).catch(() => {});
+        }
+
+        const converted = await resizeToJpeg(imageFile);
+        const fileRef = ref(storage, `menus/${menuId}.jpg`);
+        await uploadBytes(fileRef, converted);
         imageUrl = await getDownloadURL(fileRef);
       }
+
       const saveData = {
         ...data,
         imageUrl,
         price: Math.trunc(Number(data.price)) || 0,
       };
+
       if (id) {
-        await updateDoc(doc(db, "menus", id), {
-          ...saveData,
-          updatedAt: serverTimestamp(),
-        });
+        await updateDoc(doc(db, "menus", id), { ...saveData, updatedAt: serverTimestamp() });
         toast("メニューを更新しました");
       } else {
-        // 新規: 末尾になるように既存最大 + 1
         const maxOrder = menus.reduce(
           (m, x) => x.sortOrder < Number.MAX_SAFE_INTEGER ? Math.max(m, x.sortOrder) : m,
           -1
         );
-        await addDoc(collection(db, "menus"), {
-          ...saveData,
-          sortOrder: maxOrder + 1,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
+        if (newDocId) {
+          await setDoc(doc(db, "menus", newDocId), {
+            ...saveData,
+            sortOrder: maxOrder + 1,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        } else {
+          await addDoc(collection(db, "menus"), {
+            ...saveData,
+            sortOrder: maxOrder + 1,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        }
         toast("メニューを追加しました");
       }
       setShowForm(false);
@@ -312,15 +543,44 @@ export default function AdminMenusPage() {
           className="mb-3"
           rightSlot={
             role === "owner" ? (
-              <button
-                onClick={() => {
-                  setEditing(null);
-                  setShowForm(true);
-                }}
-                className="rounded-xl bg-[color:var(--color-accent-char)] px-4 py-2 text-sm text-white font-bold hover:bg-[color:var(--color-accent-char-hover)] transition-colors"
-              >
-                新規追加
-              </button>
+              <div className="flex items-center gap-2">
+                {!convertDone && (
+                  <button
+                    onClick={handleConvertImages}
+                    disabled={converting}
+                    className="rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-xs text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-primary)] transition-colors disabled:opacity-50"
+                  >
+                    {converting ? `変換中 ${convertProgress}` : "既存画像を変換"}
+                  </button>
+                )}
+                {!freshImgDone && (
+                  <button
+                    onClick={handleFreshImages}
+                    disabled={freshImgMigrating}
+                    className="rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-xs text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-primary)] transition-colors disabled:opacity-50"
+                  >
+                    {freshImgMigrating ? `更新中 ${freshImgProgress}` : "フリー素材に更新"}
+                  </button>
+                )}
+                {!migrationDone && (
+                  <button
+                    onClick={handleMigrateImages}
+                    disabled={migrating}
+                    className="rounded-xl border border-[color:var(--color-border)] bg-white px-3 py-2 text-xs text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-primary)] transition-colors disabled:opacity-50"
+                  >
+                    {migrating ? `画像移行中 ${migrationProgress}` : "画像パス移行"}
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setEditing(null);
+                    setShowForm(true);
+                  }}
+                  className="rounded-xl bg-[color:var(--color-accent-char)] px-4 py-2 text-sm text-white font-bold hover:bg-[color:var(--color-accent-char-hover)] transition-colors"
+                >
+                  新規追加
+                </button>
+              </div>
             ) : undefined
           }
         />
