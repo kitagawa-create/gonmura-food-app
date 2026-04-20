@@ -25,7 +25,7 @@ export default function SetupPage() {
   const { tableNumber, setTableNumber } = useCart();
   const router = useRouter();
 
-  if (tableNumber !== null) {
+  if (typeof window !== "undefined" && localStorage.getItem(TABLE_ID_KEY)) {
     router.replace("/menu");
     return null;
   }
