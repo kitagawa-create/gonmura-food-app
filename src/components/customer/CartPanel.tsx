@@ -207,7 +207,7 @@ export function CartPanel({
               カートは空です
             </p>
           ) : (
-            <ul className="divide-y divide-[color:var(--color-border)]">
+            <ul className="divide-y divide-[color:var(--color-border)] border-b border-[color:var(--color-border)]">
               {items.map((item) => {
                 const img = imageMap[item.menuId];
                 const unitPrice = comboUnitPrice(item);
