@@ -598,19 +598,21 @@ export default function AdminMenusPage() {
                         </div>
                       </div>
 
-                      {/* ドラッグハンドル + 表示順（チェックボックス下） */}
-                      <div className="absolute left-3 top-10 z-10 pointer-events-none flex flex-col items-center gap-0.5">
-                        {role === "owner" && (
-                          <svg className="w-4 h-4 shrink-0 text-[color:var(--color-text-muted)]/50" viewBox="0 0 16 16" fill="currentColor">
+                      {/* ドラッグハンドル（チェックボックスの真下・同サイズ） */}
+                      {role === "owner" && (
+                        <div className="absolute left-3 top-8 z-10 pointer-events-none h-5 w-5 flex items-center justify-center">
+                          <svg className="w-5 h-5 text-[color:var(--color-text-muted)]/50" viewBox="0 0 16 16" fill="currentColor">
                             <circle cx="5" cy="4" r="1.5"/><circle cx="11" cy="4" r="1.5"/>
                             <circle cx="5" cy="8" r="1.5"/><circle cx="11" cy="8" r="1.5"/>
                             <circle cx="5" cy="12" r="1.5"/><circle cx="11" cy="12" r="1.5"/>
                           </svg>
-                        )}
-                        <span className="text-xs tabular-nums leading-none text-[color:var(--color-text-muted)]/60">
-                          表示順{menuIdx + 1}
-                        </span>
-                      </div>
+                        </div>
+                      )}
+
+                      {/* 表示順（左下） */}
+                      <span className="absolute left-3 bottom-3 z-10 pointer-events-none text-xs tabular-nums leading-none text-[color:var(--color-text-muted)]/60">
+                        表示順{menuIdx + 1}
+                      </span>
 
                       {/* 鉛筆アイコン編集ボタン（右上） */}
                       {role === "owner" && (
@@ -630,7 +632,7 @@ export default function AdminMenusPage() {
                         </button>
                       )}
 
-                      <div className="flex gap-3 pl-7 pb-4">
+                      <div className="flex gap-3 pl-7 pb-6">
                         {m.imageUrl && (
                           <FadeImage
                             src={m.imageUrl}
