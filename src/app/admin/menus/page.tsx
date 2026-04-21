@@ -547,8 +547,8 @@ export default function AdminMenusPage() {
                               : "border-[color:var(--color-border)]"
                       } ${isDragging ? "opacity-40" : ""}`}
                     >
-                      {/* チェックボックス + 順番 */}
-                      <div className="absolute left-3 top-3 z-10 pointer-events-none flex flex-col items-center gap-1">
+                      {/* チェックボックス（左上） */}
+                      <div className="absolute left-3 top-3 z-10 pointer-events-none">
                         <div className={`h-5 w-5 rounded border-2 flex items-center justify-center ${
                           isSelected
                             ? "border-[color:var(--color-accent-char)] bg-[color:var(--color-accent-char)]"
@@ -560,8 +560,19 @@ export default function AdminMenusPage() {
                             </svg>
                           )}
                         </div>
+                      </div>
+
+                      {/* ドラッグハンドル + 表示順（左下） */}
+                      <div className="absolute left-3 bottom-3 z-10 pointer-events-none flex items-center gap-1">
+                        {role === "owner" && (
+                          <svg className="w-3 h-3 shrink-0 text-[color:var(--color-text-muted)]/50" viewBox="0 0 16 16" fill="currentColor">
+                            <circle cx="5" cy="4" r="1.5"/><circle cx="11" cy="4" r="1.5"/>
+                            <circle cx="5" cy="8" r="1.5"/><circle cx="11" cy="8" r="1.5"/>
+                            <circle cx="5" cy="12" r="1.5"/><circle cx="11" cy="12" r="1.5"/>
+                          </svg>
+                        )}
                         <span className="text-[9px] tabular-nums leading-none text-[color:var(--color-text-muted)]/60">
-                          {menuIdx + 1}
+                          表示順{menuIdx + 1}
                         </span>
                       </div>
 
@@ -583,7 +594,7 @@ export default function AdminMenusPage() {
                         </button>
                       )}
 
-                      <div className="flex gap-3 pl-7">
+                      <div className="flex gap-3 pl-7 pb-5">
                         {m.imageUrl && (
                           <FadeImage
                             src={m.imageUrl}
