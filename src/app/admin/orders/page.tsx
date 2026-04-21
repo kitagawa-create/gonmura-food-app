@@ -240,10 +240,10 @@ function NewOrdersView({
   useEffect(() => {
     if (orders.length === 0) return;
     const unsubscribers = orders.map((order) =>
-      onSnapshot(query(collectionGroup(db, "items"), where("orderId", "==", order.id)), (snap) => {
+      onSnapshot(query(collectionGroup(db, "items"), where("orderId", "==", order.orderId)), (snap) => {
         setItemsByOrder((prev) => {
           const next = new Map(prev);
-          next.set(order.id, snap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)));
+          next.set(order.orderId, snap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)));
           return next;
         });
       })
@@ -252,32 +252,32 @@ function NewOrdersView({
   }, [orders]);
 
   const ordersWithItems: OrderWithItems[] = useMemo(
-    () => orders.map((o) => ({ ...o, items: itemsByOrder.get(o.id) ?? [] })),
+    () => orders.map((o) => ({ ...o, items: itemsByOrder.get(o.orderId) ?? [] })),
     [orders, itemsByOrder]
   );
 
   const toggleCheck = useCallback(
     async (order: OrderWithItems, itemId: string) => {
       onError(null);
-      const item = order.items.find((i) => i.id === itemId);
+      const item = order.items.find((i) => i.itemId === itemId);
       if (!item) return;
       const newChecked = !item.checked;
 
       setItemsByOrder((prev) => {
         const next = new Map(prev);
-        next.set(order.id, (prev.get(order.id) ?? []).map((i) => i.id === itemId ? { ...i, checked: newChecked } : i));
+        next.set(order.orderId, (prev.get(order.orderId) ?? []).map((i) => i.itemId === itemId ? { ...i, checked: newChecked } : i));
         return next;
       });
 
       try {
-        await updateDoc(doc(db, "customers", order.customerId, "orders", order.id, "items", itemId), {
+        await updateDoc(doc(db, "customers", order.customerId, "orders", order.orderId, "items", itemId), {
           checked: newChecked,
           updatedAt: serverTimestamp(),
         });
       } catch (e) {
         setItemsByOrder((prev) => {
           const next = new Map(prev);
-          next.set(order.id, (prev.get(order.id) ?? []).map((i) => i.id === itemId ? { ...i, checked: item.checked } : i));
+          next.set(order.orderId, (prev.get(order.orderId) ?? []).map((i) => i.itemId === itemId ? { ...i, checked: item.checked } : i));
           return next;
         });
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
@@ -289,10 +289,10 @@ function NewOrdersView({
   const completeOrder = useCallback(
     async (order: OrderWithItems) => {
       onError(null);
-      const orderBase: Order = { id: order.id, status: order.status, customerId: order.customerId, createdAt: order.createdAt, updatedAt: order.updatedAt };
-      setOrders((os) => os.filter((o) => o.id !== order.id));
+      const orderBase: Order = { orderId: order.orderId, status: order.status, customerId: order.customerId, createdAt: order.createdAt, updatedAt: order.updatedAt };
+      setOrders((os) => os.filter((o) => o.orderId !== order.orderId));
       try {
-        await updateDoc(doc(db, "customers", order.customerId, "orders", order.id), {
+        await updateDoc(doc(db, "customers", order.customerId, "orders", order.orderId), {
           status: "completed",
           updatedAt: serverTimestamp(),
         });
@@ -308,10 +308,10 @@ function NewOrdersView({
     async (order: OrderWithItems) => {
       onError(null);
       try {
-        const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.id)));
+        const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.orderId)));
         const batch = writeBatch(db);
         for (const d of itemsSnap.docs) batch.delete(d.ref);
-        batch.delete(doc(db, "customers", order.customerId, "orders", order.id));
+        batch.delete(doc(db, "customers", order.customerId, "orders", order.orderId));
         await batch.commit();
       } catch (e) {
         onError(e instanceof Error ? e.message : "削除に失敗しました。");
@@ -326,13 +326,13 @@ function NewOrdersView({
       const isLast = order.items.length === 1;
       try {
         if (isLast) {
-          const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.id)));
+          const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.orderId)));
           const batch = writeBatch(db);
           for (const d of itemsSnap.docs) batch.delete(d.ref);
-          batch.delete(doc(db, "customers", order.customerId, "orders", order.id));
+          batch.delete(doc(db, "customers", order.customerId, "orders", order.orderId));
           await batch.commit();
         } else {
-          await deleteDoc(doc(db, "customers", order.customerId, "orders", order.id, "items", itemId));
+          await deleteDoc(doc(db, "customers", order.customerId, "orders", order.orderId, "items", itemId));
         }
       } catch (e) {
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
@@ -346,11 +346,11 @@ function NewOrdersView({
       onError(null);
       setItemsByOrder((prev) => {
         const next = new Map(prev);
-        next.set(order.id, (prev.get(order.id) ?? []).map((i) => ({ ...i, checked: true })));
+        next.set(order.orderId, (prev.get(order.orderId) ?? []).map((i) => ({ ...i, checked: true })));
         return next;
       });
       try {
-        const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.id)));
+        const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.orderId)));
         const batch = writeBatch(db);
         const ts = serverTimestamp();
         for (const d of itemsSnap.docs) batch.update(d.ref, { checked: true, updatedAt: ts });
@@ -358,7 +358,7 @@ function NewOrdersView({
       } catch (e) {
         setItemsByOrder((prev) => {
           const next = new Map(prev);
-          next.set(order.id, order.items);
+          next.set(order.orderId, order.items);
           return next;
         });
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
@@ -372,11 +372,11 @@ function NewOrdersView({
       onError(null);
       setItemsByOrder((prev) => {
         const next = new Map(prev);
-        next.set(order.id, (prev.get(order.id) ?? []).map((i) => ({ ...i, checked: false })));
+        next.set(order.orderId, (prev.get(order.orderId) ?? []).map((i) => ({ ...i, checked: false })));
         return next;
       });
       try {
-        const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.id)));
+        const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.orderId)));
         const batch = writeBatch(db);
         const ts = serverTimestamp();
         for (const d of itemsSnap.docs) batch.update(d.ref, { checked: false, updatedAt: ts });
@@ -384,7 +384,7 @@ function NewOrdersView({
       } catch (e) {
         setItemsByOrder((prev) => {
           const next = new Map(prev);
-          next.set(order.id, order.items);
+          next.set(order.orderId, order.items);
           return next;
         });
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
@@ -411,7 +411,7 @@ function NewOrdersView({
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {ordersWithItems.map((order) => (
           <ActiveOrderCard
-            key={order.id}
+            key={order.orderId}
             order={order}
             tableNumber={tableNumberMap.get(customerInfoMap.get(order.customerId)?.tableId ?? "") ?? "?"}
             now={now}
@@ -487,7 +487,7 @@ function ActiveOrderCard({
     now - created.getTime() > 10 * 60 * 1000;
 
   const cancelTarget = cancelItemId !== null
-    ? order.items.find((i) => i.id === cancelItemId) ?? null
+    ? order.items.find((i) => i.itemId === cancelItemId) ?? null
     : null;
   const isLastItem = order.items.length === 1;
 
@@ -559,10 +559,10 @@ function ActiveOrderCard({
           const done = item.checked;
           const hasNestedToppings = item.toppings.length > 0;
           return (
-            <li key={item.id} className="flex items-stretch gap-1">
+            <li key={item.itemId} className="flex items-stretch gap-1">
               <button
                 type="button"
-                onClick={() => onToggle(order, item.id)}
+                onClick={() => onToggle(order, item.itemId)}
                 className={`flex-1 rounded-lg px-3 py-2.5 text-left transition-colors ${
                   done
                     ? "bg-[color:var(--color-accent-negi)]/10"
@@ -643,7 +643,7 @@ function ActiveOrderCard({
               {editMode && (
                 <button
                   type="button"
-                  onClick={() => setCancelItemId(item.id)}
+                  onClick={() => setCancelItemId(item.itemId)}
                   aria-label={`${item.name} をキャンセル`}
                   className="shrink-0 w-9 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] text-lg text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-accent-warn)]/10 hover:text-[color:var(--color-accent-warn)] transition-colors"
                 >
@@ -732,11 +732,11 @@ function HistoryView({ onError }: { onError: (msg: string | null) => void }) {
     async (order: OrderWithItems) => {
       onError(null);
       try {
-        const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.id)));
+        const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.orderId)));
         const batch = writeBatch(db);
         const ts = serverTimestamp();
         for (const d of itemsSnap.docs) batch.update(d.ref, { checked: false, updatedAt: ts });
-        batch.update(doc(db, "customers", order.customerId, "orders", order.id), { status: "pending", updatedAt: ts });
+        batch.update(doc(db, "customers", order.customerId, "orders", order.orderId), { status: "pending", updatedAt: ts });
         await batch.commit();
       } catch (e) {
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
@@ -766,7 +766,7 @@ function HistoryView({ onError }: { onError: (msg: string | null) => void }) {
           .map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
         const withItems = await Promise.all(
           orderDocs.map(async (order) => {
-            const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.id)));
+            const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.orderId)));
             return { ...order, items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)) } as OrderWithItems;
           })
         );
@@ -806,7 +806,7 @@ function HistoryView({ onError }: { onError: (msg: string | null) => void }) {
   }, []);
 
   const revertSelected = useCallback(async () => {
-    const targets = filteredOrders.filter((o) => selectedIds.has(o.id));
+    const targets = filteredOrders.filter((o) => selectedIds.has(o.orderId));
     await Promise.all(targets.map((o) => revertOrder(o)));
     setSelectedIds(new Set());
     setShowBulkRevert(false);
@@ -883,10 +883,10 @@ function HistoryView({ onError }: { onError: (msg: string | null) => void }) {
           <div className="flex flex-col gap-2">
             {filteredOrders.map((order) => (
               <HistoryOrderCard
-                key={order.id}
+                key={order.orderId}
                 order={order}
                 tableNumber={getTableNumber(order.customerId) || "?"}
-                selected={selectedIds.has(order.id)}
+                selected={selectedIds.has(order.orderId)}
                 onSelect={toggleSelect}
               />
             ))}
@@ -936,7 +936,7 @@ function HistoryOrderCard({
         <input
           type="checkbox"
           checked={selected}
-          onChange={() => onSelect(order.id)}
+          onChange={() => onSelect(order.orderId)}
           className="h-4 w-4 rounded cursor-pointer"
           style={{ accentColor: "var(--color-accent-char)" }}
         />
@@ -962,7 +962,7 @@ function HistoryOrderCard({
       <div className="flex-1 min-w-0">
         <ul className="text-sm space-y-0.5">
           {visibleItems.map((item) => (
-            <li key={item.id}>
+            <li key={item.itemId}>
               <div className="flex items-baseline gap-2">
                 <span className="flex-1 text-[color:var(--color-text-primary)] truncate">{item.name}</span>
                 <span className="w-8 shrink-0 text-right text-[color:var(--color-text-muted)] tabular-nums">×{item.quantity}</span>
@@ -999,4 +999,3 @@ function HistoryOrderCard({
     </div>
   );
 }
-

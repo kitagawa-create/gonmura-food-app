@@ -112,8 +112,8 @@ export default function AdminMenusPage() {
       (snap) => {
         setCategories(
           snap.docs.map((d) => ({
-            id: d.id,
-            ...(d.data() as Omit<Category, "id">),
+            categoryId: d.id,
+            ...(d.data() as Omit<Category, "categoryId">),
           }))
         );
         setLoading(false);
@@ -127,14 +127,14 @@ export default function AdminMenusPage() {
 
   const categoryMap = useMemo(() => {
     const m = new Map<string, Category>();
-    for (const c of categories) m.set(c.id, c);
+    for (const c of categories) m.set(c.categoryId, c);
     return m;
   }, [categories]);
 
   const visibleMenus = useMemo(() => menus.filter((m) => m.status !== "deleted"), [menus]);
 
   const osusumeId = useMemo(
-    () => categories.find((c) => c.name === "おすすめ")?.id,
+    () => categories.find((c) => c.name === "おすすめ")?.categoryId,
     [categories]
   );
 
@@ -166,9 +166,9 @@ export default function AdminMenusPage() {
     }
     const sections: { category: Category | null; items: Menu[] }[] = [];
     for (const c of categories) {
-      const items = groups.get(c.id);
+      const items = groups.get(c.categoryId);
       if (items && items.length > 0) {
-        sections.push({ category: c, items: sortByCategory(items, c.id) });
+        sections.push({ category: c, items: sortByCategory(items, c.categoryId) });
       }
     }
     const uncategorized = groups.get(null);
@@ -228,7 +228,7 @@ export default function AdminMenusPage() {
         );
         const menuDocId = newDocId ?? doc(collection(db, "menus")).id;
         await setDoc(doc(db, "menus", menuDocId), {
-          id: menuDocId,
+          menuId: menuDocId,
           ...saveData,
           sortOrder: maxOrder + 1,
           sortOrderFeatured: maxFeaturedOrder + 1,
@@ -259,7 +259,7 @@ export default function AdminMenusPage() {
         orderedSectionItems.forEach((m, i) => {
           const next = startAt + i;
           if (m[fieldName] !== next) {
-            batch.update(doc(db, "menus", m.id), {
+            batch.update(doc(db, "menus", m.menuId), {
               [fieldName]: next,
               updatedAt: serverTimestamp(),
             });
@@ -284,8 +284,8 @@ export default function AdminMenusPage() {
       setDragOverMenuId(null);
       if (!dragId || dragId === targetId) return;
       if (sourceCatId !== sectionCatId) return;
-      const fromIdx = sectionItems.findIndex((m) => m.id === dragId);
-      const toIdx = sectionItems.findIndex((m) => m.id === targetId);
+      const fromIdx = sectionItems.findIndex((m) => m.menuId === dragId);
+      const toIdx = sectionItems.findIndex((m) => m.menuId === targetId);
       if (fromIdx < 0 || toIdx < 0) return;
       const next = [...sectionItems];
       const [moved] = next.splice(fromIdx, 1);
@@ -307,8 +307,8 @@ export default function AdminMenusPage() {
         setMovingMenuSectionCatId(null);
         return;
       }
-      const fromIdx = sectionItems.findIndex((m) => m.id === movingMenuId);
-      const toIdx = sectionItems.findIndex((m) => m.id === targetId);
+      const fromIdx = sectionItems.findIndex((m) => m.menuId === movingMenuId);
+      const toIdx = sectionItems.findIndex((m) => m.menuId === targetId);
       if (fromIdx < 0 || toIdx < 0) return;
       const next = [...sectionItems];
       const [moved] = next.splice(fromIdx, 1);
@@ -324,7 +324,7 @@ export default function AdminMenusPage() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await updateDoc(doc(db, "menus", deleteTarget.id), {
+      await updateDoc(doc(db, "menus", deleteTarget.menuId), {
         status: "deleted",
         updatedAt: serverTimestamp(),
       });
@@ -457,13 +457,13 @@ export default function AdminMenusPage() {
               <span className="ml-1 text-xs">({visibleMenus.length})</span>
             </button>
             {categories.map((cat) => {
-              const count = visibleMenus.filter((m) => m.categoryIds.includes(cat.id)).length;
+              const count = visibleMenus.filter((m) => m.categoryIds.includes(cat.categoryId)).length;
               return (
                 <button
-                  key={cat.id}
-                  onClick={() => handleTabChange(cat.id)}
+                  key={cat.categoryId}
+                  onClick={() => handleTabChange(cat.categoryId)}
                   className={`shrink-0 border-b-2 px-4 py-2 text-sm transition-colors ${
-                    activeTab === cat.id
+                    activeTab === cat.categoryId
                       ? "border-[color:var(--color-accent-char)] font-semibold text-[color:var(--color-accent-char)]"
                       : "border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-primary)]"
                   }`}
@@ -495,7 +495,7 @@ export default function AdminMenusPage() {
           {(activeTab === "all"
             ? groupedMenus
             : (() => {
-                const cat = categories.find((c) => c.id === activeTab) ?? null;
+                const cat = categories.find((c) => c.categoryId === activeTab) ?? null;
                 const items = sortByCategory(
                   visibleMenus.filter((m) => m.categoryIds.includes(activeTab)),
                   activeTab
@@ -504,10 +504,10 @@ export default function AdminMenusPage() {
               })()
           ).map(({ category, items }) => {
             const fieldName: "sortOrder" | "sortOrderFeatured" =
-              category?.id === osusumeId ? "sortOrderFeatured" : "sortOrder";
-            const movingInThisSection = movingMenuId !== null && items.some((item) => item.id === movingMenuId) && movingMenuSectionCatId === (category?.id ?? null);
+              category?.categoryId === osusumeId ? "sortOrderFeatured" : "sortOrder";
+            const movingInThisSection = movingMenuId !== null && items.some((item) => item.menuId === movingMenuId) && movingMenuSectionCatId === (category?.categoryId ?? null);
             return (
-            <section key={category?.id ?? "__uncategorized__"}>
+            <section key={category?.categoryId ?? "__uncategorized__"}>
               {activeTab === "all" && (
                 <div className="mb-2 flex items-baseline gap-2 border-b border-[color:var(--color-border)] pb-1">
                   <h2 className="text-lg font-bold text-[color:var(--color-text-primary)]">
@@ -520,25 +520,25 @@ export default function AdminMenusPage() {
               )}
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 {items.map((m, menuIdx) => {
-                  const isDragging = draggingMenuId === m.id;
-                  const isMovingThis = movingMenuId === m.id;
-                  const isMoveTarget = role === "owner" && movingInThisSection && movingMenuId !== m.id;
-                  const isSelected = selectedIds.has(m.id);
+                  const isDragging = draggingMenuId === m.menuId;
+                  const isMovingThis = movingMenuId === m.menuId;
+                  const isMoveTarget = role === "owner" && movingInThisSection && movingMenuId !== m.menuId;
+                  const isSelected = selectedIds.has(m.menuId);
                   const longPressRef = { current: null as ReturnType<typeof setTimeout> | null };
                   return (
                     <div
-                      key={m.id}
+                      key={m.menuId}
                       draggable={role === "owner"}
                       onDragStart={(e) => {
                         e.dataTransfer.effectAllowed = "move";
-                        setDraggingMenuId(m.id);
-                        setDraggingMenuSectionCatId(category?.id ?? null);
+                        setDraggingMenuId(m.menuId);
+                        setDraggingMenuSectionCatId(category?.categoryId ?? null);
                       }}
-                      onDragEnter={() => setDragOverMenuId(m.id)}
+                      onDragEnter={() => setDragOverMenuId(m.menuId)}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => {
                         e.preventDefault();
-                        handleMenuDrop(items, m.id, fieldName, category?.id ?? null);
+                        handleMenuDrop(items, m.menuId, fieldName, category?.categoryId ?? null);
                       }}
                       onDragEnd={() => {
                         setDraggingMenuId(null);
@@ -548,8 +548,8 @@ export default function AdminMenusPage() {
                       onTouchStart={() => {
                         if (role !== "owner") return;
                         longPressRef.current = setTimeout(() => {
-                          setMovingMenuId(m.id);
-                          setMovingMenuSectionCatId(category?.id ?? null);
+                          setMovingMenuId(m.menuId);
+                          setMovingMenuSectionCatId(category?.categoryId ?? null);
                           longPressRef.current = null;
                         }, 400);
                       }}
@@ -557,7 +557,7 @@ export default function AdminMenusPage() {
                         if (longPressRef.current) {
                           clearTimeout(longPressRef.current);
                           longPressRef.current = null;
-                          if (isMoveTarget) handleTapMoveMenu(items, m.id, fieldName, category?.id ?? null);
+                          if (isMoveTarget) handleTapMoveMenu(items, m.menuId, fieldName, category?.categoryId ?? null);
                         }
                       }}
                       onTouchMove={() => {
@@ -568,8 +568,8 @@ export default function AdminMenusPage() {
                       }}
                       onClick={() => {
                         if (movingMenuId !== null && !movingInThisSection) { setMovingMenuId(null); setMovingMenuSectionCatId(null); return; }
-                        if (isMoveTarget) { handleTapMoveMenu(items, m.id, fieldName, category?.id ?? null); return; }
-                        toggleSelect(m.id);
+                        if (isMoveTarget) { handleTapMoveMenu(items, m.menuId, fieldName, category?.categoryId ?? null); return; }
+                        toggleSelect(m.menuId);
                       }}
                       className={`relative rounded-xl border bg-[color:var(--color-bg-card)] p-4 shadow-sm select-none cursor-pointer ${
                         m.status === "hidden" ? "bg-[color:var(--color-bg-subtle)] opacity-60 border-dashed" : ""
@@ -745,10 +745,10 @@ function MenuFormModal({
   );
 
   const initPrimaryId = menu
-    ? (menu.categoryIds.find((id) => id !== osusumeCategory?.id) ?? "")
+    ? (menu.categoryIds.find((id) => id !== osusumeCategory?.categoryId) ?? "")
     : "";
   const initIsOsusume = menu
-    ? (osusumeCategory ? menu.categoryIds.includes(osusumeCategory.id) : false)
+    ? (osusumeCategory ? menu.categoryIds.includes(osusumeCategory.categoryId) : false)
     : false;
 
   const [primaryCategoryId, setPrimaryCategoryId] = useState(initPrimaryId);
@@ -784,9 +784,9 @@ function MenuFormModal({
     setSaving(true);
     const categoryIds = [
       primaryCategoryId,
-      ...(isOsusume && osusumeCategory ? [osusumeCategory.id] : []),
+      ...(isOsusume && osusumeCategory ? [osusumeCategory.categoryId] : []),
     ];
-    await onSave({ ...form, categoryIds }, croppedBlob, menu?.id);
+    await onSave({ ...form, categoryIds }, croppedBlob, menu?.menuId);
     setSaving(false);
   }
 
@@ -923,7 +923,7 @@ function MenuFormModal({
               >
                 <option value="">カテゴリを選択...</option>
                 {mainCategories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
+                  <option key={c.categoryId} value={c.categoryId}>{c.name}</option>
                 ))}
               </select>
             )}
