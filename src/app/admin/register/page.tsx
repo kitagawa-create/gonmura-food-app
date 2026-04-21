@@ -16,10 +16,10 @@ import {
 import { db } from "@/lib/firebase";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { StickyFilterBar } from "@/components/admin/StickyFilterBar";
+import { OrderHistoryFilterBar } from "@/components/admin/OrderHistoryFilterBar";
 import { PageLoader } from "@/components/ui/PageLoader";
 import type { OrderWithItems } from "@/types";
 import { comboLineTotal, flattenForReceipt, normalizeOrder, normalizeOrderItem } from "@/lib/order-utils";
-import { DatePicker } from "@/components/admin/DatePicker";
 
 type CustomerInfo = { tableId: string; guestCount: number };
 
@@ -101,6 +101,7 @@ export default function AdminRegisterPage() {
 
   const [ordersLoaded, setOrdersLoaded] = useState(false);
   const [dateFilter, setDateFilter] = useState(todayISO());
+  const [tableFilter, setTableFilter] = useState<string | null>(null);
 
   useEffect(() => {
     return onSnapshot(collection(db, "tables"), (snap) => {
@@ -163,26 +164,46 @@ export default function AdminRegisterPage() {
     [paidOrders, customerInfoMap, tableNumberMap]
   );
 
+  const availableTables = useMemo(
+    () =>
+      [...new Set(paidBills.map((b) => b.tableNumber).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, "ja")
+      ),
+    [paidBills]
+  );
+
+  const filteredBills = useMemo(
+    () => (tableFilter !== null ? paidBills.filter((b) => b.tableNumber === tableFilter) : paidBills),
+    [paidBills, tableFilter]
+  );
+
   if (!ordersLoaded) return <PageLoader />;
 
   return (
     <div className="h-full flex flex-col">
       <AdminPageHeader title="支払い履歴" />
       <StickyFilterBar>
-        <DatePicker value={dateFilter} onChange={setDateFilter} max={todayISO()} />
+        <OrderHistoryFilterBar
+          dateValue={dateFilter}
+          onDateChange={(v) => { setDateFilter(v); setTableFilter(null); }}
+          maxDate={todayISO()}
+          tableFilter={tableFilter}
+          onTableFilterChange={setTableFilter}
+          availableTables={availableTables}
+          filteredCount={filteredBills.length}
+          totalCount={paidBills.length}
+          totalAmount={filteredBills.reduce((s, b) => s + b.totalAmount, 0)}
+        />
       </StickyFilterBar>
       <div className="flex-1 overflow-y-auto pt-4">
       <div>
-        <p className="text-xs font-semibold text-[color:var(--color-text-muted)] mb-3">
-          精算済み · {paidBills.length}件
-        </p>
-        {paidBills.length === 0 ? (
+        {filteredBills.length === 0 ? (
           <div className="rounded-xl border border-dashed border-[color:var(--color-border)] py-12 text-center">
             <p className="text-sm text-[color:var(--color-text-muted)]">精算済みの注文はありません</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {paidBills.map((table) => {
+            {filteredBills.map((table) => {
               const allItems = mergeItems(table.orders);
               const tax = Math.floor((table.totalAmount * 10) / 110);
               const subtotal = table.totalAmount - tax;
