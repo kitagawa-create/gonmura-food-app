@@ -32,14 +32,10 @@ export default function AdminTablesPage() {
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
 
-  const [editingPin, setEditingPin] = useState<string | null>(null);
-  const [pinInput, setPinInput] = useState("");
-  const [pinError, setPinError] = useState("");
+  const [showChangePinDialog, setShowChangePinDialog] = useState(false);
+  const [changePinInput, setChangePinInput] = useState("");
+  const [changePinError, setChangePinError] = useState("");
   const [savingPin, setSavingPin] = useState(false);
-  const [showUnifyPinDialog, setShowUnifyPinDialog] = useState(false);
-  const [unifyPinInput, setUnifyPinInput] = useState("");
-  const [unifyPinError, setUnifyPinError] = useState("");
-  const [savingUnifyPin, setSavingUnifyPin] = useState(false);
   const [resetTarget, setResetTarget] = useState<Table | null>(null);
   const [resetting, setResetting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Table | null>(null);
@@ -74,24 +70,28 @@ export default function AdminTablesPage() {
     toast("テーブルを追加しました");
   }
 
-  const savePin = useCallback(async (tableId: string) => {
-    if (!/^\d{4}$/.test(pinInput)) {
-      setPinError("4桁の数字で入力してください");
+  async function changeAllPins() {
+    if (!/^\d{4}$/.test(changePinInput)) {
+      setChangePinError("4桁の数字で入力してください");
       return;
     }
     setSavingPin(true);
     try {
-      await updateDoc(doc(db, "tables", tableId), { pin: pinInput, updatedAt: serverTimestamp() });
+      const batch = writeBatch(db);
+      for (const table of tables) {
+        batch.update(doc(db, "tables", table.id), { pin: changePinInput, updatedAt: serverTimestamp() });
+      }
+      await batch.commit();
       toast("PINを変更しました");
-      setEditingPin(null);
-      setPinInput("");
-      setPinError("");
+      setShowChangePinDialog(false);
+      setChangePinInput("");
+      setChangePinError("");
     } catch {
       toast("PINの変更に失敗しました");
     } finally {
       setSavingPin(false);
     }
-  }, [pinInput, toast]);
+  }
 
   const confirmReset = useCallback(async () => {
     if (!resetTarget) return;
@@ -101,34 +101,11 @@ export default function AdminTablesPage() {
       toast("端末の紐付けを解除しました");
       setResetTarget(null);
     } catch {
-      toast("リセットに失敗しました");
+      toast("紐付け解除に失敗しました");
     } finally {
       setResetting(false);
     }
   }, [resetTarget, toast]);
-
-  async function unifyAllPins() {
-    if (!/^\d{4}$/.test(unifyPinInput)) {
-      setUnifyPinError("4桁の数字で入力してください");
-      return;
-    }
-    setSavingUnifyPin(true);
-    try {
-      const batch = writeBatch(db);
-      for (const table of tables) {
-        batch.update(doc(db, "tables", table.id), { pin: unifyPinInput, updatedAt: serverTimestamp() });
-      }
-      await batch.commit();
-      toast(`全${tables.length}テーブルのPINを統一しました`);
-      setShowUnifyPinDialog(false);
-      setUnifyPinInput("");
-      setUnifyPinError("");
-    } catch {
-      toast("PINの統一に失敗しました");
-    } finally {
-      setSavingUnifyPin(false);
-    }
-  }
 
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return;
@@ -148,6 +125,9 @@ export default function AdminTablesPage() {
   if (loading) return <PageLoader />;
 
   const unclaimed = (t: Table) => t.deviceId === "";
+  const currentPin = tables.length > 0
+    ? (tables.every(t => t.pin === tables[0].pin) ? tables[0].pin : null)
+    : null;
 
   return (
     <div className="w-full">
@@ -156,10 +136,10 @@ export default function AdminTablesPage() {
         rightSlot={
           <div className="flex gap-2">
             <button
-              onClick={() => { setShowUnifyPinDialog(true); setUnifyPinInput(""); setUnifyPinError(""); }}
+              onClick={() => { setShowChangePinDialog(true); setChangePinInput(""); setChangePinError(""); }}
               className="rounded-lg border border-[color:var(--color-border)] px-4 py-2 text-sm text-[color:var(--color-text-muted)] font-bold hover:bg-[color:var(--color-bg-subtle)] transition-colors"
             >
-              PIN統一
+              PIN変更
             </button>
             <button
               onClick={() => setShowAddDialog(true)}
@@ -170,6 +150,20 @@ export default function AdminTablesPage() {
           </div>
         }
       />
+
+      {tables.length > 0 && (
+        <div className="mb-6 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] px-5 py-4">
+          <p className="text-xs text-[color:var(--color-text-muted)] mb-1">現在のPINコード（全テーブル共通）</p>
+          <div className="flex items-center gap-3">
+            <span className="text-3xl font-mono font-bold tracking-[0.3em] text-[color:var(--color-text-primary)]">
+              {currentPin ? currentPin : "----"}
+            </span>
+            {currentPin === null && (
+              <span className="text-xs text-[color:var(--color-accent-warn)]">テーブルによって異なります</span>
+            )}
+          </div>
+        </div>
+      )}
 
       {tables.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[color:var(--color-border)] py-16 text-center">
@@ -183,7 +177,7 @@ export default function AdminTablesPage() {
               key={table.id}
               className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-4 shadow-sm"
             >
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0">
                   <p className="text-lg font-bold text-[color:var(--color-text-primary)] truncate">
                     {table.tableNumber}
@@ -200,7 +194,7 @@ export default function AdminTablesPage() {
                       onClick={() => setResetTarget(table)}
                       className="rounded-lg border border-[color:var(--color-border)] px-3 py-1 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
                     >
-                      リセット
+                      紐付け解除
                     </button>
                   )}
                   <button
@@ -211,94 +205,46 @@ export default function AdminTablesPage() {
                   </button>
                 </div>
               </div>
-
-              {!unclaimed(table) && role === "owner" && (
-                <>
-                  <p className="text-xs text-[color:var(--color-text-muted)] mb-1">PIN</p>
-                  {editingPin === table.id ? (
-                    <div className="flex gap-2 items-start">
-                      <div className="flex-1">
-                        <input
-                          type="password"
-                          inputMode="numeric"
-                          maxLength={4}
-                          autoFocus
-                          value={pinInput}
-                          onChange={(e) => { setPinInput(e.target.value.replace(/\D/g, "").slice(0, 4)); setPinError(""); }}
-                          placeholder="4桁"
-                          className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-3 py-1.5 text-sm text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
-                        />
-                        {pinError && <p className="text-xs text-[color:var(--color-accent-warn)] mt-1">{pinError}</p>}
-                      </div>
-                      <button
-                        onClick={() => savePin(table.id)}
-                        disabled={savingPin}
-                        className="shrink-0 rounded-lg bg-[color:var(--color-accent-char)] px-3 py-1.5 text-xs text-white font-bold disabled:opacity-50"
-                      >
-                        保存
-                      </button>
-                      <button
-                        onClick={() => { setEditingPin(null); setPinInput(""); setPinError(""); }}
-                        className="shrink-0 rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 text-xs text-[color:var(--color-text-muted)]"
-                      >
-                        取消
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-mono text-[color:var(--color-text-primary)] tracking-widest">
-                        {table.pin}
-                      </span>
-                      <button
-                        onClick={() => { setEditingPin(table.id); setPinInput(""); setPinError(""); }}
-                        className="rounded-lg border border-[color:var(--color-border)] px-3 py-1 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
-                      >
-                        変更
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
             </div>
           ))}
         </div>
       )}
 
-      {showUnifyPinDialog && (
+      {showChangePinDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-sm rounded-2xl bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] shadow-xl p-6">
-            <h2 className="text-lg font-bold text-[color:var(--color-text-primary)] mb-1">全テーブルPIN統一</h2>
+            <h2 className="text-lg font-bold text-[color:var(--color-text-primary)] mb-1">PINコードを変更</h2>
             <p className="text-sm text-[color:var(--color-text-muted)] mb-4">
-              全{tables.length}テーブルに同じPINを設定します
+              全{tables.length}テーブルに新しいPINを設定します
             </p>
             <input
               type="password"
               inputMode="numeric"
               maxLength={4}
               autoFocus
-              value={unifyPinInput}
-              onChange={(e) => { setUnifyPinInput(e.target.value.replace(/\D/g, "").slice(0, 4)); setUnifyPinError(""); }}
+              value={changePinInput}
+              onChange={(e) => { setChangePinInput(e.target.value.replace(/\D/g, "").slice(0, 4)); setChangePinError(""); }}
               placeholder="4桁の数字"
               className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-center text-2xl tracking-[0.5em] text-[color:var(--color-text-primary)] placeholder-[color:var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)] mb-2"
             />
-            {unifyPinError && (
-              <p className="text-xs text-[color:var(--color-accent-warn)] mb-2">{unifyPinError}</p>
+            {changePinError && (
+              <p className="text-xs text-[color:var(--color-accent-warn)] mb-2">{changePinError}</p>
             )}
             <div className="flex gap-3 mt-4">
               <button
                 type="button"
-                onClick={() => setShowUnifyPinDialog(false)}
+                onClick={() => setShowChangePinDialog(false)}
                 className="flex-1 rounded-xl border border-[color:var(--color-border)] py-2.5 text-sm text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
               >
                 キャンセル
               </button>
               <button
                 type="button"
-                onClick={unifyAllPins}
-                disabled={savingUnifyPin || unifyPinInput.length !== 4}
+                onClick={changeAllPins}
+                disabled={savingPin || changePinInput.length !== 4}
                 className="flex-1 rounded-xl bg-[color:var(--color-accent-char)] py-2.5 text-sm text-white font-bold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {savingUnifyPin ? "適用中..." : "統一する"}
+                {savingPin ? "変更中..." : "変更する"}
               </button>
             </div>
           </div>
@@ -311,9 +257,9 @@ export default function AdminTablesPage() {
       />
       <ConfirmDialog
         open={resetTarget !== null}
-        title={`テーブル ${resetTarget?.tableNumber} の端末をリセット`}
+        title={`テーブル ${resetTarget?.tableNumber} の端末紐付けを解除`}
         message="このテーブルの端末紐付けを解除します。タブレット側は再セットアップが必要になります。"
-        confirmLabel="リセットする"
+        confirmLabel="解除する"
         confirmColor="red"
         onConfirm={confirmReset}
         onCancel={() => setResetTarget(null)}
