@@ -499,21 +499,22 @@ function ActiveOrderCard({
       }`}
     >
       {/* テーブル番号 + 経過 + 進捗 + 編集 */}
-      <div className="flex items-center justify-between gap-2 mb-3">
-        <span className="inline-flex items-center justify-center min-w-[56px] h-12 px-3 rounded-lg bg-[color:var(--color-accent-char)] text-white text-2xl font-black leading-none">
-          {tableNumber ?? "?"}
-        </span>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-[color:var(--color-text-muted)]">{progress}</span>
-          <span
-            className={`inline-flex items-center rounded-lg text-lg font-bold leading-none ${
-              isUrgent
-                ? "px-3 py-2 bg-[color:var(--color-accent-warn)] text-white"
-                : "px-2 py-1 text-[color:var(--color-text-primary)]"
-            }`}
-          >
-            {elapsed}
-          </span>
+      <div className="mb-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center justify-center min-w-[56px] h-12 px-3 rounded-lg bg-[color:var(--color-accent-char)] text-white text-2xl font-black leading-none">
+              {tableNumber ?? "?"}
+            </span>
+            <span
+              className={`inline-flex items-center rounded-lg text-lg font-bold leading-none ${
+                isUrgent
+                  ? "px-3 py-2 bg-[color:var(--color-accent-warn)] text-white"
+                  : "px-2 py-1 text-[color:var(--color-text-primary)]"
+              }`}
+            >
+              {elapsed}
+            </span>
+          </div>
           <button
             type="button"
             onClick={() => setEditMode((m) => !m)}
@@ -528,6 +529,7 @@ function ActiveOrderCard({
             {editMode ? "完了" : "編集"}
           </button>
         </div>
+        <p className="mt-1 text-xs text-[color:var(--color-text-muted)]">完成済み {progress}</p>
       </div>
 
       {/* 一括操作 */}
@@ -538,7 +540,7 @@ function ActiveOrderCard({
           disabled={allDone}
           className="flex-1 rounded-lg border border-[color:var(--color-border)] px-2 py-1.5 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] disabled:cursor-not-allowed disabled:opacity-30 transition-colors"
         >
-          全チェック
+          一括提供
         </button>
         <button
           type="button"
@@ -546,7 +548,7 @@ function ActiveOrderCard({
           disabled={checkedCount === 0}
           className="flex-1 rounded-lg border border-[color:var(--color-border)] px-2 py-1.5 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] disabled:cursor-not-allowed disabled:opacity-30 transition-colors"
         >
-          全取り消し
+          一括解除
         </button>
       </div>
 
@@ -662,24 +664,15 @@ function ActiveOrderCard({
           提供完了
           {autoCompleteCountdown !== null && ` (${autoCompleteCountdown})`}
         </button>
-      ) : (
-        <div className="flex items-center justify-between">
-          {editMode ? (
-            <button
-              type="button"
-              onClick={() => setShowCancel(true)}
-              className="rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
-            >
-              取消
-            </button>
-          ) : (
-            <span />
-          )}
-          <p className="text-[11px] text-[color:var(--color-text-muted)]">
-            ¥{total.toLocaleString()}
-          </p>
-        </div>
-      )}
+      ) : editMode ? (
+        <button
+          type="button"
+          onClick={() => setShowCancel(true)}
+          className="rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+        >
+          取消
+        </button>
+      ) : null}
 
       <ConfirmDialog
         open={showCancel}
