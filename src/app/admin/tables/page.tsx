@@ -148,12 +148,12 @@ export default function AdminTablesPage() {
               className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-4 shadow-sm"
             >
               <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-[color:var(--color-accent-char)] text-white text-2xl font-black">
-                    T{table.tableNumber}
-                  </span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <p className="text-lg font-bold text-[color:var(--color-text-primary)] truncate">
+                    {table.tableNumber}
+                  </p>
                   {unclaimed(table) && (
-                    <span className="rounded-full bg-[color:var(--color-accent-negi)]/15 px-2 py-0.5 text-xs text-[color:var(--color-accent-negi)] font-medium">
+                    <span className="shrink-0 rounded-full bg-[color:var(--color-accent-negi)]/15 px-2 py-0.5 text-xs text-[color:var(--color-accent-negi)] font-medium">
                       空き
                     </span>
                   )}
@@ -324,14 +324,14 @@ function TableAddDialog({
           <input
             autoFocus
             type="text"
-            maxLength={20}
+            maxLength={10}
             value={tableNumber}
             onChange={(e) => { setTableNumber(e.target.value); if (tableError) setTableError(null); }}
-            placeholder="例：1, A-1, テーブル1"
+            placeholder="例：1, A-1, 101"
             className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
           />
-          <p className={`mt-1 text-right text-xs ${tableNumber.length >= 18 ? "text-[color:var(--color-accent-warn)]" : "text-[color:var(--color-text-muted)]"}`}>
-            {tableNumber.length}/20
+          <p className={`mt-1 text-right text-xs ${tableNumber.length >= 8 ? "text-[color:var(--color-accent-warn)]" : "text-[color:var(--color-text-muted)]"}`}>
+            {tableNumber.length}/10
           </p>
           {tableError && (
             <p className="mt-1 text-xs text-[color:var(--color-accent-warn)]">{tableError}</p>
