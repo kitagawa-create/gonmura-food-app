@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, collectionGroup, query, where, getDocs, orderBy, onSnapshot, doc, getDoc, updateDoc, writeBatch, serverTimestamp } from "firebase/firestore";
+import { collection, collectionGroup, query, where, getDocs, orderBy, onSnapshot, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Menu, Category, CartItemTopping, CartItem } from "@/types";
 import { normalizeMenu } from "@/lib/order-utils";
@@ -38,17 +38,9 @@ export default function MenuPage() {
   // ラーメンモーダルのトッピング/サイド選択 (menuId → quantity)
   const [extraQty, setExtraQty] = useState<Record<string, number>>({});
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
-  const [showPinDialog, setShowPinDialog] = useState(false);
-  const [pinInput, setPinInput] = useState("");
-  const [pinError, setPinError] = useState("");
-  const [showTableChange, setShowTableChange] = useState(false);
-  const [tableChangeError, setTableChangeError] = useState("");
-  const [availableTables, setAvailableTables] = useState<Array<{ id: string; tableNumber: string }>>([]);
-  const [loadingAvailableTables, setLoadingAvailableTables] = useState(false);
-  const [selectedNewTableId, setSelectedNewTableId] = useState("");
   const [showGuestCountDialog, setShowGuestCountDialog] = useState(false);
   const [guestCountInput, setGuestCountInput] = useState<number>(1);
-  const { addItem, updateItem, totalItems, tableNumber, setTableNumber, clearCart, resetSession, moveToTable, guestCount, setGuestCount, customerId } =
+  const { addItem, updateItem, totalItems, tableNumber, setTableNumber, clearCart, resetSession, guestCount, setGuestCount, customerId } =
     useCart();
   const router = useRouter();
   const prevHasUnpaidRef = useRef<boolean | undefined>(undefined);
@@ -67,22 +59,17 @@ export default function MenuPage() {
     }
   }, [tableNumber, router]);
 
-  // 管理者がテーブルをリセット/削除したら /setup へ。tableNumber が変わったら即反映。
+  // テーブルが削除されたら /setup へ
   useEffect(() => {
     const tableId = typeof window !== "undefined" ? localStorage.getItem(TABLE_ID_KEY) : null;
     if (!tableId) return;
     return onSnapshot(doc(db, "tables", tableId), (snap) => {
-      if (!snap.exists() || !snap.data().deviceId) {
+      if (!snap.exists()) {
         localStorage.removeItem(TABLE_ID_KEY);
         setTableNumber(null);
-        router.replace("/setup");
-        return;
       }
-      const newNum = snap.data().tableNumber as string;
-      const currentNum = (() => { try { const r = localStorage.getItem(TABLE_KEY); return r ? JSON.parse(r) : null; } catch { return null; } })();
-      if (newNum && newNum !== currentNum) moveToTable(newNum);
     });
-  }, [router, setTableNumber, moveToTable]);
+  }, [setTableNumber]);
 
   useEffect(() => {
     setOrdersLoaded(false);
@@ -332,9 +319,8 @@ export default function MenuPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setPinInput("");
-                  setPinError("");
-                  setShowPinDialog(true);
+                  localStorage.removeItem(TABLE_ID_KEY);
+                  setTableNumber(null);
                 }}
                 className="text-[10px] text-[color:var(--color-text-muted)] underline hover:text-[color:var(--color-text-primary)] transition-colors"
               >
@@ -689,177 +675,6 @@ export default function MenuPage() {
         </div>
       )}
 
-      {/* PIN 認証モーダル */}
-      {showPinDialog && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setShowPinDialog(false)}
-        >
-          <div
-            className="w-full max-w-xs bg-[color:var(--color-bg-card)] rounded-2xl border border-[color:var(--color-border)] p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-lg font-bold text-[color:var(--color-text-primary)] mb-1 text-center">
-              PIN を入力
-            </h2>
-            <p className="text-xs text-[color:var(--color-text-muted)] text-center mb-4">
-              テーブル番号の変更にはPINが必要です
-            </p>
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                const tableId = localStorage.getItem(TABLE_ID_KEY);
-                if (!tableId) {
-                  setPinError("端末情報が見つかりません。再セットアップしてください");
-                  return;
-                }
-                try {
-                  const snap = await getDoc(doc(db, "tables", tableId));
-                  if (!snap.exists() || snap.data().pin !== pinInput) {
-                    setPinError("PINが正しくありません");
-                    return;
-                  }
-                } catch {
-                  setPinError("確認に失敗しました。再試行してください");
-                  return;
-                }
-                setShowPinDialog(false);
-                setTableChangeError("");
-                setSelectedNewTableId("");
-                setLoadingAvailableTables(true);
-                setShowTableChange(true);
-                getDocs(query(collection(db, "tables"), where("deviceId", "==", "")))
-                  .then((snap) => {
-                    setAvailableTables(
-                      snap.docs
-                        .map((d) => ({ id: d.id, tableNumber: d.data().tableNumber as string }))
-                        .sort((a, b) => a.tableNumber.localeCompare(b.tableNumber, "ja", { numeric: true }))
-                    );
-                    setLoadingAvailableTables(false);
-                  })
-                  .catch(() => setLoadingAvailableTables(false));
-              }}
-              className="space-y-4"
-            >
-              <input
-                type="password"
-                inputMode="numeric"
-                maxLength={4}
-                required
-                autoFocus
-                value={pinInput}
-                onChange={(e) => {
-                  setPinInput(e.target.value.replace(/\D/g, "").slice(0, 4));
-                  setPinError("");
-                }}
-                placeholder="4桁の数字"
-                className="w-full bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-center text-2xl tracking-[0.5em] text-[color:var(--color-text-primary)] placeholder-[color:var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-soy)]"
-              />
-              {pinError && (
-                <p className="text-sm text-[color:var(--color-accent-warn)] text-center">{pinError}</p>
-              )}
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowPinDialog(false)}
-                  className="flex-1 min-h-[44px] rounded-xl border border-[color:var(--color-border)] text-[color:var(--color-text-primary)] font-medium hover:opacity-80 transition-opacity"
-                >
-                  キャンセル
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 min-h-[44px] rounded-xl bg-[color:var(--color-accent-char)] text-white font-bold hover:opacity-90 transition-opacity"
-                >
-                  確認
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* テーブル番号変更モーダル (PIN 認証後) */}
-      {showTableChange && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setShowTableChange(false)}
-        >
-          <div
-            className="w-full max-w-sm bg-[color:var(--color-bg-card)] rounded-2xl border border-[color:var(--color-border)] p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-lg font-bold text-[color:var(--color-text-primary)] mb-4">
-              テーブルを変更
-            </h2>
-            {loadingAvailableTables ? (
-              <p className="text-center text-sm text-[color:var(--color-text-muted)] py-4">読み込み中...</p>
-            ) : availableTables.length === 0 ? (
-              <p className="text-center text-sm text-[color:var(--color-text-muted)] py-4">
-                空きテーブルがありません。<br />管理者にお問い合わせください。
-              </p>
-            ) : (
-              <select
-                value={selectedNewTableId}
-                onChange={(e) => { setSelectedNewTableId(e.target.value); setTableChangeError(""); }}
-                autoFocus
-                className="w-full bg-[color:var(--color-bg-subtle)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-center text-2xl text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)] mb-4"
-              >
-                <option value="">選択してください</option>
-                {availableTables.map((t) => (
-                  <option key={t.id} value={t.id}>{t.tableNumber}</option>
-                ))}
-              </select>
-            )}
-            {tableChangeError && (
-              <p className="text-sm text-[color:var(--color-accent-warn)] text-center mb-3">
-                {tableChangeError}
-              </p>
-            )}
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowTableChange(false)}
-                className="flex-1 min-h-[44px] rounded-xl border border-[color:var(--color-border)] text-[color:var(--color-text-primary)] font-medium hover:opacity-80 transition-opacity"
-              >
-                キャンセル
-              </button>
-              <button
-                type="button"
-                disabled={!selectedNewTableId || loadingAvailableTables}
-                onClick={async () => {
-                  if (!selectedNewTableId) {
-                    setTableChangeError("テーブルを選択してください");
-                    return;
-                  }
-                  const newTable = availableTables.find((t) => t.id === selectedNewTableId);
-                  if (!newTable) return;
-                  const currentTableId = localStorage.getItem(TABLE_ID_KEY);
-                  if (!currentTableId || !tableNumber) {
-                    setTableChangeError("端末情報が見つかりません。再セットアップしてください");
-                    return;
-                  }
-                  try {
-                    const batch = writeBatch(db);
-                    const ts = serverTimestamp();
-                    batch.update(doc(db, "tables", currentTableId), { tableNumber: newTable.tableNumber, updatedAt: ts });
-                    batch.update(doc(db, "tables", newTable.id), { tableNumber: tableNumber, updatedAt: ts });
-                    await batch.commit();
-                    moveToTable(newTable.tableNumber);
-                  } catch {
-                    setTableChangeError("変更に失敗しました。再試行してください");
-                    return;
-                  }
-                  setShowTableChange(false);
-                  setSelectedNewTableId("");
-                }}
-                className="flex-1 min-h-[44px] rounded-xl bg-[color:var(--color-accent-char)] text-white font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
-              >
-                変更する
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {/* 人数選択ダイアログ（精算後の新規セッション開始時） */}
       {showGuestCountDialog && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">

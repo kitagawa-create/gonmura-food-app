@@ -3,17 +3,17 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   collection,
+  collectionGroup,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   setDoc,
-  updateDoc,
   where,
-  writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Table } from "@/types";
@@ -29,15 +29,9 @@ export default function AdminTablesPage() {
   const router = useRouter();
   const { show: toast } = useToast();
   const [tables, setTables] = useState<Table[]>([]);
+  const [occupiedTableIds, setOccupiedTableIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
-
-  const [showChangePinDialog, setShowChangePinDialog] = useState(false);
-  const [changePinInput, setChangePinInput] = useState("");
-  const [changePinError, setChangePinError] = useState("");
-  const [savingPin, setSavingPin] = useState(false);
-  const [resetTarget, setResetTarget] = useState<Table | null>(null);
-  const [resetting, setResetting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Table | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -55,6 +49,38 @@ export default function AdminTablesPage() {
     );
   }, []);
 
+  // アクティブな注文から使用中テーブルを導出
+  useEffect(() => {
+    let cancelled = false;
+    let gen = 0;
+    const unsub = onSnapshot(
+      query(collectionGroup(db, "orders"), where("status", "in", ["pending", "completed"])),
+      async (snap) => {
+        const current = ++gen;
+        const customerIds = [...new Set(
+          snap.docs
+            .filter((d) => d.ref.parent.parent !== null)
+            .map((d) => d.ref.parent.parent!.id)
+        )];
+        if (customerIds.length === 0) {
+          if (!cancelled && current === gen) setOccupiedTableIds(new Set());
+          return;
+        }
+        const customerDocs = await Promise.all(customerIds.map((id) => getDoc(doc(db, "customers", id))));
+        if (cancelled || current !== gen) return;
+        const tableIds = new Set<string>();
+        for (const snap of customerDocs) {
+          if (snap.exists()) {
+            const tid = snap.data().tableId;
+            if (tid) tableIds.add(tid);
+          }
+        }
+        setOccupiedTableIds(tableIds);
+      }
+    );
+    return () => { cancelled = true; unsub(); };
+  }, []);
+
   async function handleAddTable(tableNumber: string) {
     const dup = await getDocs(query(collection(db, "tables"), where("tableNumber", "==", tableNumber)));
     if (!dup.empty) throw new Error("このテーブル番号はすでに登録されています");
@@ -62,50 +88,11 @@ export default function AdminTablesPage() {
     await setDoc(tableRef, {
       id: tableRef.id,
       tableNumber,
-      deviceId: "",
-      pin: "",
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
     toast("テーブルを追加しました");
   }
-
-  async function changeAllPins() {
-    if (!/^\d{4}$/.test(changePinInput)) {
-      setChangePinError("4桁の数字で入力してください");
-      return;
-    }
-    setSavingPin(true);
-    try {
-      const batch = writeBatch(db);
-      for (const table of tables) {
-        batch.update(doc(db, "tables", table.id), { pin: changePinInput, updatedAt: serverTimestamp() });
-      }
-      await batch.commit();
-      toast("PINを変更しました");
-      setShowChangePinDialog(false);
-      setChangePinInput("");
-      setChangePinError("");
-    } catch {
-      toast("PINの変更に失敗しました");
-    } finally {
-      setSavingPin(false);
-    }
-  }
-
-  const confirmReset = useCallback(async () => {
-    if (!resetTarget) return;
-    setResetting(true);
-    try {
-      await updateDoc(doc(db, "tables", resetTarget.id), { deviceId: "", pin: "", updatedAt: serverTimestamp() });
-      toast("端末の紐付けを解除しました");
-      setResetTarget(null);
-    } catch {
-      toast("紐付け解除に失敗しました");
-    } finally {
-      setResetting(false);
-    }
-  }, [resetTarget, toast]);
 
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return;
@@ -124,46 +111,19 @@ export default function AdminTablesPage() {
   if (role !== "owner") return null;
   if (loading) return <PageLoader />;
 
-  const unclaimed = (t: Table) => t.deviceId === "";
-  const currentPin = tables.length > 0
-    ? (tables.every(t => t.pin === tables[0].pin) ? tables[0].pin : null)
-    : null;
-
   return (
     <div className="w-full">
       <AdminPageHeader
         title="テーブル管理"
         rightSlot={
-          <div className="flex gap-2">
-            <button
-              onClick={() => { setShowChangePinDialog(true); setChangePinInput(""); setChangePinError(""); }}
-              className="rounded-lg border border-[color:var(--color-border)] px-4 py-2 text-sm text-[color:var(--color-text-muted)] font-bold hover:bg-[color:var(--color-bg-subtle)] transition-colors"
-            >
-              PIN変更
-            </button>
-            <button
-              onClick={() => setShowAddDialog(true)}
-              className="rounded-lg bg-[color:var(--color-accent-char)] px-4 py-2 text-sm text-white font-bold hover:opacity-90 transition-opacity"
-            >
-              ＋ テーブル追加
-            </button>
-          </div>
+          <button
+            onClick={() => setShowAddDialog(true)}
+            className="rounded-lg bg-[color:var(--color-accent-char)] px-4 py-2 text-sm text-white font-bold hover:opacity-90 transition-opacity"
+          >
+            ＋ テーブル追加
+          </button>
         }
       />
-
-      {tables.length > 0 && (
-        <div className="mb-6 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] px-5 py-4">
-          <p className="text-xs text-[color:var(--color-text-muted)] mb-1">現在のPINコード（全テーブル共通）</p>
-          <div className="flex items-center gap-3">
-            <span className="text-3xl font-mono font-bold tracking-[0.3em] text-[color:var(--color-text-primary)]">
-              {currentPin ? currentPin : "----"}
-            </span>
-            {currentPin === null && (
-              <span className="text-xs text-[color:var(--color-accent-warn)]">テーブルによって異なります</span>
-            )}
-          </div>
-        </div>
-      )}
 
       {tables.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[color:var(--color-border)] py-16 text-center">
@@ -171,104 +131,51 @@ export default function AdminTablesPage() {
           <p className="text-xs text-[color:var(--color-text-muted)] mt-1">「テーブル追加」でテーブルを登録してください</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {tables.map((table) => (
-            <div
-              key={table.id}
-              className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-4 shadow-sm"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 min-w-0">
-                  <p className="text-lg font-bold text-[color:var(--color-text-primary)] truncate">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
+          {tables.map((table) => {
+            const isOccupied = occupiedTableIds.has(table.id);
+            return (
+              <div
+                key={table.id}
+                className={`rounded-xl border p-5 shadow-sm flex flex-col items-center gap-3 ${
+                  isOccupied
+                    ? "border-[color:var(--color-accent-negi)]/40 bg-[color:var(--color-accent-negi)]/5"
+                    : "border-[color:var(--color-border)] bg-[color:var(--color-bg-card)]"
+                }`}
+              >
+                <div className="flex flex-col items-center gap-1 flex-1">
+                  <p className="text-2xl font-bold text-[color:var(--color-text-primary)]">
                     {table.tableNumber}
                   </p>
-                  {unclaimed(table) && (
-                    <span className="shrink-0 rounded-full bg-[color:var(--color-accent-negi)]/15 px-2 py-0.5 text-xs text-[color:var(--color-accent-negi)] font-medium">
-                      端末と未接続
-                    </span>
-                  )}
+                  <span className={`rounded-full px-3 py-0.5 text-xs font-semibold ${
+                    isOccupied
+                      ? "bg-[color:var(--color-accent-negi)]/15 text-[color:var(--color-accent-negi)]"
+                      : "bg-[color:var(--color-bg-subtle)] text-[color:var(--color-text-muted)]"
+                  }`}>
+                    {isOccupied ? "使用中" : "空き"}
+                  </span>
                 </div>
-                <div className="flex gap-2">
-                  {!unclaimed(table) && (
-                    <button
-                      onClick={() => setResetTarget(table)}
-                      className="rounded-lg border border-[color:var(--color-border)] px-3 py-1 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
-                    >
-                      端末と接続解除
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setDeleteTarget(table)}
-                    className="rounded-lg border border-[color:var(--color-border)] px-3 py-1 text-xs text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors"
-                  >
-                    削除
-                  </button>
-                </div>
+                <button
+                  onClick={() => setDeleteTarget(table)}
+                  className="w-full rounded-lg border border-[color:var(--color-border)] py-1.5 text-xs text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors"
+                >
+                  削除
+                </button>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      {showChangePinDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] shadow-xl p-6">
-            <h2 className="text-lg font-bold text-[color:var(--color-text-primary)] mb-1">PINコードを変更</h2>
-            <p className="text-sm text-[color:var(--color-text-muted)] mb-4">
-              全{tables.length}テーブルに新しいPINを設定します
-            </p>
-            <input
-              type="password"
-              inputMode="numeric"
-              maxLength={4}
-              autoFocus
-              value={changePinInput}
-              onChange={(e) => { setChangePinInput(e.target.value.replace(/\D/g, "").slice(0, 4)); setChangePinError(""); }}
-              placeholder="4桁の数字"
-              className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-center text-2xl tracking-[0.5em] text-[color:var(--color-text-primary)] placeholder-[color:var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)] mb-2"
-            />
-            {changePinError && (
-              <p className="text-xs text-[color:var(--color-accent-warn)] mb-2">{changePinError}</p>
-            )}
-            <div className="flex gap-3 mt-4">
-              <button
-                type="button"
-                onClick={() => setShowChangePinDialog(false)}
-                className="flex-1 rounded-xl border border-[color:var(--color-border)] py-2.5 text-sm text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
-              >
-                キャンセル
-              </button>
-              <button
-                type="button"
-                onClick={changeAllPins}
-                disabled={savingPin || changePinInput.length !== 4}
-                className="flex-1 rounded-xl bg-[color:var(--color-accent-char)] py-2.5 text-sm text-white font-bold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {savingPin ? "変更中..." : "変更する"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       <TableAddDialog
         open={showAddDialog}
         onClose={() => setShowAddDialog(false)}
         onAdd={handleAddTable}
       />
       <ConfirmDialog
-        open={resetTarget !== null}
-        title={`テーブル ${resetTarget?.tableNumber} の端末紐付けを解除`}
-        message="このテーブルの端末紐付けを解除します。タブレット側は再セットアップが必要になります。"
-        confirmLabel="解除する"
-        confirmColor="red"
-        onConfirm={confirmReset}
-        onCancel={() => setResetTarget(null)}
-        loading={resetting}
-      />
-      <ConfirmDialog
         open={deleteTarget !== null}
         title={`テーブル ${deleteTarget?.tableNumber} を削除`}
-        message="このテーブルの設定を削除します。タブレット側は再セットアップが必要になります。"
+        message="このテーブルを削除します。現在使用中の場合、お客様のセッションに影響する可能性があります。"
         confirmLabel="削除する"
         confirmColor="red"
         onConfirm={confirmDelete}

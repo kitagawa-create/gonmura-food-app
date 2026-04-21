@@ -90,8 +90,6 @@ export type CartItemTopping = {
 export type Table = {
   id: string;
   tableNumber: string;
-  deviceId: string;
-  pin: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
