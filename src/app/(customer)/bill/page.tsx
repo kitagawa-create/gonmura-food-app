@@ -10,7 +10,6 @@ import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import { CustomerPageHeader } from "@/components/customer/CustomerPageHeader";
 import { normalizeOrder, normalizeOrderItem, comboLineHash, comboLineTotal } from "@/lib/order-utils";
 import Link from "next/link";
-import { PinDialog } from "@/components/customer/PinDialog";
 
 const TABLE_ID_KEY = "gonmura-table-id";
 const TABLE_KEY = "gonmura-table";
@@ -22,7 +21,7 @@ export default function BillPage() {
   const [loading, setLoading] = useState(() => customerId !== null);
   const [paying, setPaying] = useState(false);
   const [payDone, setPayDone] = useState(false);
-  const [showPayPinDialog, setShowPayPinDialog] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
     if (!customerId) return;
@@ -211,11 +210,11 @@ export default function BillPage() {
               </>
             ) : (
               <button
-                onClick={() => setShowPayPinDialog(true)}
+                onClick={() => setShowConfirm(true)}
                 disabled={paying}
                 className="w-full rounded-xl bg-[color:var(--color-accent-char)] py-3 text-base font-bold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
               >
-                {paying ? "処理中..." : "支払い完了"}
+                支払い完了
               </button>
             )}
           </div>
@@ -223,11 +222,35 @@ export default function BillPage() {
         </div>
         </div>
       </div>
-      <PinDialog
-        open={showPayPinDialog}
-        onSuccess={() => { setShowPayPinDialog(false); handlePay(); }}
-        onCancel={() => setShowPayPinDialog(false)}
-      />
+      {showConfirm && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
+          <div className="w-full max-w-sm rounded-2xl bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] shadow-xl p-6 space-y-4">
+            <div className="text-center">
+              <p className="text-base font-bold text-[color:var(--color-text-primary)]">お支払いを確定しますか？</p>
+              <p className="mt-1 text-2xl font-black text-[color:var(--color-accent-char)] tabular-nums">
+                ¥{totalAmount.toLocaleString()}
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowConfirm(false)}
+                className="flex-1 rounded-xl border border-[color:var(--color-border)] py-3 text-sm font-bold text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+              >
+                戻る
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowConfirm(false); handlePay(); }}
+                disabled={paying}
+                className="flex-[2] rounded-xl bg-[color:var(--color-accent-char)] py-3 text-sm font-bold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+              >
+                {paying ? "処理中..." : "支払う"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
