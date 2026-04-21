@@ -116,7 +116,7 @@ export default function SetupPage() {
               </svg>
             </button>
             <h1 className="text-base font-bold text-[color:var(--color-text-primary)]">
-              テーブル {selectedTable.tableNumber}
+              人数選択
             </h1>
           </div>
         </header>
