@@ -15,6 +15,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { StickyFilterBar } from "@/components/admin/StickyFilterBar";
 import { PageLoader } from "@/components/ui/PageLoader";
 import type { OrderWithItems } from "@/types";
 import { comboLineTotal, flattenForReceipt, normalizeOrder, normalizeOrderItem } from "@/lib/order-utils";
@@ -165,14 +166,12 @@ export default function AdminRegisterPage() {
   if (!ordersLoaded) return <PageLoader />;
 
   return (
-    <div className="w-full">
-      <AdminPageHeader
-        title="支払い履歴"
-        rightSlot={
-          <DatePicker value={dateFilter} onChange={setDateFilter} max={todayISO()} />
-        }
-      />
-
+    <div className="h-full flex flex-col">
+      <AdminPageHeader title="支払い履歴" />
+      <StickyFilterBar>
+        <DatePicker value={dateFilter} onChange={setDateFilter} max={todayISO()} />
+      </StickyFilterBar>
+      <div className="flex-1 overflow-y-auto pt-4">
       <div>
         <p className="text-xs font-semibold text-[color:var(--color-text-muted)] mb-3">
           精算済み · {paidBills.length}件
@@ -232,6 +231,7 @@ export default function AdminRegisterPage() {
             })}
           </div>
         )}
+      </div>
       </div>
     </div>
   );

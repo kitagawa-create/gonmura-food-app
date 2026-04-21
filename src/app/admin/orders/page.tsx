@@ -24,6 +24,7 @@ import type { Order, OrderItem, OrderWithItems } from "@/types";
 import { normalizeOrder, normalizeOrderItem, comboLineTotal } from "@/lib/order-utils";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { DatePicker } from "@/components/admin/DatePicker";
+import { StickyFilterBar } from "@/components/admin/StickyFilterBar";
 
 const TIME_FORMATTER = new Intl.DateTimeFormat("ja-JP", {
   hour: "2-digit",
@@ -833,100 +834,103 @@ function HistoryView({
   const selectedCount = selectedIds.size;
 
   return (
-    <div className="flex-1 overflow-y-auto -mr-3 md:-mr-6 pr-3 md:pr-6">
-      {/* 日付検索 */}
-      <div className="flex items-center gap-3 mb-3">
-        <DatePicker
-          value={dateSearch}
-          onChange={(v) => { setDateSearch(v); setTableFilter(null); setSelectedIds(new Set()); }}
-          max={todayISO()}
-        />
-        <button
-          type="button"
-          onClick={() => setDateSearch(todayISO())}
-          className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
-            dateSearch !== todayISO()
-              ? "border-[color:var(--color-accent-char)] bg-[color:var(--color-accent-char)] text-white"
-              : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)]"
-          }`}
-        >
-          今日
-        </button>
-        <select
-          value={tableFilter ?? ""}
-          onChange={(e) =>
-            setTableFilter(e.target.value === "" ? null : e.target.value)
-          }
-          className="bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
-        >
-          <option value="">全テーブル</option>
-          {availableTables.map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
-        <span className="text-xs text-[color:var(--color-text-muted)]">
-          {filteredOrders.length}件
-          {tableFilter !== null && ` / 全${orders.length}件`}
-          {" "}/ ¥{filteredOrders.reduce((s, o) => s + o.items.reduce((ss, i) => ss + comboLineTotal(i), 0), 0).toLocaleString()}
-        </span>
-      </div>
-
-      {/* 選択時アクションバー */}
-      {selectedCount > 0 && (
-        <div className="flex items-center justify-between gap-3 mb-3 rounded-lg border border-[color:var(--color-accent-char)]/40 bg-[color:var(--color-accent-char)]/5 px-3 py-2">
-          <span className="text-sm font-medium text-[color:var(--color-accent-char)]">
-            {selectedCount}件選択中
+    <div className="flex-1 flex flex-col min-h-0">
+      <StickyFilterBar>
+        <div className="flex items-center gap-3">
+          <DatePicker
+            value={dateSearch}
+            onChange={(v) => { setDateSearch(v); setTableFilter(null); setSelectedIds(new Set()); }}
+            max={todayISO()}
+          />
+          <button
+            type="button"
+            onClick={() => setDateSearch(todayISO())}
+            className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+              dateSearch !== todayISO()
+                ? "border-[color:var(--color-accent-char)] bg-[color:var(--color-accent-char)] text-white"
+                : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)]"
+            }`}
+          >
+            今日
+          </button>
+          <select
+            value={tableFilter ?? ""}
+            onChange={(e) =>
+              setTableFilter(e.target.value === "" ? null : e.target.value)
+            }
+            className="bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
+          >
+            <option value="">全テーブル</option>
+            {availableTables.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+          <span className="text-xs text-[color:var(--color-text-muted)]">
+            {filteredOrders.length}件
+            {tableFilter !== null && ` / 全${orders.length}件`}
+            {" "}/ ¥{filteredOrders.reduce((s, o) => s + o.items.reduce((ss, i) => ss + comboLineTotal(i), 0), 0).toLocaleString()}
           </span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setSelectedIds(new Set())}
-              className="rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
-            >
-              解除
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowBulkRevert(true)}
-              className="rounded-lg bg-[color:var(--color-accent-char)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
-            >
-              新規に戻す
-            </button>
+        </div>
+      </StickyFilterBar>
+
+      <div className="flex-1 overflow-y-auto -mr-3 md:-mr-6 pr-3 md:pr-6 pt-3">
+        {/* 選択時アクションバー */}
+        {selectedCount > 0 && (
+          <div className="flex items-center justify-between gap-3 mb-3 rounded-lg border border-[color:var(--color-accent-char)]/40 bg-[color:var(--color-accent-char)]/5 px-3 py-2">
+            <span className="text-sm font-medium text-[color:var(--color-accent-char)]">
+              {selectedCount}件選択中
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedIds(new Set())}
+                className="rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+              >
+                解除
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowBulkRevert(true)}
+                className="rounded-lg bg-[color:var(--color-accent-char)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
+              >
+                新規に戻す
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {loading ? (
-        <PageLoader />
-      ) : filteredOrders.length === 0 ? (
-        <div className="flex items-center justify-center py-16">
-          <p className="text-[color:var(--color-text-muted)]">この日の履歴はありません</p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {filteredOrders.map((order) => (
-            <HistoryOrderCard
-              key={order.id}
-              order={order}
-              tableNumber={getTableNumber(order.customerId) || "?"}
-              selected={selectedIds.has(order.id)}
-              onSelect={toggleSelect}
-            />
-          ))}
-        </div>
-      )}
+        {loading ? (
+          <PageLoader />
+        ) : filteredOrders.length === 0 ? (
+          <div className="flex items-center justify-center py-16">
+            <p className="text-[color:var(--color-text-muted)]">この日の履歴はありません</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {filteredOrders.map((order) => (
+              <HistoryOrderCard
+                key={order.id}
+                order={order}
+                tableNumber={getTableNumber(order.customerId) || "?"}
+                selected={selectedIds.has(order.id)}
+                onSelect={toggleSelect}
+              />
+            ))}
+          </div>
+        )}
 
-      <ConfirmDialog
-        open={showBulkRevert}
-        title={`${selectedCount}件の注文を新規に戻す`}
-        message="選択した注文を提供前(新規)に戻します。チェック状態はすべてリセットされます。"
-        confirmLabel="戻す"
-        confirmColor="green"
-        onConfirm={revertSelected}
-        onCancel={() => setShowBulkRevert(false)}
-      />
+        <ConfirmDialog
+          open={showBulkRevert}
+          title={`${selectedCount}件の注文を新規に戻す`}
+          message="選択した注文を提供前(新規)に戻します。チェック状態はすべてリセットされます。"
+          confirmLabel="戻す"
+          confirmColor="green"
+          onConfirm={revertSelected}
+          onCancel={() => setShowBulkRevert(false)}
+        />
+      </div>
     </div>
   );
 }
