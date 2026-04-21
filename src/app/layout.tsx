@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -14,15 +14,27 @@ const geistMono = Geist_Mono({
 
 const BASE_URL = "https://gonmura-food-app--gonmura-food.asia-east1.hosted.app";
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: "#3b82f6",
+};
+
 export const metadata: Metadata = {
   title: "Gonmura Food",
   description: "本格家系ラーメン 権村家のモバイルオーダーシステム",
+  applicationName: "Gonmura Food",
+  robots: { index: false, follow: false },
+  appleWebApp: { capable: true, title: "Gonmura Food", statusBarStyle: "default" },
+  formatDetection: { telephone: false, address: false, email: false },
   openGraph: {
     title: "Gonmura Food",
     description: "本格家系ラーメン 権村家のモバイルオーダーシステム",
     siteName: "Gonmura Food",
     url: BASE_URL,
     type: "website",
+    locale: "ja_JP",
     images: [
       {
         url: `${BASE_URL}/opengraph-image`,

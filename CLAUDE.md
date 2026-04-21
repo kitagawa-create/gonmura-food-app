@@ -20,16 +20,16 @@ src/
 ├── app/
 │   ├── (customer)/              # お客様側（テーブルタブレット）
 │   │   ├── layout.tsx           # CartProvider + AnalyticsProvider + force-dynamic
-│   │   ├── setup/page.tsx       # テーブル番号 + PIN 初期設定
-│   │   ├── menu/page.tsx        # メニュー一覧（カテゴリタブ+スワイプ切替、商品モーダル、ラーメン→トッピング追加、売り切れオーバーレイ、PIN認証テーブル変更）+ サイドカートで注文確定。カートアイテムタップで商品詳細モーダルを初期値入り編集モードで開く（editingLineId で判定）
+│   │   ├── setup/page.tsx       # テーブル選択（プルダウン）→ 人数入力 → /menu へ。localStorage に table-id/table を保存。空席/使用中ラベル表示
+│   │   ├── menu/page.tsx        # メニュー一覧（メニューが1件以上あるカテゴリのみタブ表示）。カテゴリタブ+スワイプ切替、商品モーダル、ラーメン→トッピング追加、売り切れオーバーレイ、PIN認証テーブル変更（プルダウン選択）+ サイドカートで注文確定。カートアイテムタップで商品詳細モーダルを初期値入り編集モードで開く（editingLineId で判定）
 │   │   ├── order/page.tsx       # /menu へのリダイレクトのみ（注文確定はCartPanelに移行済み）
 │   │   ├── order/history/       # テーブル注文履歴（sticky ヘッダー）
-│   │   └── bill/page.tsx        # お会計伝票（未精算注文をまとめ表示）
+│   │   └── bill/page.tsx        # お会計伝票（未精算注文をまとめ表示）。支払い完了ボタン（PinDialog認証→writeBatchでpaid更新→resetSession+localStorage削除→5秒後/setupリダイレクト）
 │   ├── admin/                   # 管理側（iPad / PC）
 │   │   ├── layout.tsx           # AdminAuthGuard + AdminSidebar + ToastProvider（loginは除外）
 │   │   ├── login/page.tsx       # メール/パスワードログイン
-│   │   ├── orders/page.tsx      # 注文管理（商品チェックリスト方式、全チェック→提供完了ボタン、履歴ビュー+日付検索）
-│   │   ├── register/page.tsx    # レジ（未精算/精算済みタブ、売上ドーナツ円グラフ、目標達成率）
+│   │   ├── orders/page.tsx      # 注文管理（商品チェックリスト方式、全チェック→提供完了ボタン、履歴ビュー+日付検索+テーブル絞り込み）
+│   │   ├── register/page.tsx    # 支払い履歴（日付フィルタ+今日ボタン+テーブル絞り込み、精算済み注文をテーブルごとにグルーピング、件数・合計・客単価表示）
 │   │   ├── sales/page.tsx       # 売上分析（owner のみ。年月日プルダウン期間指定、KPI4枚、売上推移/メニュー別売数/曜日・時間帯ヒートマップ）
 │   │   ├── menus/page.tsx       # メニューCRUD（owner: 全機能 / staff: status トグルのみ）
 │   │   ├── categories/page.tsx  # カテゴリ管理（owner のみ、長押し→タップ並替え対応）
@@ -39,14 +39,19 @@ src/
 │   └── page.tsx                 # / → /menu クライアントリダイレクト
 ├── components/
 │   ├── admin/
-│   │   ├── AdminAuthGuard.tsx   # 認証ガード + role 取得 → AdminProvider で配下に提供
-│   │   ├── AdminContext.tsx     # AdminProvider / useAdminRole フック
-│   │   ├── AdminPageHeader.tsx  # 管理画面共通ヘッダー（title, subtitle, rightSlot）
-│   │   ├── AdminSidebar.tsx     # サイドバーナビ（h-full固定、staff は sales/categories を非表示）
-│   │   └── ConfirmDialog.tsx    # 確認ダイアログ（画面中央モーダル、赤/緑ボタン）
+│   │   ├── AdminAuthGuard.tsx        # 認証ガード + role 取得 → AdminProvider で配下に提供
+│   │   ├── AdminContext.tsx          # AdminProvider / useAdminRole フック
+│   │   ├── AdminPageHeader.tsx       # 管理画面共通ヘッダー（title, subtitle, rightSlot）
+│   │   ├── AdminSidebar.tsx          # サイドバーナビ（h-full固定、staff は sales/categories を非表示）
+│   │   ├── ConfirmDialog.tsx         # 確認ダイアログ（画面中央モーダル、赤/緑ボタン）
+│   │   ├── DatePicker.tsx            # 日付選択UI（管理画面共通）
+│   │   ├── StickyFilterBar.tsx       # スクロールしても上に固定されるフィルタバーラッパー（shrink-0 + border-b）
+│   │   └── OrderHistoryFilterBar.tsx # 日付+今日ボタン+テーブル絞り込み+件数/金額表示（注文履歴・支払い履歴共用）
 │   ├── customer/
-│   │   ├── AnalyticsProvider.tsx # Firebase Analytics初期化（page_viewイベント）
-│   │   └── CartPanel.tsx        # サイドカート（注文確定・在庫チェック・完了ダイアログ、/menu内で使用）。onEditItem prop でアイテムタップ編集に対応
+│   │   ├── AnalyticsProvider.tsx     # Firebase Analytics初期化（page_viewイベント）
+│   │   ├── CartPanel.tsx             # サイドカート（注文確定・在庫チェック・完了ダイアログ、/menu内で使用）。onEditItem prop でアイテムタップ編集に対応
+│   │   ├── CustomerPageHeader.tsx    # お客様側共通ヘッダー
+│   │   └── PinDialog.tsx             # PIN認証ダイアログ（テーブル変更・支払い完了で使用）
 │   └── ui/
 │       ├── BackButton.tsx       # 戻るボタン（size="default"|"sm"、variant="light"|"dark"）
 │       ├── FadeImage.tsx        # 画像ローディング（スケルトン → フェードイン）
@@ -67,7 +72,7 @@ src/
 ```
 MenuStatus        "active" | "soldout" | "hidden" | "deleted"
 Category          { id, name, sortOrder: number, createdAt, updatedAt }
-Menu              { id, name, description, price: number, categoryIds: string[], imageUrl: string, status: MenuStatus, sortOrder: number, createdAt, updatedAt }
+Menu              { id, name, description, price: number, categoryIds: string[], imageUrl: string, status: MenuStatus, sortOrder: number, sortOrderFeatured: number, createdAt, updatedAt }
 OrderItemTopping  { menuId, name, price: number, quantity: number }  ← quantity は「1コンボあたり」
 OrderItem         { id, menuId, name, price: number, quantity: number, toppings: OrderItemTopping[], note: string, checked: boolean }  ← 注文時スナップショット。price は単品価格（トッピング分は含まない）
 OrderStatus       "pending" | "completed" | "paid"
@@ -81,7 +86,7 @@ CartItem          { lineId, menuId, name, price: number, quantity: number, toppi
 
 ## Firestore コレクション
 - `categories/{categoryId}` → Category型。name, sortOrder（長押し→タップ並替え対応）
-- `menus/{menuId}` → Menu型。price整数, categoryIds配列, status で公開/売切/非公開/削除を制御, sortOrder で並び替え
+- `menus/{menuId}` → Menu型。price整数, categoryIds配列, status で公開/売切/非公開/削除を制御, sortOrder で並び替え, sortOrderFeatured はおすすめカテゴリ内での表示順（sortOrder と独立）
 - `customers/{customerId}` → 顧客セッション（id, tableId, guestCount, createdAt, updatedAt）
 - `customers/{customerId}/orders/{orderId}` → Order型。items はサブコレクション。status で遷移管理
 - `customers/{customerId}/orders/{orderId}/items/{itemId}` → OrderItem型。checked で調理チェック状態管理
@@ -93,14 +98,14 @@ CartItem          { lineId, menuId, name, price: number, quantity: number, toppi
 pending → completed → paid（正常フロー）
 注文管理画面で item.checked を1つずつトグル → 全チェック後「提供完了」ボタンで completed に遷移（5秒自動完了あり）
 取消は注文ドキュメント + items サブコレクションをすべて writeBatch で削除
-paid への変更は管理者のみ（レジ画面から）
+paid への変更はお客様の支払い完了ボタン（PinDialog認証後）から可能。writeBatchで一括更新後、セッション・localStorageをクリアし5秒後に/setupへリダイレクト
 ```
 
 ## Security Rules (firestore.rules)
 - categories: 誰でも読める、owner のみ書ける
 - menus: 誰でも読める / create・delete は owner / update は owner、staff は status + updatedAt のみ可
 - customers: 誰でも作成・読める / update・delete は staff 以上（tableId 変更は不可）
-- customers/orders: 誰でも作成・読める / update・delete は staff 以上
+- customers/orders: 誰でも作成・読める / update は staff 以上、または未認証でも「status + updatedAt のみ変更かつ pending/completed → paid」の場合のみ可 / delete は staff 以上
 - customers/orders/items: 誰でも作成・読める / update・delete は staff 以上
 - tables: 誰でも読める / create は staff / update は staff または未割当タブレットの自己登録 / delete は owner
 - admins: 自分のuidのドキュメントのみ読める
@@ -110,7 +115,7 @@ paid への変更は管理者のみ（レジ画面から）
 - `gonmura-table` — テーブル番号 (文字列、JSON.stringify して保存)
 - `gonmura-table-id` — tables/{tableId} のドキュメントID
 - `gonmura-device-id` — タブレット固有ID（crypto.randomUUID、初回生成後固定）
-- `gonmura-guest-count` — 人数（新規セッション開始時にダイアログで設定）
+- `gonmura-guest-count` — 人数（sessionStorage。タブを閉じるとリセット）
 - `gonmura-customer-id` — customers/{customerId} のドキュメントID（精算後リセット）
 - `gonmura-cart-{tableNumber}` — テーブルごとのカート（CartItem[] を JSON 保存、精算後クリア）
 - `gonmura-sales-goal` — 本日売上目標（管理画面で編集、default ¥100,000）
