@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { OrderWithItems } from "@/types";
-import { normalizeOrder, normalizeOrderItem, comboLineTotal, flattenForReceipt } from "@/lib/order-utils";
+import { normalizeOrder, normalizeOrderItem, comboLineTotal } from "@/lib/order-utils";
 import { useAdminRole } from "@/components/admin/AdminContext";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
@@ -21,13 +21,6 @@ const CHART_COLOR = "#3b82f6";
 
 function formatDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function fmtY(v: number): string {
-  if (v >= 100000) return `¥${Math.round(v / 10000)}万`;
-  if (v >= 10000) return `¥${(v / 10000).toFixed(1)}万`;
-  if (v >= 1000) return `¥${Math.round(v / 1000)}千`;
-  return `¥${Math.round(v)}`;
 }
 
 function orderTotal(o: OrderWithItems): number {
@@ -51,13 +44,9 @@ function generateMonthOptions(): { value: string; label: string }[] {
 // ===== Bar Chart =====
 function BarChart({
   buckets,
-  activeKey,
-  onBarClick,
   height = 220,
 }: {
   buckets: DayBucket[];
-  activeKey: string | null;
-  onBarClick: (key: string) => void;
   height?: number;
 }) {
   const [hoverKey, setHoverKey] = useState<string | null>(null);
@@ -75,7 +64,7 @@ function BarChart({
     return () => obs.disconnect();
   }, []);
 
-  const padL = 58, padR = 12, padT = 20, padB = 28;
+  const padL = 70, padR = 12, padT = 24, padB = 32;
   const innerW = W - padL - padR;
   const innerH = height - padT - padB;
   const n = buckets.length;
@@ -93,8 +82,7 @@ function BarChart({
   const gridRatios = [0, 0.25, 0.5, 0.75, 1];
   const xTickEvery = Math.max(1, Math.ceil(n / 10));
 
-  const focusKey = hoverKey ?? activeKey;
-  const focusBucket = focusKey ? buckets.find((b) => b.key === focusKey) ?? null : null;
+  const focusBucket = hoverKey ? buckets.find((b) => b.key === hoverKey) ?? null : null;
 
   return (
     <div className="relative select-none">
@@ -105,6 +93,18 @@ function BarChart({
         className="w-full"
         style={{ height }}
       >
+        {/* Y軸タイトル（回転） */}
+        <text
+          x={10}
+          y={padT + innerH / 2}
+          textAnchor="middle"
+          fontSize={9}
+          fill="#94a3b8"
+          transform={`rotate(-90, 10, ${padT + innerH / 2})`}
+        >
+          売上（円）
+        </text>
+
         {/* Y軸グリッド + ラベル */}
         {gridRatios.map((p) => {
           const y = padT + innerH * (1 - p);
@@ -117,8 +117,8 @@ function BarChart({
                 strokeWidth={1}
                 strokeDasharray={p === 0 ? "" : "3 3"}
               />
-              <text x={padL - 8} y={y + 4} textAnchor="end" fontSize={10} fill="#94a3b8">
-                {fmtY(v)}
+              <text x={padL - 6} y={y + 4} textAnchor="end" fontSize={9} fill="#94a3b8">
+                {v === 0 ? "¥0" : `¥${Math.round(v).toLocaleString()}`}
               </text>
             </g>
           );
@@ -126,7 +126,6 @@ function BarChart({
 
         {/* バー */}
         {buckets.map((b, i) => {
-          const isActive = activeKey === b.key;
           const isHover = hoverKey === b.key;
           const barHeight = bh(b.revenue);
           if (barHeight < 1) {
@@ -137,10 +136,8 @@ function BarChart({
                 width={barW} height={2}
                 fill="#e2e8f0"
                 rx={1}
-                style={{ cursor: "pointer" }}
                 onMouseEnter={() => setHoverKey(b.key)}
                 onMouseLeave={() => setHoverKey(null)}
-                onClick={() => onBarClick(b.key)}
               />
             );
           }
@@ -149,39 +146,40 @@ function BarChart({
               key={b.key}
               x={bx(i)} y={by(b.revenue)}
               width={barW} height={barHeight}
-              fill={isActive ? "#1d4ed8" : isHover ? "#2563eb" : CHART_COLOR}
+              fill={isHover ? "#2563eb" : CHART_COLOR}
               rx={3}
-              style={{ cursor: "pointer" }}
               onMouseEnter={() => setHoverKey(b.key)}
               onMouseLeave={() => setHoverKey(null)}
-              onClick={() => onBarClick(b.key)}
             />
           );
         })}
 
-        {/* X軸ラベル */}
+        {/* X軸ラベル（日） */}
         {buckets.map((b, i) =>
           i % xTickEvery === 0 || i === n - 1 ? (
             <text
               key={b.key}
               x={bx(i) + barW / 2}
-              y={height - 8}
+              y={height - 16}
               textAnchor="middle"
-              fontSize={10}
+              fontSize={9}
               fill="#94a3b8"
             >
               {b.day}
             </text>
           ) : null
         )}
+
+        {/* X軸タイトル */}
+        <text x={W - padR} y={height - 4} textAnchor="end" fontSize={9} fill="#94a3b8">
+          （日）
+        </text>
       </svg>
 
       {/* ツールチップ */}
       {focusBucket && (
         <div className="pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)]/95 px-5 py-2.5 shadow-xl backdrop-blur-sm text-center whitespace-nowrap">
-          <p className="text-xs text-[color:var(--color-text-muted)] mb-0.5">
-            {focusBucket.day}日
-          </p>
+          <p className="text-xs text-[color:var(--color-text-muted)] mb-0.5">{focusBucket.day}日</p>
           <p className="text-lg font-bold text-[color:var(--color-text-primary)] tabular-nums">
             ¥{focusBucket.revenue.toLocaleString()}
           </p>
@@ -213,12 +211,9 @@ export default function AdminSalesPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(true);
-  const [detailKey, setDetailKey] = useState<string | null>(null);
 
   const monthOptions = useMemo(() => generateMonthOptions(), []);
   const [selectedYearMonth, setSelectedYearMonth] = useState<string>(() => monthOptions[0].value);
-
-  useEffect(() => { setDetailKey(null); }, [selectedYearMonth]);
 
   useEffect(() => {
     if (role !== "owner") router.replace("/admin/orders");
@@ -298,30 +293,6 @@ export default function AdminSalesPage() {
     return { revenue, count, dailyAvgRevenue, atv };
   }, [orders, selectedYearMonth]);
 
-  const detail = useMemo(() => {
-    if (!detailKey) return null;
-    const filtered = orders.filter((o) => {
-      const d = o.createdAt?.toDate?.();
-      return !!d && formatDate(d) === detailKey;
-    });
-    if (filtered.length === 0) return null;
-    const count = filtered.length;
-    const revenue = filtered.reduce((s, o) => s + orderTotal(o), 0);
-    const atv = count === 0 ? 0 : Math.round(revenue / count);
-    const menuMap = new Map<string, { name: string; qty: number; revenue: number }>();
-    for (const o of filtered) {
-      for (const it of flattenForReceipt(o.items)) {
-        const e = menuMap.get(it.menuId) ?? { name: it.name, qty: 0, revenue: 0 };
-        e.qty += it.quantity;
-        e.revenue += it.price * it.quantity;
-        menuMap.set(it.menuId, e);
-      }
-    }
-    const breakdown = Array.from(menuMap.values()).sort((a, b) => b.revenue - a.revenue);
-    const day = parseInt(detailKey.split("-")[2]);
-    return { label: `${day}日`, count, revenue, atv, breakdown };
-  }, [detailKey, orders]);
-
   if (role !== "owner") return null;
   if (loading) return <PageLoader />;
 
@@ -364,82 +335,17 @@ export default function AdminSalesPage() {
 
       {/* 日別売上棒グラフ */}
       <div className="bg-[color:var(--color-bg-card)] rounded-xl border border-[color:var(--color-border)] px-4 pt-4 pb-2 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-bold text-[color:var(--color-text-primary)]">日別売上</h2>
-          {detailKey && (
-            <button
-              onClick={() => setDetailKey(null)}
-              className="text-xs text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-primary)] transition-colors px-2 py-1 rounded hover:bg-[color:var(--color-bg-subtle)]"
-            >
-              選択解除
-            </button>
-          )}
-        </div>
+        <h2 className="text-base font-bold text-[color:var(--color-text-primary)] mb-4">日別売上</h2>
 
         {orders.length === 0 ? (
           <p className="text-sm text-[color:var(--color-text-muted)] py-12 text-center">
             この月のデータがありません
           </p>
         ) : (
-          <BarChart
-            buckets={buckets}
-            activeKey={detailKey}
-            onBarClick={(key) => setDetailKey((cur) => cur === key ? null : key)}
-            height={220}
-          />
+          <BarChart buckets={buckets} height={220} />
         )}
       </div>
 
-      {/* 日別詳細パネル */}
-      {detail && (
-        <div className="bg-[color:var(--color-bg-card)] rounded-xl border border-[color:var(--color-border)] p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-[color:var(--color-text-primary)]">
-              {detail.label} の詳細
-            </h3>
-            <button
-              onClick={() => setDetailKey(null)}
-              className="text-xs text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-primary)] transition-colors px-2 py-1 rounded hover:bg-[color:var(--color-bg-subtle)]"
-            >
-              ✕ 閉じる
-            </button>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3 mb-5">
-            <div className="rounded-xl bg-[color:var(--color-bg-subtle)] p-3">
-              <p className="text-xs text-[color:var(--color-text-muted)] mb-1">売上</p>
-              <p className="text-xl font-bold text-[color:var(--color-text-primary)] tabular-nums">{yen(detail.revenue)}</p>
-            </div>
-            <div className="rounded-xl bg-[color:var(--color-bg-subtle)] p-3">
-              <p className="text-xs text-[color:var(--color-text-muted)] mb-1">注文数</p>
-              <p className="text-xl font-bold text-[color:var(--color-text-primary)] tabular-nums">{detail.count}件</p>
-            </div>
-            <div className="rounded-xl bg-[color:var(--color-bg-subtle)] p-3">
-              <p className="text-xs text-[color:var(--color-text-muted)] mb-1">1注文あたり</p>
-              <p className="text-xl font-bold text-[color:var(--color-accent-char)] tabular-nums">{yen(detail.atv)}</p>
-            </div>
-          </div>
-
-          <table className="w-full text-xs tabular-nums">
-            <thead className="text-[color:var(--color-text-muted)] border-b border-[color:var(--color-border)]">
-              <tr>
-                <th className="text-left font-normal py-1.5">メニュー</th>
-                <th className="text-right font-normal py-1.5 w-16">数量</th>
-                <th className="text-right font-normal py-1.5 w-24">売上</th>
-              </tr>
-            </thead>
-            <tbody>
-              {detail.breakdown.map((m) => (
-                <tr key={m.name} className="border-t border-[color:var(--color-border)]">
-                  <td className="py-1.5 text-[color:var(--color-text-primary)] truncate pr-2">{m.name}</td>
-                  <td className="py-1.5 text-right text-[color:var(--color-text-primary)]">{m.qty}個</td>
-                  <td className="py-1.5 text-right text-[color:var(--color-text-primary)]">{yen(m.revenue)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
 }
