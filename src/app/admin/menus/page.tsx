@@ -82,7 +82,9 @@ export default function AdminMenusPage() {
   const [activeTab, setActiveTab] = useState<string>("all");
   const [deleting, setDeleting] = useState(false);
   const [movingMenuId, setMovingMenuId] = useState<string | null>(null);
+  const [movingMenuSectionCatId, setMovingMenuSectionCatId] = useState<string | null>(null);
   const [draggingMenuId, setDraggingMenuId] = useState<string | null>(null);
+  const [draggingMenuSectionCatId, setDraggingMenuSectionCatId] = useState<string | null>(null);
   const [dragOverMenuId, setDragOverMenuId] = useState<string | null>(null);
   const [savingMenuOrder, setSavingMenuOrder] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -274,11 +276,14 @@ export default function AdminMenusPage() {
   );
 
   const handleMenuDrop = useCallback(
-    (sectionItems: Menu[], targetId: string, fieldName: "sortOrder" | "sortOrderFeatured") => {
+    (sectionItems: Menu[], targetId: string, fieldName: "sortOrder" | "sortOrderFeatured", sectionCatId: string | null) => {
       const dragId = draggingMenuId;
+      const sourceCatId = draggingMenuSectionCatId;
       setDraggingMenuId(null);
+      setDraggingMenuSectionCatId(null);
       setDragOverMenuId(null);
       if (!dragId || dragId === targetId) return;
+      if (sourceCatId !== sectionCatId) return;
       const fromIdx = sectionItems.findIndex((m) => m.id === dragId);
       const toIdx = sectionItems.findIndex((m) => m.id === targetId);
       if (fromIdx < 0 || toIdx < 0) return;
@@ -287,13 +292,19 @@ export default function AdminMenusPage() {
       next.splice(toIdx, 0, moved);
       persistMenuOrder(next, fieldName);
     },
-    [draggingMenuId, persistMenuOrder]
+    [draggingMenuId, draggingMenuSectionCatId, persistMenuOrder]
   );
 
   const handleTapMoveMenu = useCallback(
-    (sectionItems: Menu[], targetId: string, fieldName: "sortOrder" | "sortOrderFeatured") => {
+    (sectionItems: Menu[], targetId: string, fieldName: "sortOrder" | "sortOrderFeatured", sectionCatId: string | null) => {
       if (!movingMenuId || movingMenuId === targetId) {
         setMovingMenuId(null);
+        setMovingMenuSectionCatId(null);
+        return;
+      }
+      if (movingMenuSectionCatId !== sectionCatId) {
+        setMovingMenuId(null);
+        setMovingMenuSectionCatId(null);
         return;
       }
       const fromIdx = sectionItems.findIndex((m) => m.id === movingMenuId);
@@ -303,9 +314,10 @@ export default function AdminMenusPage() {
       const [moved] = next.splice(fromIdx, 1);
       next.splice(toIdx, 0, moved);
       setMovingMenuId(null);
+      setMovingMenuSectionCatId(null);
       persistMenuOrder(next, fieldName);
     },
-    [movingMenuId, persistMenuOrder]
+    [movingMenuId, movingMenuSectionCatId, persistMenuOrder]
   );
 
   const confirmDelete = useCallback(async () => {
@@ -472,7 +484,7 @@ export default function AdminMenusPage() {
           ).map(({ category, items }) => {
             const fieldName: "sortOrder" | "sortOrderFeatured" =
               category?.id === osusumeId ? "sortOrderFeatured" : "sortOrder";
-            const movingInThisSection = movingMenuId !== null && items.some((item) => item.id === movingMenuId);
+            const movingInThisSection = movingMenuId !== null && items.some((item) => item.id === movingMenuId) && movingMenuSectionCatId === (category?.id ?? null);
             return (
             <section key={category?.id ?? "__uncategorized__"}>
               {activeTab === "all" && (
@@ -499,21 +511,24 @@ export default function AdminMenusPage() {
                       onDragStart={(e) => {
                         e.dataTransfer.effectAllowed = "move";
                         setDraggingMenuId(m.id);
+                        setDraggingMenuSectionCatId(category?.id ?? null);
                       }}
                       onDragEnter={() => setDragOverMenuId(m.id)}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => {
                         e.preventDefault();
-                        handleMenuDrop(items, m.id, fieldName);
+                        handleMenuDrop(items, m.id, fieldName, category?.id ?? null);
                       }}
                       onDragEnd={() => {
                         setDraggingMenuId(null);
+                        setDraggingMenuSectionCatId(null);
                         setDragOverMenuId(null);
                       }}
                       onTouchStart={() => {
                         if (role !== "owner") return;
                         longPressRef.current = setTimeout(() => {
                           setMovingMenuId(m.id);
+                          setMovingMenuSectionCatId(category?.id ?? null);
                           longPressRef.current = null;
                         }, 400);
                       }}
@@ -521,7 +536,7 @@ export default function AdminMenusPage() {
                         if (longPressRef.current) {
                           clearTimeout(longPressRef.current);
                           longPressRef.current = null;
-                          if (isMoveTarget) handleTapMoveMenu(items, m.id, fieldName);
+                          if (isMoveTarget) handleTapMoveMenu(items, m.id, fieldName, category?.id ?? null);
                         }
                       }}
                       onTouchMove={() => {
@@ -531,8 +546,8 @@ export default function AdminMenusPage() {
                         }
                       }}
                       onClick={() => {
-                        if (movingMenuId !== null && !movingInThisSection) { setMovingMenuId(null); return; }
-                        if (isMoveTarget) { handleTapMoveMenu(items, m.id, fieldName); return; }
+                        if (movingMenuId !== null && !movingInThisSection) { setMovingMenuId(null); setMovingMenuSectionCatId(null); return; }
+                        if (isMoveTarget) { handleTapMoveMenu(items, m.id, fieldName, category?.id ?? null); return; }
                         toggleSelect(m.id);
                       }}
                       className={`relative rounded-xl border bg-[color:var(--color-bg-card)] p-4 shadow-sm select-none cursor-pointer ${
