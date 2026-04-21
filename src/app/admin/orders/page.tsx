@@ -664,13 +664,17 @@ function ActiveOrderCard({
         </button>
       ) : (
         <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => setShowCancel(true)}
-            className="rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
-          >
-            取消
-          </button>
+          {editMode ? (
+            <button
+              type="button"
+              onClick={() => setShowCancel(true)}
+              className="rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+            >
+              取消
+            </button>
+          ) : (
+            <span />
+          )}
           <p className="text-[11px] text-[color:var(--color-text-muted)]">
             ¥{total.toLocaleString()}
           </p>
