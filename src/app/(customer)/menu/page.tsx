@@ -178,15 +178,28 @@ export default function MenuPage() {
     }
   }, [selectedMenu]);
 
-  // 初回セッション or 全精算後: orders読み込み済み・未払いなし・客数未設定のとき表示
+  // 初回セッション or 全精算後: orders読み込み済み・未払いなし・客数未設定のときテーブル選択を表示
   useEffect(() => {
     if (tableNumber === null) return;
     if (!ordersLoaded) return;
     if (guestCount !== null) return;
     if (hasUnpaidOrders) return;
-    setGuestCountInput(1);
-    setShowGuestCountDialog(true);
+    setShowTableSelectDialog(true);
   }, [tableNumber, guestCount, ordersLoaded, hasUnpaidOrders]);
+
+  // テーブル選択ダイアログが開いたらテーブル一覧をフェッチ
+  useEffect(() => {
+    if (!showTableSelectDialog) return;
+    setDialogTablesLoading(true);
+    getDocs(query(collection(db, "tables"), orderBy("tableNumber")))
+      .then((snap) => {
+        setDialogTables(
+          snap.docs.map((d) => ({ id: d.id, tableNumber: d.data().tableNumber as string }))
+        );
+      })
+      .catch(() => {})
+      .finally(() => setDialogTablesLoading(false));
+  }, [showTableSelectDialog]);
 
   const filteredMenus = activeCategory
     ? (() => {
@@ -690,6 +703,47 @@ export default function MenuPage() {
                 {editingLineId ? `変更を保存 ¥${modalTotal.toLocaleString()}` : `カートに追加 ¥${modalTotal.toLocaleString()}`}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* テーブル選択ダイアログ（精算後の新規セッション開始時） */}
+      {showTableSelectDialog && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
+          <div
+            className="w-full max-w-lg rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="mb-6 text-xl font-bold text-center text-[color:var(--color-text-primary)]">
+              テーブルを選択してください
+            </h2>
+            {dialogTablesLoading ? (
+              <p className="text-center text-sm text-[color:var(--color-text-muted)] py-8">
+                読み込み中...
+              </p>
+            ) : dialogTables.length === 0 ? (
+              <p className="text-center text-sm text-[color:var(--color-text-muted)] py-8">
+                テーブルが見つかりません
+              </p>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                {dialogTables.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => {
+                      localStorage.setItem(TABLE_ID_KEY, t.id);
+                      setTableNumber(t.tableNumber);
+                      setShowTableSelectDialog(false);
+                      setGuestCountInput(1);
+                      setShowGuestCountDialog(true);
+                    }}
+                    className="flex items-center justify-center rounded-xl border-2 border-[color:var(--color-border)] bg-[color:var(--color-bg-subtle)] p-4 aspect-square text-xl font-bold text-[color:var(--color-text-primary)] hover:border-[color:var(--color-accent-char)] hover:bg-[color:var(--color-accent-char)]/5 transition-all"
+                  >
+                    {t.tableNumber}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
