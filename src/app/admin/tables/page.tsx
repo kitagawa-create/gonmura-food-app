@@ -194,7 +194,7 @@ export default function AdminTablesPage() {
                       onClick={() => setResetTarget(table)}
                       className="rounded-lg border border-[color:var(--color-border)] px-3 py-1 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
                     >
-                      紐付け解除
+                      端末とテーブルの紐付け解除
                     </button>
                   )}
                   <button
