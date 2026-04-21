@@ -832,7 +832,11 @@ function HistoryView({
         <button
           type="button"
           onClick={() => setDateSearch(todayISO())}
-          className="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+          className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+            dateSearch === todayISO()
+              ? "border-[color:var(--color-accent-char)] bg-[color:var(--color-accent-char)] text-white"
+              : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)]"
+          }`}
         >
           今日
         </button>
@@ -846,7 +850,7 @@ function HistoryView({
           <option value="">全テーブル</option>
           {availableTables.map((n) => (
             <option key={n} value={n}>
-              T{n}
+              {n}
             </option>
           ))}
         </select>

@@ -92,17 +92,19 @@ export function CartPanel({
         for (const t of i.toppings) idSet.add(t.menuId);
       }
       const ids = Array.from(idSet);
-      if (ids.length > 30) {
+      if (ids.length > 50) {
         alert("一度に注文できる商品数を超えています。点数を減らしてください。");
         setSubmitting(false);
         return;
       }
-      const snap = await getDocs(
-        query(collection(db, "menus"), where(documentId(), "in", ids))
-      );
+      const chunks: string[][] = [];
+      for (let i = 0; i < ids.length; i += 30) chunks.push(ids.slice(i, i + 30));
+      const snapDocs = (await Promise.all(
+        chunks.map((chunk) => getDocs(query(collection(db, "menus"), where(documentId(), "in", chunk))))
+      )).flatMap((s) => s.docs);
       // 非公開 (isAvailable=false) と 売り切れ (isSoldOut=true) は注文不可
       const orderable = new Map<string, boolean>();
-      snap.docs.forEach((d) => {
+      snapDocs.forEach((d) => {
         const data = d.data() as { status?: string };
         orderable.set(d.id, data.status === "active");
       });
