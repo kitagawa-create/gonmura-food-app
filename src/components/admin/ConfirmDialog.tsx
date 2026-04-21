@@ -6,7 +6,7 @@ type ConfirmDialogProps = {
   message: string;
   warning?: string;
   confirmLabel: string;
-  confirmColor?: "red" | "green";
+  confirmColor?: "red" | "green" | "blue";
   onConfirm: () => void;
   onCancel: () => void;
   loading?: boolean;
@@ -28,7 +28,9 @@ export function ConfirmDialog({
   const colorClass =
     confirmColor === "green"
       ? "bg-[color:var(--color-accent-negi)] hover:opacity-90"
-      : "bg-[color:var(--color-accent-warn)] hover:opacity-90";
+      : confirmColor === "blue"
+        ? "bg-[color:var(--color-accent-char)] hover:opacity-90"
+        : "bg-[color:var(--color-accent-warn)] hover:opacity-90";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">

@@ -73,7 +73,7 @@ export default function AdminTablesPage() {
     return onSnapshot(
       query(collection(db, "tables"), orderBy("tableNumber", "asc")),
       (snap) => {
-        setTables(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Table, "id">) })));
+        setTables(snap.docs.map((d) => ({ tableId: d.id, ...(d.data() as Omit<Table, "tableId">) })));
         setLoading(false);
       }
     );
@@ -116,7 +116,7 @@ export default function AdminTablesPage() {
     if (!dup.empty) throw new Error("このテーブル番号はすでに登録されています");
     const tableRef = doc(collection(db, "tables"));
     await setDoc(tableRef, {
-      id: tableRef.id,
+      tableId: tableRef.id,
       tableNumber,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -128,7 +128,7 @@ export default function AdminTablesPage() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await deleteDoc(doc(db, "tables", deleteTarget.id));
+      await deleteDoc(doc(db, "tables", deleteTarget.tableId));
       toast("テーブルを削除しました");
       setDeleteTarget(null);
     } catch {
@@ -222,10 +222,10 @@ export default function AdminTablesPage() {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
           {tables.map((table) => {
-            const isOccupied = occupiedTableIds.has(table.id);
+            const isOccupied = occupiedTableIds.has(table.tableId);
             return (
               <div
-                key={table.id}
+                key={table.tableId}
                 className={`rounded-xl border p-5 shadow-sm flex flex-col items-center gap-3 ${
                   isOccupied
                     ? "border-[color:var(--color-accent-negi)]/40 bg-[color:var(--color-accent-negi)]/5"

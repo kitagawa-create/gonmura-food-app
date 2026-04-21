@@ -21,7 +21,7 @@ type SelectionLine = { menu: Menu; quantity: number };
 // カテゴリ名からメニューの役割を判定するヘルパー
 function menuBelongsToCategory(menu: Menu, categories: Category[], categoryName: string): boolean {
   return menu.categoryIds.some((cid) => {
-    const cat = categories.find((c) => c.id === cid);
+    const cat = categories.find((c) => c.categoryId === cid);
     return cat?.name === categoryName;
   });
 }
@@ -42,7 +42,7 @@ export default function MenuPage() {
   const [showGuestCountDialog, setShowGuestCountDialog] = useState(false);
   const [guestCountInput, setGuestCountInput] = useState<number>(1);
   const [showTableSelectDialog, setShowTableSelectDialog] = useState(false);
-  const [dialogTables, setDialogTables] = useState<{ id: string; tableNumber: string }[]>([]);
+  const [dialogTables, setDialogTables] = useState<{ tableId: string; tableNumber: string }[]>([]);
   const [dialogTablesLoading, setDialogTablesLoading] = useState(false);
   const [selectedDialogTableId, setSelectedDialogTableId] = useState<string>("");
   const [showTableChangePinDialog, setShowTableChangePinDialog] = useState(false);
@@ -155,9 +155,9 @@ export default function MenuPage() {
     return onSnapshot(
       query(collection(db, "categories"), orderBy("sortOrder", "asc")),
       (snap) => {
-        const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Category);
+        const data = snap.docs.map((d) => ({ categoryId: d.id, ...(d.data() as Omit<Category, "categoryId">) }));
         setCategories(data);
-        if (data.length > 0) setActiveCategory((cur) => cur ?? data[0].id);
+        if (data.length > 0) setActiveCategory((cur) => cur ?? data[0].categoryId);
         setLoading(false);
       },
       () => setLoading(false)
@@ -167,7 +167,7 @@ export default function MenuPage() {
   // モーダルが開いている商品が非公開化または売り切れになったら強制クローズ
   useEffect(() => {
     if (!selectedMenu) return;
-    const stillThere = menus.find((m) => m.id === selectedMenu.id);
+    const stillThere = menus.find((m) => m.menuId === selectedMenu.menuId);
     if (!stillThere || stillThere.status === "soldout") {
       setSelectedMenu(null);
       setExtraQty({});
@@ -203,7 +203,7 @@ export default function MenuPage() {
     return onSnapshot(
       query(collection(db, "tables"), orderBy("tableNumber")),
       (snap) => {
-        setDialogTables(snap.docs.map((d) => ({ id: d.id, tableNumber: d.data().tableNumber as string })));
+        setDialogTables(snap.docs.map((d) => ({ tableId: d.id, tableNumber: d.data().tableNumber as string })));
         setDialogTablesLoading(false);
       },
       () => setDialogTablesLoading(false)
@@ -212,7 +212,7 @@ export default function MenuPage() {
 
   const filteredMenus = activeCategory
     ? (() => {
-        const isOsusume = categories.find((c) => c.id === activeCategory)?.name === "おすすめ";
+        const isOsusume = categories.find((c) => c.categoryId === activeCategory)?.name === "おすすめ";
         return menus
           .filter((menu) => menu.categoryIds.includes(activeCategory))
           .sort((a, b) => {
@@ -224,17 +224,17 @@ export default function MenuPage() {
       })()
     : [];
 
-  const activeCategoryName = categories.find((c) => c.id === activeCategory)?.name;
+  const activeCategoryName = categories.find((c) => c.categoryId === activeCategory)?.name;
 
   const categoriesWithMenus = useMemo(
-    () => categories.filter((cat) => menus.some((m) => m.categoryIds.includes(cat.id))),
+    () => categories.filter((cat) => menus.some((m) => m.categoryIds.includes(cat.categoryId))),
     [categories, menus]
   );
 
   useEffect(() => {
     if (categoriesWithMenus.length === 0) return;
-    if (!activeCategory || categoriesWithMenus.some((c) => c.id === activeCategory)) return;
-    setActiveCategory(categoriesWithMenus[0].id);
+    if (!activeCategory || categoriesWithMenus.some((c) => c.categoryId === activeCategory)) return;
+    setActiveCategory(categoriesWithMenus[0].categoryId);
   }, [categoriesWithMenus, activeCategory]);
 
   // 「トッピング」カテゴリの商品
@@ -255,7 +255,7 @@ export default function MenuPage() {
     ? Object.entries(extraQty)
         .filter(([, q]) => q > 0)
         .map(([id, q]) => {
-          const m = menus.find((x) => x.id === id);
+          const m = menus.find((x) => x.menuId === id);
           return m ? { menu: m, quantity: q } : null;
         })
         .filter((x): x is SelectionLine => x !== null)
@@ -275,7 +275,7 @@ export default function MenuPage() {
   }
 
   function handleEditCartItem(item: CartItem) {
-    const menu = menus.find((m) => m.id === item.menuId);
+    const menu = menus.find((m) => m.menuId === item.menuId);
     if (!menu) return;
     setEditingLineId(item.lineId);
     setSelectedMenu(menu);
@@ -294,12 +294,12 @@ export default function MenuPage() {
     (dx: number, dy: number) => {
       if (categoriesWithMenus.length === 0 || !activeCategory) return;
       if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy)) return;
-      const idx = categoriesWithMenus.findIndex((c) => c.id === activeCategory);
+      const idx = categoriesWithMenus.findIndex((c) => c.categoryId === activeCategory);
       if (idx < 0) return;
       if (dx < 0 && idx < categoriesWithMenus.length - 1) {
-        setActiveCategory(categoriesWithMenus[idx + 1].id);
+        setActiveCategory(categoriesWithMenus[idx + 1].categoryId);
       } else if (dx > 0 && idx > 0) {
-        setActiveCategory(categoriesWithMenus[idx - 1].id);
+        setActiveCategory(categoriesWithMenus[idx - 1].categoryId);
       }
     },
     [categoriesWithMenus, activeCategory]
@@ -379,10 +379,10 @@ export default function MenuPage() {
         <div className="max-w-screen-2xl mx-auto px-2 sm:px-4 lg:px-6 flex overflow-x-auto no-scrollbar">
           {categoriesWithMenus.map((category) => (
             <button
-              key={category.id}
-              onClick={() => setActiveCategory(category.id)}
+              key={category.categoryId}
+              onClick={() => setActiveCategory(category.categoryId)}
               className={`shrink-0 px-4 py-2.5 text-sm font-medium transition-colors ${
-                activeCategory === category.id
+                activeCategory === category.categoryId
                   ? "text-[color:var(--color-accent-char)] border-b-2 border-[color:var(--color-accent-char)]"
                   : "text-[color:var(--color-text-muted)] border-b-2 border-transparent hover:text-[color:var(--color-text-primary)]"
               }`}
@@ -414,7 +414,7 @@ export default function MenuPage() {
               const sold = menu.status === "soldout";
               return (
                 <button
-                  key={menu.id}
+                  key={menu.menuId}
                   type="button"
                   disabled={sold}
                   aria-disabled={sold}
@@ -469,7 +469,7 @@ export default function MenuPage() {
                       {menu.name}
                     </h3>
                     <p className="h-10 text-sm leading-5 line-clamp-2 text-[color:var(--color-text-muted)]">
-                      {menu.description || "\u00A0"}
+                      {menu.description || " "}
                     </p>
                     <p className="h-7 text-lg font-bold leading-7 text-[color:var(--color-accent-char)]">
                       {menu.price.toLocaleString()}円
@@ -572,10 +572,10 @@ export default function MenuPage() {
                     </h3>
                     <ul className="space-y-2">
                       {toppings.map((t) => {
-                        const q = extraQty[t.id] ?? 0;
+                        const q = extraQty[t.menuId] ?? 0;
                         return (
                           <li
-                            key={t.id}
+                            key={t.menuId}
                             className="flex items-center gap-3 rounded-xl bg-[color:var(--color-bg-subtle)] px-3 py-2"
                           >
                             {t.imageUrl && (
@@ -599,7 +599,7 @@ export default function MenuPage() {
                                 onClick={() =>
                                   setExtraQty((prev) => ({
                                     ...prev,
-                                    [t.id]: Math.max(0, (prev[t.id] ?? 0) - 1),
+                                    [t.menuId]: Math.max(0, (prev[t.menuId] ?? 0) - 1),
                                   }))
                                 }
                                 disabled={q <= 0}
@@ -616,7 +616,7 @@ export default function MenuPage() {
                                 onClick={() =>
                                   setExtraQty((prev) => ({
                                     ...prev,
-                                    [t.id]: Math.min(20, (prev[t.id] ?? 0) + 1),
+                                    [t.menuId]: Math.min(20, (prev[t.menuId] ?? 0) + 1),
                                   }))
                                 }
                                 aria-label={`${t.name}を追加`}
@@ -664,7 +664,7 @@ export default function MenuPage() {
                     if (!selectedMenu) return;
                     if (isRamenFlow) {
                       const toppings: CartItemTopping[] = extraLines.map((l) => ({
-                        menuId: l.menu.id,
+                        menuId: l.menu.menuId,
                         name: l.menu.name,
                         price: l.menu.price,
                         quantity: l.quantity,
@@ -674,7 +674,7 @@ export default function MenuPage() {
                       } else {
                         addItem(
                           {
-                            menuId: selectedMenu.id,
+                            menuId: selectedMenu.menuId,
                             name: selectedMenu.name,
                             price: selectedMenu.price,
                             toppings,
@@ -689,7 +689,7 @@ export default function MenuPage() {
                       } else {
                         addItem(
                           {
-                            menuId: selectedMenu.id,
+                            menuId: selectedMenu.menuId,
                             name: selectedMenu.name,
                             price: selectedMenu.price,
                             ...(selectedNote.trim() ? { note: selectedNote.trim() } : {}),
@@ -737,22 +737,22 @@ export default function MenuPage() {
                 >
                   <option value="">テーブルを選択してください</option>
                   {dialogTables.map((t) => (
-                    <option key={t.id} value={t.id}>{t.tableNumber}番</option>
+                    <option key={t.tableId} value={t.tableId}>{t.tableNumber}番</option>
                   ))}
                 </select>
                 <button
                   type="button"
                   disabled={!selectedDialogTableId}
                   onClick={async () => {
-                    const t = dialogTables.find((t) => t.id === selectedDialogTableId);
+                    const t = dialogTables.find((t) => t.tableId === selectedDialogTableId);
                     if (!t) return;
-                    localStorage.setItem(TABLE_ID_KEY, t.id);
+                    localStorage.setItem(TABLE_ID_KEY, t.tableId);
                     if (isTableChanging) {
                       moveToTable(t.tableNumber);
                       if (customerId) {
                         try {
                           await updateDoc(doc(db, "customers", customerId), {
-                            tableId: t.id,
+                            tableId: t.tableId,
                             updatedAt: serverTimestamp(),
                           });
                         } catch {}
@@ -825,7 +825,7 @@ export default function MenuPage() {
                 setGuestCount(guestCountInput);
                 setShowGuestCountDialog(false);
                 const osusume = categoriesWithMenus.find((c) => c.name === "おすすめ") ?? categoriesWithMenus[0];
-                if (osusume) setActiveCategory(osusume.id);
+                if (osusume) setActiveCategory(osusume.categoryId);
               }}
               className="w-full rounded-xl bg-[color:var(--color-accent-char)] py-3 text-base font-bold text-white hover:opacity-90 transition-opacity"
             >

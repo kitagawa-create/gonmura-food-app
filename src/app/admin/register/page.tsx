@@ -131,7 +131,7 @@ export default function AdminRegisterPage() {
           .map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
         const withItems = await Promise.all(
           orderDocs.map(async (order) => {
-            const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.id)));
+            const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.orderId)));
             return { ...order, items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)) };
           })
         );

@@ -65,7 +65,7 @@ export function normalizeMenu(id: string, data: Record<string, unknown>): Menu {
     ? data.status as MenuStatus
     : "active";
   return {
-    id,
+    menuId: id,
     name: typeof data.name === "string" ? data.name : "",
     description: typeof data.description === "string" ? data.description : "",
     price: typeof data.price === "number" ? Math.trunc(data.price) : 0,
@@ -82,8 +82,8 @@ export function normalizeMenu(id: string, data: Record<string, unknown>): Menu {
 /** Firestore から取得した生データを OrderItem 型に正規化。フィールド欠損のある既存ドキュメントを安全に扱う。 */
 export function normalizeOrderItem(id: string, data: Record<string, unknown>): OrderItem {
   return {
-    ...(data as Omit<OrderItem, "id" | "toppings" | "note" | "checked">),
-    id,
+    ...(data as Omit<OrderItem, "itemId" | "toppings" | "note" | "checked">),
+    itemId: id,
     toppings: Array.isArray(data.toppings) ? (data.toppings as OrderItemTopping[]) : [],
     note: typeof data.note === "string" ? data.note : "",
     checked: data.checked === true,
@@ -93,7 +93,7 @@ export function normalizeOrderItem(id: string, data: Record<string, unknown>): O
 /** Firestore から取得した生データを Order 型に正規化。data.customerId を優先し、なければ fallback を使う。 */
 export function normalizeOrder(id: string, data: Record<string, unknown>, customerId: string): Order {
   return {
-    id,
+    orderId: id,
     status: (data.status as Order["status"]) ?? "pending",
     customerId: typeof data.customerId === "string" && data.customerId ? data.customerId : customerId,
     createdAt: data.createdAt as Order["createdAt"],

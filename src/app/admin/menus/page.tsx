@@ -90,7 +90,7 @@ export default function AdminMenusPage() {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [pendingAction, setPendingAction] = useState<"hidden" | "soldout" | "deleted" | null>(null);
+  const [pendingAction, setPendingAction] = useState<"hidden" | "soldout" | "deleted" | "active" | null>(null);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [applyingBulk, setApplyingBulk] = useState(false);
 
@@ -356,8 +356,11 @@ export default function AdminMenusPage() {
         batch.update(doc(db, "menus", id), { status: pendingAction, updatedAt: serverTimestamp() });
       }
       await batch.commit();
-      const label = pendingAction === "hidden" ? "非公開" : pendingAction === "soldout" ? "売り切れ" : "削除";
-      toast(`${selectedIds.size}件を${label}にしました`);
+      const label = pendingAction === "hidden" ? "非公開" : pendingAction === "soldout" ? "売り切れ" : pendingAction === "active" ? "active" : "削除";
+      const toastMsg = pendingAction === "active"
+        ? `${selectedIds.size}件を販売中に戻しました`
+        : `${selectedIds.size}件を${label}にしました`;
+      toast(toastMsg);
       setSelectedIds(new Set());
       setPendingAction(null);
       setBulkConfirmOpen(false);
@@ -368,7 +371,7 @@ export default function AdminMenusPage() {
     }
   }
 
-  const actionLabel = pendingAction === "hidden" ? "非公開" : pendingAction === "soldout" ? "売り切れ" : "削除";
+  const actionLabel = pendingAction === "hidden" ? "非公開" : pendingAction === "soldout" ? "売り切れ" : pendingAction === "active" ? "販売中に戻す" : "削除";
 
   return (
     <div className="w-full h-full flex flex-col -m-3 md:-m-6">
@@ -385,20 +388,38 @@ export default function AdminMenusPage() {
                     {selectedIds.size}件選択中
                   </span>
                 )}
-                <button
-                  onClick={() => { setPendingAction("hidden"); setBulkConfirmOpen(true); }}
-                  disabled={selectedIds.size === 0}
-                  className="rounded-xl border border-[color:var(--color-accent-warn)]/40 px-3 py-2 text-sm text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  非公開
-                </button>
-                <button
-                  onClick={() => { setPendingAction("soldout"); setBulkConfirmOpen(true); }}
-                  disabled={selectedIds.size === 0}
-                  className="rounded-xl border border-[color:var(--color-accent-warn)]/40 px-3 py-2 text-sm text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  売り切れ
-                </button>
+                <div className="flex flex-col gap-1">
+                  <button
+                    onClick={() => { setPendingAction("hidden"); setBulkConfirmOpen(true); }}
+                    disabled={selectedIds.size === 0}
+                    className="rounded-xl border border-[color:var(--color-accent-warn)]/40 px-3 py-1.5 text-sm text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    非公開
+                  </button>
+                  <button
+                    onClick={() => { setPendingAction("active"); setBulkConfirmOpen(true); }}
+                    disabled={selectedIds.size === 0}
+                    className="rounded-xl border border-[color:var(--color-accent-char)]/40 px-3 py-1.5 text-xs text-[color:var(--color-accent-char)] hover:bg-[color:var(--color-accent-char)]/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    解除
+                  </button>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <button
+                    onClick={() => { setPendingAction("soldout"); setBulkConfirmOpen(true); }}
+                    disabled={selectedIds.size === 0}
+                    className="rounded-xl border border-[color:var(--color-accent-warn)]/40 px-3 py-1.5 text-sm text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    売り切れ
+                  </button>
+                  <button
+                    onClick={() => { setPendingAction("active"); setBulkConfirmOpen(true); }}
+                    disabled={selectedIds.size === 0}
+                    className="rounded-xl border border-[color:var(--color-accent-char)]/40 px-3 py-1.5 text-xs text-[color:var(--color-accent-char)] hover:bg-[color:var(--color-accent-char)]/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    解除
+                  </button>
+                </div>
                 {role === "owner" && (
                   <>
                     <button
@@ -683,16 +704,18 @@ export default function AdminMenusPage() {
 
       <ConfirmDialog
         open={bulkConfirmOpen}
-        title={`選択した${selectedIds.size}件を${actionLabel}にする`}
+        title={pendingAction === "active" ? `選択した${selectedIds.size}件を販売中に戻す` : `選択した${selectedIds.size}件を${actionLabel}にする`}
         message={
           pendingAction === "hidden"
             ? "選択したメニューをお客様から非表示にします。注文できなくなります。"
             : pendingAction === "soldout"
               ? "選択したメニューを売り切れに設定します。お客様は注文できなくなります。"
-              : "選択したメニューを削除します。過去の売上データへの影響を防ぐためデータは内部に保持されます。"
+              : pendingAction === "active"
+                ? "選択したメニューを販売中に戻します。お客様から注文できるようになります。"
+                : "選択したメニューを削除します。過去の売上データへの影響を防ぐためデータは内部に保持されます。"
         }
-        confirmLabel={`${actionLabel}にする`}
-        confirmColor="red"
+        confirmLabel={pendingAction === "active" ? "販売中に戻す" : `${actionLabel}にする`}
+        confirmColor={pendingAction === "active" ? "blue" : "red"}
         onConfirm={applyPendingAction}
         onCancel={() => { setBulkConfirmOpen(false); setPendingAction(null); }}
         loading={applyingBulk}

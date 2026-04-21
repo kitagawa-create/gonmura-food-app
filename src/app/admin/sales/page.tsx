@@ -243,7 +243,7 @@ export default function AdminSalesPage() {
         const withItems = await Promise.all(
           orderDocs.map(async (order) => {
             const itemsSnap = await getDocs(
-              query(collectionGroup(db, "items"), where("orderId", "==", order.id))
+              query(collectionGroup(db, "items"), where("orderId", "==", order.orderId))
             );
             return {
               ...order,

@@ -20,10 +20,10 @@ const TABLE_KEY = "gonmura-table";
 
 export default function SetupPage() {
   const [step, setStep] = useState<"table" | "guests">("table");
-  const [tables, setTables] = useState<Array<{ id: string; tableNumber: string }>>([]);
+  const [tables, setTables] = useState<Array<{ tableId: string; tableNumber: string }>>([]);
   const [occupiedTableIds, setOccupiedTableIds] = useState<Set<string>>(new Set());
   const [loadingTables, setLoadingTables] = useState(true);
-  const [selectedTable, setSelectedTable] = useState<{ id: string; tableNumber: string } | null>(null);
+  const [selectedTable, setSelectedTable] = useState<{ tableId: string; tableNumber: string } | null>(null);
   const [guestCountInput, setGuestCountInput] = useState(1);
   const { setTableNumber, setGuestCount } = useCart();
   const router = useRouter();
@@ -45,7 +45,7 @@ export default function SetupPage() {
       query(collection(db, "tables"), orderBy("tableNumber")),
       (snap) => {
         setTables(snap.docs.map((d) => ({
-          id: d.id,
+          tableId: d.id,
           tableNumber: d.data().tableNumber as string,
         })));
         setLoadingTables(false);
@@ -78,7 +78,7 @@ export default function SetupPage() {
     return () => { unsub1(); unsub2(); };
   }, [router]);
 
-  function handleSelectTable(t: { id: string; tableNumber: string }) {
+  function handleSelectTable(t: { tableId: string; tableNumber: string }) {
     setSelectedTable(t);
     setGuestCountInput(1);
     setStep("guests");
@@ -86,7 +86,7 @@ export default function SetupPage() {
 
   function handleConfirm() {
     if (!selectedTable) return;
-    localStorage.setItem(TABLE_ID_KEY, selectedTable.id);
+    localStorage.setItem(TABLE_ID_KEY, selectedTable.tableId);
     setTableNumber(selectedTable.tableNumber);
     setGuestCount(guestCountInput);
     router.replace("/menu");
@@ -170,17 +170,17 @@ export default function SetupPage() {
         ) : (
           <div className="space-y-4">
             <select
-              value={selectedTable?.id ?? ""}
+              value={selectedTable?.tableId ?? ""}
               onChange={(e) => {
-                setSelectedTable(tables.find((t) => t.id === e.target.value) ?? null);
+                setSelectedTable(tables.find((t) => t.tableId === e.target.value) ?? null);
               }}
               className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-base text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
             >
               <option value="">テーブルを選択してください</option>
               {tables
-                .filter((t) => !occupiedTableIds.has(t.id))
+                .filter((t) => !occupiedTableIds.has(t.tableId))
                 .map((t) => (
-                  <option key={t.id} value={t.id}>
+                  <option key={t.tableId} value={t.tableId}>
                     {t.tableNumber}番
                   </option>
                 ))}

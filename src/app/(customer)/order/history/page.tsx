@@ -70,7 +70,7 @@ function OrderCard({ order }: { order: OrderWithItems }) {
       <div className="flex-1 min-w-0">
         <ul className="text-sm space-y-0.5">
           {visibleItems.map((item) => (
-            <li key={item.id}>
+            <li key={item.itemId}>
               <div className="flex items-baseline gap-2">
                 <span className="flex-1 text-[color:var(--color-text-primary)] truncate">{item.name}</span>
                 <span className="w-8 shrink-0 text-right text-[color:var(--color-text-muted)] tabular-nums">×{item.quantity}</span>
@@ -134,7 +134,7 @@ export default function OrderHistoryPage() {
       const withItems: OrderWithItems[] = await Promise.all(
         orderDocs.map(async (order) => {
           const itemsSnap = await getDocs(
-            query(collectionGroup(db, "items"), where("orderId", "==", order.id))
+            query(collectionGroup(db, "items"), where("orderId", "==", order.orderId))
           );
           return {
             ...order,
@@ -170,7 +170,7 @@ export default function OrderHistoryPage() {
         ) : (
           <div className="flex flex-col gap-2">
             {orders.map((order) => (
-              <OrderCard key={order.id} order={order} />
+              <OrderCard key={order.orderId} order={order} />
             ))}
           </div>
         )}

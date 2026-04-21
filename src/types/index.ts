@@ -6,7 +6,7 @@ import { Timestamp } from "firebase/firestore";
  */
 
 export type Category = {
-  id: string;
+  categoryId: string;
   name: string;
   /** 整数 */
   sortOrder: number;
@@ -23,7 +23,7 @@ export type Category = {
 export type MenuStatus = "active" | "soldout" | "hidden" | "deleted";
 
 export type Menu = {
-  id: string;
+  menuId: string;
   name: string;
   description: string;
   /** 税込価格。整数（円） */
@@ -49,7 +49,7 @@ export type OrderItemTopping = {
 };
 
 export type OrderItem = {
-  id: string;
+  itemId: string;
   menuId: string;
   name: string;
   /** 注文時点のスナップショット。整数（円）。単品価格 (トッピング分は含まない) */
@@ -69,7 +69,7 @@ export type OrderStatus = "pending" | "completed" | "paid";
 export type AdminRole = "owner" | "staff";
 
 export type Order = {
-  id: string;
+  orderId: string;
   status: OrderStatus;
   /** Firestoreに保存済み（`customers/{customerId}/orders/{orderId}` の customerId フィールド） */
   customerId: string;
@@ -90,7 +90,7 @@ export type CartItemTopping = {
 };
 
 export type Table = {
-  id: string;
+  tableId: string;
   tableNumber: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -110,4 +110,3 @@ export type CartItem = {
   /** 商品ごとの備考（アレルギー等）。備考なしは空文字 */
   note: string;
 };
-

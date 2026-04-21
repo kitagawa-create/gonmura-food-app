@@ -67,7 +67,7 @@ export default function AdminCategoriesPage() {
     const q = query(collection(db, "categories"), orderBy("sortOrder", "asc"));
     const unsub = onSnapshot(q, (snap) => {
       setCategories(
-        snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Category, "id">) }))
+        snap.docs.map((d) => ({ categoryId: d.id, ...(d.data() as Omit<Category, "categoryId">) }))
       );
       setLoading(false);
     });
@@ -78,7 +78,7 @@ export default function AdminCategoriesPage() {
     const trimmed = name.trim();
     if (!trimmed) return null;
     const hit = categories.find(
-      (c) => c.id !== excludeId && c.name.trim() === trimmed
+      (c) => c.categoryId !== excludeId && c.name.trim() === trimmed
     );
     return hit ? `「${trimmed}」は既に登録されています` : null;
   }
@@ -92,7 +92,7 @@ export default function AdminCategoriesPage() {
           : 0;
       const categoryRef = doc(collection(db, "categories"));
       await setDoc(categoryRef, {
-        id: categoryRef.id,
+        categoryId: categoryRef.id,
         name,
         sortOrder: nextOrder,
         createdAt: serverTimestamp(),
@@ -124,7 +124,7 @@ export default function AdminCategoriesPage() {
     setError(null);
     const menusQ = query(
       collection(db, "menus"),
-      where("categoryIds", "array-contains", category.id)
+      where("categoryIds", "array-contains", category.categoryId)
     );
     const referenced = await getDocs(menusQ);
     if (!referenced.empty) {
@@ -141,7 +141,7 @@ export default function AdminCategoriesPage() {
     setDeleting(true);
     setError(null);
     try {
-      await deleteDoc(doc(db, "categories", deleteTarget.id));
+      await deleteDoc(doc(db, "categories", deleteTarget.categoryId));
       setDeleteTarget(null);
       toast("カテゴリを削除しました");
     } catch (e) {
@@ -159,7 +159,7 @@ export default function AdminCategoriesPage() {
       const batch = writeBatch(db);
       ordered.forEach((c, i) => {
         if (c.sortOrder !== i) {
-          batch.update(doc(db, "categories", c.id), {
+          batch.update(doc(db, "categories", c.categoryId), {
             sortOrder: i,
             updatedAt: serverTimestamp(),
           });
@@ -176,8 +176,8 @@ export default function AdminCategoriesPage() {
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const oldIdx = categories.findIndex((c) => c.id === active.id);
-    const newIdx = categories.findIndex((c) => c.id === over.id);
+    const oldIdx = categories.findIndex((c) => c.categoryId === active.id);
+    const newIdx = categories.findIndex((c) => c.categoryId === over.id);
     const next = arrayMove(categories, oldIdx, newIdx);
     setCategories(next);
     persistOrder(next);
@@ -215,14 +215,14 @@ export default function AdminCategoriesPage() {
             ハンドルをドラッグして並び替え{savingOrder && " (保存中...)"}
           </p>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={categories.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+            <SortableContext items={categories.map((c) => c.categoryId)} strategy={verticalListSortingStrategy}>
               <ul className="space-y-2">
                 {categories.map((c, i) => (
                   <CategoryRow
-                    key={c.id}
+                    key={c.categoryId}
                     index={i}
                     category={c}
-                    onRename={(name) => handleRename(c.id, name)}
+                    onRename={(name) => handleRename(c.categoryId, name)}
                     onDelete={() => requestDelete(c)}
                     findDuplicate={findDuplicateName}
                   />
@@ -383,7 +383,7 @@ function CategoryRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: category.id });
+  } = useSortable({ id: category.categoryId });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -405,7 +405,7 @@ function CategoryRow({
       setName(category.name);
       return;
     }
-    const dup = findDuplicate(trimmed, category.id);
+    const dup = findDuplicate(trimmed, category.categoryId);
     if (dup) {
       setNameError(dup);
       return;
