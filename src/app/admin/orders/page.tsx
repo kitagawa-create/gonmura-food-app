@@ -733,7 +733,6 @@ function HistoryView({
   const revertOrder = useCallback(
     async (order: OrderWithItems) => {
       onError(null);
-      if (order.status === "paid") return;
       try {
         const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.id)));
         const batch = writeBatch(db);
@@ -755,7 +754,7 @@ function HistoryView({
 
     const q = query(
       collectionGroup(db, "orders"),
-      where("status", "in", ["completed", "paid"]),
+      where("status", "==", "completed"),
       where("createdAt", ">=", Timestamp.fromDate(start)),
       where("createdAt", "<", Timestamp.fromDate(end)),
       orderBy("createdAt", "desc")
@@ -805,6 +804,9 @@ function HistoryView({
     [orders, getTableNumber]
   );
 
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkRevert, setShowBulkRevert] = useState(false);
+
   const filteredOrders = useMemo(
     () =>
       tableFilter !== null
@@ -813,13 +815,30 @@ function HistoryView({
     [orders, tableFilter, getTableNumber]
   );
 
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const revertSelected = useCallback(async () => {
+    const targets = filteredOrders.filter((o) => selectedIds.has(o.id));
+    await Promise.all(targets.map((o) => revertOrder(o)));
+    setSelectedIds(new Set());
+    setShowBulkRevert(false);
+  }, [filteredOrders, selectedIds, revertOrder]);
+
+  const selectedCount = selectedIds.size;
+
   return (
     <div className="flex-1 overflow-y-auto -mr-3 md:-mr-6 pr-3 md:pr-6">
       {/* 日付検索 */}
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-3 mb-3">
         <DatePicker
           value={dateSearch}
-          onChange={(v) => { setDateSearch(v); setTableFilter(null); }}
+          onChange={(v) => { setDateSearch(v); setTableFilter(null); setSelectedIds(new Set()); }}
           max={todayISO()}
         />
         <button
@@ -854,6 +873,31 @@ function HistoryView({
         </span>
       </div>
 
+      {/* 選択時アクションバー */}
+      {selectedCount > 0 && (
+        <div className="flex items-center justify-between gap-3 mb-3 rounded-lg border border-[color:var(--color-accent-char)]/40 bg-[color:var(--color-accent-char)]/5 px-3 py-2">
+          <span className="text-sm font-medium text-[color:var(--color-accent-char)]">
+            {selectedCount}件選択中
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedIds(new Set())}
+              className="rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+            >
+              解除
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowBulkRevert(true)}
+              className="rounded-lg bg-[color:var(--color-accent-char)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
+            >
+              新規に戻す
+            </button>
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <PageLoader />
       ) : filteredOrders.length === 0 ? (
@@ -867,11 +911,22 @@ function HistoryView({
               key={order.id}
               order={order}
               tableNumber={getTableNumber(order.customerId) || "?"}
-              onRevert={revertOrder}
+              selected={selectedIds.has(order.id)}
+              onSelect={toggleSelect}
             />
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={showBulkRevert}
+        title={`${selectedCount}件の注文を新規に戻す`}
+        message="選択した注文を提供前(新規)に戻します。チェック状態はすべてリセットされます。"
+        confirmLabel="戻す"
+        confirmColor="green"
+        onConfirm={revertSelected}
+        onCancel={() => setShowBulkRevert(false)}
+      />
     </div>
   );
 }
@@ -881,20 +936,19 @@ function HistoryView({
 function HistoryOrderCard({
   order,
   tableNumber,
-  onRevert,
+  selected,
+  onSelect,
 }: {
   order: OrderWithItems;
   tableNumber: string;
-  onRevert: (order: OrderWithItems) => void;
+  selected: boolean;
+  onSelect: (id: string) => void;
 }) {
-  const [showRevert, setShowRevert] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [selected, setSelected] = useState(false);
 
   const total = order.items.reduce((s, i) => s + comboLineTotal(i), 0);
   const created = order.createdAt?.toDate?.();
   const updated = order.updatedAt?.toDate?.();
-  const isPaid = order.status === "paid";
   const PREVIEW = 2;
   const visibleItems = expanded ? order.items : order.items.slice(0, PREVIEW);
   const hiddenCount = order.items.length - PREVIEW;
@@ -912,7 +966,7 @@ function HistoryOrderCard({
         <input
           type="checkbox"
           checked={selected}
-          onChange={() => setSelected((s) => !s)}
+          onChange={() => onSelect(order.id)}
           className="h-4 w-4 rounded cursor-pointer"
           style={{ accentColor: "var(--color-accent-char)" }}
         />
@@ -923,14 +977,8 @@ function HistoryOrderCard({
         <span className="inline-flex items-center justify-center w-full h-8 px-1 rounded-md bg-[color:var(--color-accent-soy)] text-white text-sm font-bold leading-none">
           {tableNumber}
         </span>
-        <span
-          className={`rounded-full px-2 py-0.5 text-[10px] font-bold whitespace-nowrap ${
-            isPaid
-              ? "bg-[color:var(--color-accent-negi)]/15 text-[color:var(--color-accent-negi)]"
-              : "bg-[color:var(--color-bg-subtle)] text-[color:var(--color-text-muted)]"
-          }`}
-        >
-          {isPaid ? "精算済" : "提供済"}
+        <span className="rounded-full px-2 py-0.5 text-[10px] font-bold whitespace-nowrap bg-[color:var(--color-bg-subtle)] text-[color:var(--color-text-muted)]">
+          提供済
         </span>
       </div>
 
@@ -955,16 +1003,16 @@ function HistoryOrderCard({
         <ul className="text-sm space-y-0.5">
           {visibleItems.map((item) => (
             <li key={item.id}>
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-[color:var(--color-text-primary)] truncate">{item.name}</span>
-                <span className="shrink-0 text-[color:var(--color-text-muted)] tabular-nums">×{item.quantity}</span>
+              <div className="flex items-baseline gap-2">
+                <span className="flex-1 text-[color:var(--color-text-primary)] truncate">{item.name}</span>
+                <span className="w-8 shrink-0 text-right text-[color:var(--color-text-muted)] tabular-nums">×{item.quantity}</span>
               </div>
               {expanded && item.toppings.length > 0 && (
                 <ul className="ml-3 mt-0.5 space-y-0">
                   {item.toppings.map((t) => (
-                    <li key={t.menuId} className="flex justify-between text-xs text-[color:var(--color-text-muted)]">
-                      <span>＋{t.name}</span>
-                      <span>×{t.quantity * item.quantity}</span>
+                    <li key={t.menuId} className="flex items-baseline gap-2 text-xs text-[color:var(--color-text-muted)]">
+                      <span className="flex-1 truncate">＋{t.name}</span>
+                      <span className="w-8 shrink-0 text-right tabular-nums">×{t.quantity * item.quantity}</span>
                     </li>
                   ))}
                 </ul>
@@ -986,34 +1034,12 @@ function HistoryOrderCard({
         )}
       </div>
 
-      {/* 金額 + アクション */}
-      <div className="shrink-0 flex flex-col items-end gap-2 pl-1">
+      {/* 金額 */}
+      <div className="shrink-0 pl-1">
         <p className="text-sm font-bold text-[color:var(--color-text-primary)] tabular-nums whitespace-nowrap">
           ¥{total.toLocaleString()}
         </p>
-        {!isPaid && (
-          <button
-            type="button"
-            onClick={() => setShowRevert(true)}
-            className="rounded-lg border border-[color:var(--color-border)] px-2.5 py-1 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors whitespace-nowrap"
-          >
-            新規に戻す
-          </button>
-        )}
       </div>
-
-      <ConfirmDialog
-        open={showRevert}
-        title={`テーブル ${tableNumber} の注文を新規に戻す`}
-        message="この注文を提供前(新規)に戻します。チェック状態はすべてリセットされます。"
-        confirmLabel="戻す"
-        confirmColor="green"
-        onConfirm={() => {
-          onRevert(order);
-          setShowRevert(false);
-        }}
-        onCancel={() => setShowRevert(false)}
-      />
     </div>
   );
 }
