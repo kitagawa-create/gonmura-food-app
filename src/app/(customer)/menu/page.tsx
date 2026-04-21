@@ -494,43 +494,30 @@ export default function MenuPage() {
       {/* 商品詳細モーダル */}
       {selectedMenu && (
         <div
-          className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 p-0 md:p-6"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-6"
           onClick={closeModal}
         >
           <div
-            className="w-full max-w-lg md:max-w-2xl max-h-[100dvh] md:max-h-[90dvh] flex flex-col md:flex-row bg-[color:var(--color-bg-card)] rounded-t-2xl md:rounded-2xl overflow-hidden animate-slide-up"
+            className="w-full max-w-lg max-h-[100dvh] sm:max-h-[90dvh] flex flex-col bg-[color:var(--color-bg-card)] rounded-t-2xl sm:rounded-2xl overflow-hidden animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* 画像列 */}
-            <div className="relative shrink-0 bg-[color:var(--color-bg-subtle)] overflow-hidden md:w-2/5">
-              {/* モバイル: 4:3アスペクト・高さ上限あり */}
-              <div className="md:hidden max-h-[30dvh] overflow-hidden">
-                <div className="relative w-full" style={{ paddingTop: "75%" }}>
-                  <div className="absolute inset-0">
-                    {selectedMenu.imageUrl ? (
-                      <FadeImage src={selectedMenu.imageUrl} alt={selectedMenu.name} className="w-full h-full" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <span className="text-sm text-[color:var(--color-text-muted)]">画像なし</span>
-                      </div>
-                    )}
-                  </div>
+            {/* 画像（上段・4:3アスペクト・高さ上限あり） */}
+            <div className="shrink-0 bg-[color:var(--color-bg-subtle)] overflow-hidden max-h-[35dvh]">
+              <div className="relative w-full" style={{ paddingTop: "75%" }}>
+                <div className="absolute inset-0">
+                  {selectedMenu.imageUrl ? (
+                    <FadeImage src={selectedMenu.imageUrl} alt={selectedMenu.name} className="w-full h-full" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <span className="text-sm text-[color:var(--color-text-muted)]">画像なし</span>
+                    </div>
+                  )}
                 </div>
-              </div>
-              {/* PC: 左列全体に画像を充填 */}
-              <div className="hidden md:block absolute inset-0">
-                {selectedMenu.imageUrl ? (
-                  <FadeImage src={selectedMenu.imageUrl} alt={selectedMenu.name} className="w-full h-full" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <span className="text-sm text-[color:var(--color-text-muted)]">画像なし</span>
-                  </div>
-                )}
               </div>
             </div>
 
             {/* コンテンツ + フッター */}
-            <div className="flex flex-col flex-1 min-h-0 min-w-0">
+            <div className="flex flex-col flex-1 min-h-0">
               <div className="flex-1 overflow-y-auto p-5 space-y-5">
                 <div>
                   <h2 className="text-xl font-bold text-[color:var(--color-text-primary)]">
