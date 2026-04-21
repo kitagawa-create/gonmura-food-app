@@ -903,7 +903,7 @@ export default function AdminSalesPage() {
                             <th className="text-left font-normal py-1.5">テーブル</th>
                             <th className="text-right font-normal py-1.5 whitespace-nowrap pl-3">注文数</th>
                             <th className="text-right font-normal py-1.5 whitespace-nowrap pl-3">合計売上</th>
-                            <th className="text-right font-normal py-1.5 whitespace-nowrap pl-3">テーブル単価</th>
+                            <th className="text-left font-normal py-1.5 whitespace-nowrap pl-3">テーブル単価</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -921,7 +921,7 @@ export default function AdminSalesPage() {
                               <td className="py-1.5 pl-3 text-right whitespace-nowrap text-[color:var(--color-text-primary)]">
                                 {yen(t.revenue)}
                               </td>
-                              <td className="py-1.5 pl-3 text-right whitespace-nowrap font-medium text-[color:var(--color-accent-char)]">
+                              <td className="py-1.5 pl-3 text-left whitespace-nowrap font-medium text-[color:var(--color-accent-char)]">
                                 {yen(t.atv)}
                               </td>
                             </tr>
