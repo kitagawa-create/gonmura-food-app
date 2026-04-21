@@ -240,7 +240,6 @@ export default function AdminRegisterPage() {
                     <div className="flex justify-between"><span>小計</span><span>¥{subtotal.toLocaleString()}</span></div>
                     <div className="flex justify-between"><span>消費税(10%)</span><span>¥{tax.toLocaleString()}</span></div>
                   </div>
-                  <p className="mt-2 text-center text-xs text-[color:var(--color-accent-negi)] font-medium">精算済み</p>
                 </div>
               );
             })}
