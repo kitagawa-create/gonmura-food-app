@@ -896,7 +896,7 @@ export default function AdminSalesPage() {
                       データがありません
                     </p>
                   ) : (
-                    <div className="flex-1 min-h-0 overflow-y-auto -mr-4 pr-2 [scrollbar-gutter:stable]">
+                    <div className="flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable]">
                       <table className="w-full text-xs tabular-nums">
                         <thead className="sticky top-0 bg-[color:var(--color-bg-subtle)]">
                           <tr className="border-b border-[color:var(--color-border)] text-[color:var(--color-text-muted)]">
