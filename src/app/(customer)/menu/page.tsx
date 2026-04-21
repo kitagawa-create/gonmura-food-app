@@ -452,7 +452,7 @@ export default function MenuPage() {
                     </p>
                   </div>
                   {sold && (
-                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div className="pointer-events-none absolute inset-0 flex items-start justify-center pt-[22%]">
                       <span className="rounded-full bg-[color:var(--color-accent-warn)]/90 px-5 py-2 text-base font-bold text-white shadow-md">
                         売り切れ
                       </span>
@@ -481,7 +481,7 @@ export default function MenuPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="overflow-y-auto">
-              <div className="shrink-0 relative w-full overflow-hidden bg-[color:var(--color-bg-subtle)]" style={{ paddingTop: "56.25%" }}>
+              <div className="shrink-0 relative w-full overflow-hidden bg-[color:var(--color-bg-subtle)]" style={{ paddingTop: "75%" }}>
                 <div className="absolute inset-0">
                   {selectedMenu.imageUrl ? (
                     <FadeImage
