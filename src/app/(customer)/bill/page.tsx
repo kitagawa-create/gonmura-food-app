@@ -56,16 +56,27 @@ export default function BillPage() {
   }, [payDone, router]);
 
   async function handlePay() {
-    if (!customerId || paying || orders.length === 0) return;
+    if (!customerId || paying) return;
     setPaying(true);
     try {
+      // 支払い確定時点で再クエリ（ページロード後に追加された注文も確実に paid にする）
+      const snap = await getDocs(query(
+        collectionGroup(db, "orders"),
+        where("customerId", "==", customerId),
+        where("status", "in", ["pending", "completed"])
+      ));
       const batch = writeBatch(db);
-      for (const order of orders) {
-        batch.update(doc(db, "customers", customerId, "orders", order.id), {
+      for (const d of snap.docs) {
+        batch.update(doc(db, "customers", customerId, "orders", d.id), {
           status: "paid",
           updatedAt: serverTimestamp(),
         });
       }
+      // テーブルの使用中状態を解除
+      batch.update(doc(db, "customers", customerId), {
+        tableId: "",
+        updatedAt: serverTimestamp(),
+      });
       await batch.commit();
       resetSession();
       localStorage.removeItem(TABLE_ID_KEY);

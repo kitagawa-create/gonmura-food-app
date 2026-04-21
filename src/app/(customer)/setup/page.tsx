@@ -175,14 +175,13 @@ export default function SetupPage() {
               className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-base text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
             >
               <option value="">テーブルを選択してください</option>
-              {tables.map((t) => {
-                const isOccupied = occupiedTableIds.has(t.id);
-                return (
+              {tables
+                .filter((t) => !occupiedTableIds.has(t.id))
+                .map((t) => (
                   <option key={t.id} value={t.id}>
-                    {t.tableNumber}番{isOccupied ? "（使用中）" : "（空き）"}
+                    {t.tableNumber}番
                   </option>
-                );
-              })}
+                ))}
             </select>
             <button
               type="button"
