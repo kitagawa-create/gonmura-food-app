@@ -5,6 +5,7 @@ import { PageLoader } from "@/components/ui/PageLoader";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import {
   Timestamp,
+  collection,
   collectionGroup,
   deleteDoc,
   doc,
@@ -75,41 +76,20 @@ function playNotificationSound() {
   }
 }
 
-// ---------- customer+table info helper ----------
+// ---------- customer info helper ----------
 
-type CustomerTableInfo = { tableNumber: string; guestCount: number };
+type CustomerInfo = { tableId: string; guestCount: number };
 
-async function fetchCustomerTableInfo(customerIds: string[]): Promise<Map<string, CustomerTableInfo>> {
+async function fetchCustomerInfo(customerIds: string[]): Promise<Map<string, CustomerInfo>> {
   if (customerIds.length === 0) return new Map();
-
-  const customerSnaps = await Promise.all(customerIds.map((id) => getDoc(doc(db, "customers", id))));
-
-  const customerData = new Map<string, { tableId: string; guestCount: number }>();
-  for (const snap of customerSnaps) {
+  const snaps = await Promise.all(customerIds.map((id) => getDoc(doc(db, "customers", id))));
+  const result = new Map<string, CustomerInfo>();
+  for (const snap of snaps) {
     if (!snap.exists()) continue;
     const d = snap.data();
-    customerData.set(snap.id, {
+    result.set(snap.id, {
       tableId: typeof d.tableId === "string" ? d.tableId : "",
       guestCount: typeof d.guestCount === "number" ? Math.trunc(d.guestCount) : 1,
-    });
-  }
-
-  const uniqueTableIds = [...new Set([...customerData.values()].map((c) => c.tableId).filter(Boolean))];
-  const tableNumberMap = new Map<string, string>();
-  if (uniqueTableIds.length > 0) {
-    const tableSnaps = await Promise.all(uniqueTableIds.map((id) => getDoc(doc(db, "tables", id))));
-    for (const snap of tableSnaps) {
-      if (!snap.exists()) continue;
-      const d = snap.data();
-      tableNumberMap.set(snap.id, typeof d.tableNumber === "string" ? d.tableNumber : "");
-    }
-  }
-
-  const result = new Map<string, CustomerTableInfo>();
-  for (const [customerId, info] of customerData) {
-    result.set(customerId, {
-      tableNumber: tableNumberMap.get(info.tableId) ?? "",
-      guestCount: info.guestCount,
     });
   }
   return result;
@@ -177,12 +157,22 @@ function NewOrdersView({
 }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [itemsByOrder, setItemsByOrder] = useState<Map<string, OrderItem[]>>(new Map());
-  const [customerTableMap, setCustomerTableMap] = useState<Map<string, CustomerTableInfo>>(new Map());
-  const customerTableMapRef = useRef<Map<string, CustomerTableInfo>>(new Map());
+  const [customerInfoMap, setCustomerInfoMap] = useState<Map<string, CustomerInfo>>(new Map());
+  const customerInfoMapRef = useRef<Map<string, CustomerInfo>>(new Map());
+  const [tableNumberMap, setTableNumberMap] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [dateFilter, setDateFilter] = useState<string>(todayISO());
   const [now, setNow] = useState(() => Date.now());
   const prevOrderCountRef = useRef<number | null>(null);
+
+  // tables コレクションをリアルタイム購読して tableId→tableNumber マップを維持
+  useEffect(() => {
+    return onSnapshot(collection(db, "tables"), (snap) => {
+      const map = new Map<string, string>();
+      for (const d of snap.docs) map.set(d.id, d.data().tableNumber as string);
+      setTableNumberMap(map);
+    });
+  }, []);
 
   // 経過時刻更新 + 日付自動ロールオーバー (30秒おき)
   useEffect(() => {
@@ -230,18 +220,18 @@ function NewOrdersView({
     return unsub;
   }, [dateFilter, onError]);
 
-  // orders が更新されるたびに未取得の customer+table 情報を追加取得
+  // orders が更新されるたびに未取得の顧客情報を追加取得
   useEffect(() => {
     const missingIds = orders
       .map((o) => o.customerId)
-      .filter((id) => !customerTableMapRef.current.has(id));
+      .filter((id) => !customerInfoMapRef.current.has(id));
     if (missingIds.length === 0) return;
     let cancelled = false;
     (async () => {
-      const newData = await fetchCustomerTableInfo(missingIds);
+      const newData = await fetchCustomerInfo(missingIds);
       if (cancelled) return;
-      customerTableMapRef.current = new Map([...customerTableMapRef.current, ...newData]);
-      setCustomerTableMap(new Map(customerTableMapRef.current));
+      customerInfoMapRef.current = new Map([...customerInfoMapRef.current, ...newData]);
+      setCustomerInfoMap(new Map(customerInfoMapRef.current));
     })();
     return () => { cancelled = true; };
   }, [orders]);
@@ -422,7 +412,7 @@ function NewOrdersView({
           <ActiveOrderCard
             key={order.id}
             order={order}
-            tableNumber={customerTableMap.get(order.customerId)?.tableNumber ?? "?"}
+            tableNumber={tableNumberMap.get(customerInfoMap.get(order.customerId)?.tableId ?? "") ?? "?"}
             now={now}
             onToggle={toggleCheck}
             onComplete={completeOrder}
@@ -728,10 +718,20 @@ function HistoryView({
   onError: (msg: string | null) => void;
 }) {
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
-  const [customerTableMap, setCustomerTableMap] = useState<Map<string, CustomerTableInfo>>(new Map());
+  const [customerInfoMap, setCustomerInfoMap] = useState<Map<string, CustomerInfo>>(new Map());
+  const [tableNumberMap, setTableNumberMap] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [dateSearch, setDateSearch] = useState<string>(todayISO());
   const [tableFilter, setTableFilter] = useState<string | null>(null);
+
+  // tables コレクションをリアルタイム購読して tableId→tableNumber マップを維持
+  useEffect(() => {
+    return onSnapshot(collection(db, "tables"), (snap) => {
+      const map = new Map<string, string>();
+      for (const d of snap.docs) map.set(d.id, d.data().tableNumber as string);
+      setTableNumberMap(map);
+    });
+  }, []);
 
   const revertOrder = useCallback(
     async (order: OrderWithItems) => {
@@ -782,9 +782,9 @@ function HistoryView({
           })
         );
         const ids = [...new Set(orderDocs.map((o) => o.customerId))];
-        const ctMap = await fetchCustomerTableInfo(ids);
+        const ctMap = await fetchCustomerInfo(ids);
         if (cancelled || current !== gen) return;
-        setCustomerTableMap(ctMap);
+        setCustomerInfoMap(ctMap);
         setOrders(withItems);
         setLoading(false);
       },
@@ -795,19 +795,25 @@ function HistoryView({
     return () => { cancelled = true; unsub(); };
   }, [dateSearch, onError]);
 
+  const getTableNumber = useCallback(
+    (customerId: string) =>
+      tableNumberMap.get(customerInfoMap.get(customerId)?.tableId ?? "") ?? "",
+    [customerInfoMap, tableNumberMap]
+  );
+
   const availableTables = useMemo(
     () =>
-      [...new Set(orders.map((o) => customerTableMap.get(o.customerId)?.tableNumber ?? "").filter(Boolean))]
+      [...new Set(orders.map((o) => getTableNumber(o.customerId)).filter(Boolean))]
         .sort((a, b) => a.localeCompare(b, "ja")),
-    [orders, customerTableMap]
+    [orders, getTableNumber]
   );
 
   const filteredOrders = useMemo(
     () =>
       tableFilter !== null
-        ? orders.filter((o) => customerTableMap.get(o.customerId)?.tableNumber === tableFilter)
+        ? orders.filter((o) => getTableNumber(o.customerId) === tableFilter)
         : orders,
-    [orders, tableFilter, customerTableMap]
+    [orders, tableFilter, getTableNumber]
   );
 
   return (
@@ -859,7 +865,7 @@ function HistoryView({
             <HistoryOrderCard
               key={order.id}
               order={order}
-              tableNumber={customerTableMap.get(order.customerId)?.tableNumber ?? "?"}
+              tableNumber={getTableNumber(order.customerId) || "?"}
               onRevert={revertOrder}
             />
           ))}
