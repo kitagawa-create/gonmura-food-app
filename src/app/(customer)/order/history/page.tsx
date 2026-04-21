@@ -6,7 +6,7 @@ import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
 import type { OrderWithItems } from "@/types";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
-import { BackButton } from "@/components/ui/BackButton";
+import { CustomerPageHeader } from "@/components/customer/CustomerPageHeader";
 import { comboLineTotal, normalizeOrder, normalizeOrderItem } from "@/lib/order-utils";
 
 export default function OrderHistoryPage() {
@@ -50,12 +50,7 @@ export default function OrderHistoryPage() {
 
   return (
     <div className="min-h-screen bg-[color:var(--color-bg-base)]">
-      <header className="sticky top-0 z-10 bg-[color:var(--color-bg-base)] border-b border-[color:var(--color-border)]">
-        <div className="flex items-center gap-3 px-4 sm:px-6 py-3">
-          <BackButton href="/menu" label="メニューに戻る" size="sm" />
-          <h1 className="text-base font-bold text-[color:var(--color-text-primary)]">注文履歴</h1>
-        </div>
-      </header>
+      <CustomerPageHeader title="注文履歴" />
 
       <main className="px-4 sm:px-6 lg:px-8 py-5 sm:py-6 pb-8">
         {!customerId || orders.length === 0 ? (

@@ -6,7 +6,7 @@ import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
 import type { OrderWithItems } from "@/types";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
-import { BackButton } from "@/components/ui/BackButton";
+import { CustomerPageHeader } from "@/components/customer/CustomerPageHeader";
 import { normalizeOrder, normalizeOrderItem, comboLineHash, comboLineTotal } from "@/lib/order-utils";
 import Link from "next/link";
 
@@ -64,11 +64,13 @@ export default function BillPage() {
 
   if (orders.length === 0) {
     return (
-      <div className="relative min-h-screen bg-[color:var(--color-bg-base)] flex flex-col items-center justify-center px-4">
-        <BackButton href="/menu" label="メニューに戻る" size="sm" className="absolute top-3 left-3" />
-        <p className="text-[color:var(--color-text-muted)] text-lg">
-          未精算の注文はありません
-        </p>
+      <div className="min-h-screen bg-[color:var(--color-bg-base)] flex flex-col">
+        <CustomerPageHeader title="お会計" />
+        <div className="flex-1 flex items-center justify-center px-4">
+          <p className="text-[color:var(--color-text-muted)] text-lg">
+            未精算の注文はありません
+          </p>
+        </div>
       </div>
     );
   }
@@ -92,9 +94,9 @@ export default function BillPage() {
   const subtotal = totalAmount - tax;
 
   return (
-    <div className="relative min-h-screen bg-[color:var(--color-bg-base)] p-4 flex flex-col">
-      <BackButton href="/menu" label="メニューに戻る" size="sm" className="absolute top-3 left-3 z-10" />
-      <div className="flex-1 flex items-center justify-center">
+    <div className="min-h-screen bg-[color:var(--color-bg-base)] flex flex-col">
+      <CustomerPageHeader title="お会計" />
+      <div className="flex-1 flex items-center justify-center p-4">
         {/* レシート: 外側 padding 撤去、各セクションが px-6 + 全幅 dashed divider */}
         <div className="w-full max-w-sm md:max-w-md lg:max-w-lg bg-[color:var(--color-bg-card)] rounded-2xl border border-[color:var(--color-border)] overflow-hidden">
           <div className="text-center px-6 pt-6 pb-4">
