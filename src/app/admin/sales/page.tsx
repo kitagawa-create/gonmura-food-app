@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PageLoader } from "@/components/ui/PageLoader";
 import {
@@ -61,9 +61,21 @@ function BarChart({
   height?: number;
 }) {
   const [hoverKey, setHoverKey] = useState<string | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [W, setW] = useState(800);
+
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver(() => {
+      const w = el.clientWidth;
+      if (w > 0) setW(w);
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
 
   const padL = 58, padR = 12, padT = 20, padB = 28;
-  const W = 800;
   const innerW = W - padL - padR;
   const innerH = height - padT - padB;
   const n = buckets.length;
@@ -87,6 +99,7 @@ function BarChart({
   return (
     <div className="relative select-none">
       <svg
+        ref={svgRef}
         viewBox={`0 0 ${W} ${height}`}
         preserveAspectRatio="none"
         className="w-full"
