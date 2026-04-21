@@ -482,7 +482,7 @@ export default function MenuPage() {
           >
             <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
               {/* 画像: モバイルは上段フル幅、md+は左列2/5 */}
-              <div className="shrink-0 md:w-2/5 bg-[color:var(--color-bg-subtle)]">
+              <div className="shrink-0 md:w-2/5 bg-[color:var(--color-bg-subtle)] max-h-[25dvh] md:max-h-none overflow-hidden">
                 <div className="relative w-full overflow-hidden" style={{ paddingTop: "75%" }}>
                   <div className="absolute inset-0">
                     {selectedMenu.imageUrl ? (
