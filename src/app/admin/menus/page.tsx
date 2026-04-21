@@ -376,7 +376,7 @@ export default function AdminMenusPage() {
                 <button
                   onClick={() => { setPendingAction("hidden"); setBulkConfirmOpen(true); }}
                   disabled={selectedIds.size === 0}
-                  className="rounded-xl border border-[color:var(--color-border)] px-3 py-2 text-sm text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="rounded-xl border border-[color:var(--color-accent-warn)]/40 px-3 py-2 text-sm text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   非公開
                 </button>
@@ -472,6 +472,7 @@ export default function AdminMenusPage() {
           ).map(({ category, items }) => {
             const fieldName: "sortOrder" | "sortOrderFeatured" =
               category?.id === osusumeId ? "sortOrderFeatured" : "sortOrder";
+            const movingInThisSection = movingMenuId !== null && items.some((item) => item.id === movingMenuId);
             return (
             <section key={category?.id ?? "__uncategorized__"}>
               {activeTab === "all" && (
@@ -485,10 +486,10 @@ export default function AdminMenusPage() {
                 </div>
               )}
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                {items.map((m) => {
+                {items.map((m, menuIdx) => {
                   const isDragging = draggingMenuId === m.id;
                   const isMovingThis = movingMenuId === m.id;
-                  const isMoveTarget = role === "owner" && movingMenuId !== null && movingMenuId !== m.id;
+                  const isMoveTarget = role === "owner" && movingInThisSection && movingMenuId !== m.id;
                   const isSelected = selectedIds.has(m.id);
                   const longPressRef = { current: null as ReturnType<typeof setTimeout> | null };
                   return (
@@ -530,6 +531,7 @@ export default function AdminMenusPage() {
                         }
                       }}
                       onClick={() => {
+                        if (movingMenuId !== null && !movingInThisSection) { setMovingMenuId(null); return; }
                         if (isMoveTarget) { handleTapMoveMenu(items, m.id, fieldName); return; }
                         toggleSelect(m.id);
                       }}
@@ -593,6 +595,9 @@ export default function AdminMenusPage() {
                             {m.categoryIds
                               .map((id) => categoryMap.get(id)?.name ?? "(不明)")
                               .join(", ") || "(カテゴリ未設定)"}
+                          </p>
+                          <p className="mt-0.5 text-[10px] text-[color:var(--color-text-muted)]/60">
+                            表示順 {menuIdx + 1}
                           </p>
                           {m.description && (
                             <p className="mt-1 line-clamp-2 text-xs text-[color:var(--color-text-muted)]">

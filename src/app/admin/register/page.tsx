@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Timestamp,
   collection,
@@ -11,15 +11,11 @@ import {
   onSnapshot,
   orderBy,
   query,
-  serverTimestamp,
   where,
-  writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
-import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { PageLoader } from "@/components/ui/PageLoader";
-import { useToast } from "@/components/ui/Snackbar";
 import type { OrderWithItems } from "@/types";
 import { comboLineTotal, flattenForReceipt, normalizeOrder, normalizeOrderItem } from "@/lib/order-utils";
 import { DatePicker } from "@/components/admin/DatePicker";
@@ -97,9 +93,6 @@ function mergeItems(orders: OrderWithItems[]) {
 }
 
 export default function AdminRegisterPage() {
-  const { show: toast } = useToast();
-
-  const [unpaidOrders, setUnpaidOrders] = useState<OrderWithItems[]>([]);
   const [paidOrders, setPaidOrders] = useState<OrderWithItems[]>([]);
   const [customerInfoMap, setCustomerInfoMap] = useState<Map<string, CustomerInfo>>(new Map());
   const customerInfoMapRef = useRef<Map<string, CustomerInfo>>(new Map());
@@ -107,10 +100,6 @@ export default function AdminRegisterPage() {
 
   const [ordersLoaded, setOrdersLoaded] = useState(false);
   const [dateFilter, setDateFilter] = useState(todayISO());
-
-  const [payTarget, setPayTarget] = useState<TableBill | null>(null);
-  const [processing, setProcessing] = useState<string | null>(null);
-  const [payError, setPayError] = useState<string | null>(null);
 
   useEffect(() => {
     return onSnapshot(collection(db, "tables"), (snap) => {
@@ -121,13 +110,9 @@ export default function AdminRegisterPage() {
   }, []);
 
   useEffect(() => {
-    const missingIds = [
-      ...new Set([
-        ...unpaidOrders.map((o) => o.customerId),
-        ...paidOrders.map((o) => o.customerId),
-      ]),
-    ].filter((id) => !customerInfoMapRef.current.has(id));
-
+    const missingIds = [...new Set(paidOrders.map((o) => o.customerId))].filter(
+      (id) => !customerInfoMapRef.current.has(id)
+    );
     if (missingIds.length === 0) return;
     let cancelled = false;
     (async () => {
@@ -137,39 +122,7 @@ export default function AdminRegisterPage() {
       setCustomerInfoMap(new Map(customerInfoMapRef.current));
     })();
     return () => { cancelled = true; };
-  }, [unpaidOrders, paidOrders]);
-
-  useEffect(() => {
-    let cancelled = false;
-    let gen = 0;
-    const unsub = onSnapshot(
-      query(collectionGroup(db, "orders"), where("status", "in", ["pending", "completed"])),
-      async (snap) => {
-        const current = ++gen;
-        const orderDocs = snap.docs
-          .filter((d) => d.ref.parent.parent !== null)
-          .map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
-        try {
-          const withItems = await Promise.all(
-            orderDocs.map(async (order) => {
-              const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.id)));
-              return { ...order, items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)) };
-            })
-          );
-          if (cancelled || current !== gen) return;
-          setUnpaidOrders(withItems);
-        } catch (e) {
-          console.error("[register] items fetch failed:", e);
-          if (cancelled || current !== gen) return;
-          setUnpaidOrders(orderDocs.map((o) => ({ ...o, items: [] })));
-        } finally {
-          if (!cancelled && current === gen) setOrdersLoaded(true);
-        }
-      },
-      () => { if (!cancelled) { setUnpaidOrders([]); setOrdersLoaded(true); } }
-    );
-    return () => { cancelled = true; unsub(); };
-  }, []);
+  }, [paidOrders]);
 
   useEffect(() => {
     const start = new Date(`${dateFilter}T00:00:00`);
@@ -197,129 +150,29 @@ export default function AdminRegisterPage() {
         );
         if (cancelled || current !== gen) return;
         setPaidOrders(withItems);
-      }
+        setOrdersLoaded(true);
+      },
+      () => { if (!cancelled) { setPaidOrders([]); setOrdersLoaded(true); } }
     );
     return () => { cancelled = true; unsub(); };
   }, [dateFilter]);
 
-  const unpaidBills = useMemo(
-    () => groupByCustomer(unpaidOrders, customerInfoMap, tableNumberMap),
-    [unpaidOrders, customerInfoMap, tableNumberMap]
-  );
   const paidBills = useMemo(
     () => groupByCustomer(paidOrders, customerInfoMap, tableNumberMap),
     [paidOrders, customerInfoMap, tableNumberMap]
   );
-
-  const confirmPay = useCallback(async () => {
-    if (!payTarget || processing !== null) return;
-    setProcessing(payTarget.tableNumber);
-    setPayError(null);
-    try {
-      const batch = writeBatch(db);
-      for (const o of payTarget.orders) {
-        batch.update(doc(db, "customers", o.customerId, "orders", o.id), { status: "paid", updatedAt: serverTimestamp() });
-      }
-      await batch.commit();
-      const paidIds = new Set(payTarget.orders.map((o) => o.id));
-      setUnpaidOrders((prev) => prev.filter((o) => !paidIds.has(o.id)));
-      setPaidOrders((prev) => [...prev, ...payTarget.orders.map((o) => ({ ...o, status: "paid" as const }))]);
-      toast("精算しました");
-      setPayTarget(null);
-    } catch (e) {
-      setPayError(e instanceof Error ? e.message : "精算に失敗しました");
-    } finally {
-      setProcessing(null);
-    }
-  }, [payTarget, processing, toast]);
 
   if (!ordersLoaded) return <PageLoader />;
 
   return (
     <div className="w-full">
       <AdminPageHeader
-        title="レジ"
+        title="支払い履歴"
         rightSlot={
           <DatePicker value={dateFilter} onChange={setDateFilter} max={todayISO()} />
         }
       />
 
-      {payError && (
-        <p className="mb-4 rounded-lg bg-[color:var(--color-accent-warn)]/10 border border-[color:var(--color-accent-warn)]/30 p-3 text-sm text-[color:var(--color-accent-warn)]">
-          {payError}
-        </p>
-      )}
-
-      {/* 未精算の伝票 */}
-      {unpaidBills.length > 0 && (
-        <div className="mb-8">
-          <p className="text-xs font-semibold text-[color:var(--color-text-muted)] mb-3">
-            未精算 · {unpaidBills.length}件
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {unpaidBills.map((bill) => {
-              const allItems = mergeItems(bill.orders);
-              const tax = Math.floor((bill.totalAmount * 10) / 110);
-              const subtotal = bill.totalAmount - tax;
-              return (
-                <div
-                  key={bill.tableNumber}
-                  className="rounded-xl border border-[color:var(--color-accent-negi)]/40 bg-[color:var(--color-bg-card)] p-4 shadow-sm"
-                >
-                  <div className="flex items-start justify-between mb-2 gap-2">
-                    <div>
-                      <p className="text-lg font-bold text-[color:var(--color-text-primary)]">
-                        テーブル {bill.tableNumber}
-                      </p>
-                      <p className="text-xs text-[color:var(--color-text-muted)]">
-                        {bill.guestCount}名
-                        {bill.firstOrderAt && (
-                          <> · 入店{" "}
-                            <span className="font-medium">
-                              {new Intl.DateTimeFormat("ja-JP", { hour: "2-digit", minute: "2-digit" }).format(bill.firstOrderAt)}
-                            </span>
-                          </>
-                        )}
-                        <span className="ml-2">({bill.orders.length}件)</span>
-                      </p>
-                    </div>
-                    <span className="text-[11px] font-semibold text-[color:var(--color-accent-negi)] bg-[color:var(--color-accent-negi)]/15 rounded-full px-2 py-0.5 shrink-0">
-                      使用中
-                    </span>
-                  </div>
-
-                  <ul className="mb-2 space-y-1 border-t border-[color:var(--color-border)] pt-2">
-                    {allItems.map((item, i) => (
-                      <li key={i} className="flex justify-between text-sm">
-                        <span className="text-[color:var(--color-text-primary)]">{item.name} ×{item.quantity}</span>
-                        <span className="text-[color:var(--color-text-muted)]">¥{(item.price * item.quantity).toLocaleString()}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <div className="border-t border-[color:var(--color-border)] pt-2 mb-3 space-y-0.5 text-xs text-[color:var(--color-text-muted)]">
-                    <div className="flex justify-between"><span>小計</span><span>¥{subtotal.toLocaleString()}</span></div>
-                    <div className="flex justify-between"><span>消費税(10%)</span><span>¥{tax.toLocaleString()}</span></div>
-                    <div className="flex justify-between text-sm font-bold text-[color:var(--color-accent-char)] pt-1">
-                      <span>合計</span><span>¥{bill.totalAmount.toLocaleString()}</span>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => setPayTarget(bill)}
-                    disabled={processing !== null}
-                    className="w-full rounded-xl bg-[color:var(--color-accent-negi)] py-2 text-sm font-bold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
-                  >
-                    {processing === bill.tableNumber ? "処理中..." : "精算"}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* 精算済み */}
       <div>
         <p className="text-xs font-semibold text-[color:var(--color-text-muted)] mb-3">
           精算済み · {paidBills.length}件
@@ -380,17 +233,6 @@ export default function AdminRegisterPage() {
           </div>
         )}
       </div>
-
-      <ConfirmDialog
-        open={payTarget !== null}
-        title={payTarget ? `テーブル ${payTarget.tableNumber} の精算` : ""}
-        message={`合計 ¥${payTarget?.totalAmount.toLocaleString()} の精算を完了しますか？`}
-        confirmLabel="精算"
-        confirmColor="green"
-        onConfirm={confirmPay}
-        onCancel={() => setPayTarget(null)}
-        loading={processing !== null}
-      />
     </div>
   );
 }

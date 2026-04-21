@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
-import { collectionGroup, query, where, getDocs } from "firebase/firestore";
+import { collectionGroup, doc, getDocs, query, serverTimestamp, where, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
 import type { OrderWithItems } from "@/types";
@@ -13,8 +13,9 @@ import Link from "next/link";
 export default function BillPage() {
   const { tableNumber, customerId } = useCart();
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
-  // customerId が無いなら fetch しないので loading=false で開始
   const [loading, setLoading] = useState(() => customerId !== null);
+  const [paying, setPaying] = useState(false);
+  const [payDone, setPayDone] = useState(false);
 
   useEffect(() => {
     if (!customerId) return;
@@ -41,6 +42,24 @@ export default function BillPage() {
     }
     fetchOrders();
   }, [customerId]);
+
+  async function handlePay() {
+    if (!customerId || paying || orders.length === 0) return;
+    setPaying(true);
+    try {
+      const batch = writeBatch(db);
+      for (const order of orders) {
+        batch.update(doc(db, "customers", customerId, "orders", order.id), {
+          status: "paid",
+          updatedAt: serverTimestamp(),
+        });
+      }
+      await batch.commit();
+      setPayDone(true);
+    } finally {
+      setPaying(false);
+    }
+  }
 
   if (!customerId) {
     return (
@@ -98,7 +117,6 @@ export default function BillPage() {
       <CustomerPageHeader title="お会計" />
       <div className="flex-1 overflow-y-auto">
         <div className="min-h-full flex items-center justify-center p-4">
-        {/* レシート: 外側 padding 撤去、各セクションが px-6 + 全幅 dashed divider */}
         <div className="w-full max-w-sm md:max-w-md lg:max-w-lg bg-[color:var(--color-bg-card)] rounded-2xl border border-[color:var(--color-border)] overflow-hidden">
           <div className="text-center px-6 pt-6 pb-4">
             <h1 className="text-3xl font-bold text-[color:var(--color-text-primary)]">
@@ -165,13 +183,25 @@ export default function BillPage() {
             </span>
           </div>
 
-          <div className="px-6 py-5 border-t border-dashed border-[color:var(--color-border)] text-center space-y-1">
-            <p className="text-sm font-bold text-[color:var(--color-text-primary)]">
-              番号札をお持ちの上、レジまでお越しください
-            </p>
-            <p className="text-xs text-[color:var(--color-text-muted)]">
-              ご利用ありがとうございました
-            </p>
+          <div className="px-6 py-5 border-t border-dashed border-[color:var(--color-border)] text-center space-y-3">
+            {payDone ? (
+              <>
+                <p className="text-sm font-bold text-[color:var(--color-accent-negi)]">
+                  お支払いが完了しました
+                </p>
+                <p className="text-xs text-[color:var(--color-text-muted)]">
+                  ご利用ありがとうございました
+                </p>
+              </>
+            ) : (
+              <button
+                onClick={handlePay}
+                disabled={paying}
+                className="w-full rounded-xl bg-[color:var(--color-accent-char)] py-3 text-base font-bold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+              >
+                {paying ? "処理中..." : "支払い完了"}
+              </button>
+            )}
           </div>
 
         </div>

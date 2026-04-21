@@ -40,6 +40,9 @@ export default function MenuPage() {
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
   const [showGuestCountDialog, setShowGuestCountDialog] = useState(false);
   const [guestCountInput, setGuestCountInput] = useState<number>(1);
+  const [showTableSelectDialog, setShowTableSelectDialog] = useState(false);
+  const [dialogTables, setDialogTables] = useState<{ id: string; tableNumber: string }[]>([]);
+  const [dialogTablesLoading, setDialogTablesLoading] = useState(false);
   const { addItem, updateItem, totalItems, tableNumber, setTableNumber, clearCart, resetSession, guestCount, setGuestCount, customerId } =
     useCart();
   const router = useRouter();
@@ -201,6 +204,17 @@ export default function MenuPage() {
 
   const activeCategoryName = categories.find((c) => c.id === activeCategory)?.name;
 
+  const categoriesWithMenus = useMemo(
+    () => categories.filter((cat) => menus.some((m) => m.categoryIds.includes(cat.id))),
+    [categories, menus]
+  );
+
+  useEffect(() => {
+    if (categoriesWithMenus.length === 0) return;
+    if (!activeCategory || categoriesWithMenus.some((c) => c.id === activeCategory)) return;
+    setActiveCategory(categoriesWithMenus[0].id);
+  }, [categoriesWithMenus, activeCategory]);
+
   // 「トッピング」カテゴリの商品
   const toppings = useMemo(
     () =>
@@ -256,17 +270,17 @@ export default function MenuPage() {
 
   const swipeToCategory = useCallback(
     (dx: number, dy: number) => {
-      if (categories.length === 0 || !activeCategory) return;
+      if (categoriesWithMenus.length === 0 || !activeCategory) return;
       if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy)) return;
-      const idx = categories.findIndex((c) => c.id === activeCategory);
+      const idx = categoriesWithMenus.findIndex((c) => c.id === activeCategory);
       if (idx < 0) return;
-      if (dx < 0 && idx < categories.length - 1) {
-        setActiveCategory(categories[idx + 1].id);
+      if (dx < 0 && idx < categoriesWithMenus.length - 1) {
+        setActiveCategory(categoriesWithMenus[idx + 1].id);
       } else if (dx > 0 && idx > 0) {
-        setActiveCategory(categories[idx - 1].id);
+        setActiveCategory(categoriesWithMenus[idx - 1].id);
       }
     },
-    [categories, activeCategory]
+    [categoriesWithMenus, activeCategory]
   );
 
   // タッチ (スマホ / タブレット)
@@ -344,7 +358,7 @@ export default function MenuPage() {
         </div>
         {/* カテゴリタブ */}
         <div className="max-w-screen-2xl mx-auto px-2 sm:px-4 lg:px-6 flex overflow-x-auto no-scrollbar">
-          {categories.map((category) => (
+          {categoriesWithMenus.map((category) => (
             <button
               key={category.id}
               onClick={() => setActiveCategory(category.id)}
@@ -718,7 +732,7 @@ export default function MenuPage() {
               onClick={() => {
                 setGuestCount(guestCountInput);
                 setShowGuestCountDialog(false);
-                const osusume = categories.find((c) => c.name === "おすすめ") ?? categories[0];
+                const osusume = categoriesWithMenus.find((c) => c.name === "おすすめ") ?? categoriesWithMenus[0];
                 if (osusume) setActiveCategory(osusume.id);
               }}
               className="w-full rounded-xl bg-[color:var(--color-accent-char)] py-3 text-base font-bold text-white hover:opacity-90 transition-opacity"
