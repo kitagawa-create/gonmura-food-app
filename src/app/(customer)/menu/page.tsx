@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, collectionGroup, query, where, getDocs, orderBy, onSnapshot, doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, collectionGroup, query, where, getDocs, orderBy, onSnapshot, doc, getDoc, updateDoc, writeBatch, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Menu, Category, CartItemTopping, CartItem } from "@/types";
 import { normalizeMenu } from "@/lib/order-utils";
@@ -67,7 +67,7 @@ export default function MenuPage() {
     }
   }, [tableNumber, router]);
 
-  // 管理者がテーブルをリセット or 削除したらリアルタイムで /setup へ
+  // 管理者がテーブルをリセット/削除したら /setup へ。tableNumber が変わったら即反映。
   useEffect(() => {
     const tableId = typeof window !== "undefined" ? localStorage.getItem(TABLE_ID_KEY) : null;
     if (!tableId) return;
@@ -76,9 +76,13 @@ export default function MenuPage() {
         localStorage.removeItem(TABLE_ID_KEY);
         setTableNumber(null);
         router.replace("/setup");
+        return;
       }
+      const newNum = snap.data().tableNumber as string;
+      const currentNum = (() => { try { const r = localStorage.getItem(TABLE_KEY); return r ? JSON.parse(r) : null; } catch { return null; } })();
+      if (newNum && newNum !== currentNum) moveToTable(newNum);
     });
-  }, [router, setTableNumber]);
+  }, [router, setTableNumber, moveToTable]);
 
   useEffect(() => {
     setOrdersLoaded(false);
@@ -722,12 +726,10 @@ export default function MenuPage() {
                 setSelectedNewTableId("");
                 setLoadingAvailableTables(true);
                 setShowTableChange(true);
-                getDocs(collection(db, "tables"))
+                getDocs(query(collection(db, "tables"), where("deviceId", "==", "")))
                   .then((snap) => {
-                    const currentTableId = localStorage.getItem(TABLE_ID_KEY);
                     setAvailableTables(
                       snap.docs
-                        .filter((d) => d.id !== currentTableId)
                         .map((d) => ({ id: d.id, tableNumber: d.data().tableNumber as string }))
                         .sort((a, b) => a.tableNumber.localeCompare(b.tableNumber, "ja", { numeric: true }))
                     );
@@ -835,8 +837,11 @@ export default function MenuPage() {
                     return;
                   }
                   try {
-                    await updateDoc(doc(db, "tables", currentTableId), { tableNumber: newTable.tableNumber, updatedAt: serverTimestamp() });
-                    updateDoc(doc(db, "tables", newTable.id), { tableNumber: tableNumber, updatedAt: serverTimestamp() }).catch(() => {});
+                    const batch = writeBatch(db);
+                    const ts = serverTimestamp();
+                    batch.update(doc(db, "tables", currentTableId), { tableNumber: newTable.tableNumber, updatedAt: ts });
+                    batch.update(doc(db, "tables", newTable.id), { tableNumber: tableNumber, updatedAt: ts });
+                    await batch.commit();
                     moveToTable(newTable.tableNumber);
                   } catch {
                     setTableChangeError("変更に失敗しました。再試行してください");
