@@ -480,23 +480,27 @@ export default function MenuPage() {
             className="w-full max-w-lg md:max-w-xl lg:max-w-2xl max-h-[100dvh] md:max-h-[90dvh] flex flex-col bg-[color:var(--color-bg-card)] rounded-t-2xl md:rounded-2xl overflow-hidden animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="overflow-y-auto">
-              <div className="shrink-0 relative w-full overflow-hidden bg-[color:var(--color-bg-subtle)]" style={{ paddingTop: "75%" }}>
-                <div className="absolute inset-0">
-                  {selectedMenu.imageUrl ? (
-                    <FadeImage
-                      src={selectedMenu.imageUrl}
-                      alt={selectedMenu.name}
-                      className="w-full h-full"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <span className="text-sm text-[color:var(--color-text-muted)]">画像なし</span>
-                    </div>
-                  )}
+            <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
+              {/* 画像: モバイルは上段フル幅、md+は左列2/5 */}
+              <div className="shrink-0 md:w-2/5 bg-[color:var(--color-bg-subtle)]">
+                <div className="relative w-full overflow-hidden" style={{ paddingTop: "75%" }}>
+                  <div className="absolute inset-0">
+                    {selectedMenu.imageUrl ? (
+                      <FadeImage
+                        src={selectedMenu.imageUrl}
+                        alt={selectedMenu.name}
+                        className="w-full h-full"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <span className="text-sm text-[color:var(--color-text-muted)]">画像なし</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="p-5 space-y-5">
+              {/* コンテンツ: md+は独立スクロール */}
+              <div className="flex-1 overflow-y-auto p-5 space-y-5">
                 <div>
                   <h2 className="text-xl font-bold text-[color:var(--color-text-primary)]">
                     {selectedMenu.name}
