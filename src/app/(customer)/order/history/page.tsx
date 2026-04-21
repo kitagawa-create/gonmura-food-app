@@ -49,10 +49,10 @@ export default function OrderHistoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[color:var(--color-bg-base)]">
+    <div className="h-[100dvh] flex flex-col bg-[color:var(--color-bg-base)]">
       <CustomerPageHeader title="注文履歴" />
 
-      <main className="px-4 sm:px-6 lg:px-8 py-5 sm:py-6 pb-8">
+      <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-6 pb-8">
         {!customerId || orders.length === 0 ? (
           <p className="text-[color:var(--color-text-muted)] text-center py-12">
             まだ注文がありません
