@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, collectionGroup, query, where, getDocs, orderBy, onSnapshot, doc } from "firebase/firestore";
+import { collection, collectionGroup, query, where, getDocs, orderBy, onSnapshot, doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Menu, Category, CartItemTopping, CartItem } from "@/types";
 import { normalizeMenu } from "@/lib/order-utils";
@@ -46,7 +46,8 @@ export default function MenuPage() {
   const [dialogTablesLoading, setDialogTablesLoading] = useState(false);
   const [selectedDialogTableId, setSelectedDialogTableId] = useState<string>("");
   const [showTableChangePinDialog, setShowTableChangePinDialog] = useState(false);
-  const { addItem, updateItem, totalItems, tableNumber, setTableNumber, clearCart, resetSession, guestCount, setGuestCount, customerId } =
+  const [isTableChanging, setIsTableChanging] = useState(false);
+  const { addItem, updateItem, totalItems, tableNumber, setTableNumber, moveToTable, clearCart, resetSession, guestCount, setGuestCount, customerId } =
     useCart();
   const router = useRouter();
   const prevHasUnpaidRef = useRef<boolean | undefined>(undefined);
@@ -740,14 +741,28 @@ export default function MenuPage() {
                 <button
                   type="button"
                   disabled={!selectedDialogTableId}
-                  onClick={() => {
+                  onClick={async () => {
                     const t = dialogTables.find((t) => t.id === selectedDialogTableId);
                     if (!t) return;
                     localStorage.setItem(TABLE_ID_KEY, t.id);
-                    setTableNumber(t.tableNumber);
-                    setShowTableSelectDialog(false);
-                    setGuestCountInput(1);
-                    setShowGuestCountDialog(true);
+                    if (isTableChanging) {
+                      moveToTable(t.tableNumber);
+                      if (customerId) {
+                        try {
+                          await updateDoc(doc(db, "customers", customerId), {
+                            tableId: t.id,
+                            updatedAt: serverTimestamp(),
+                          });
+                        } catch {}
+                      }
+                      setIsTableChanging(false);
+                      setShowTableSelectDialog(false);
+                    } else {
+                      setTableNumber(t.tableNumber);
+                      setShowTableSelectDialog(false);
+                      setGuestCountInput(1);
+                      setShowGuestCountDialog(true);
+                    }
                   }}
                   className="w-full bg-[color:var(--color-accent-char)] text-white py-4 rounded-xl text-lg font-bold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
                 >
@@ -763,8 +778,8 @@ export default function MenuPage() {
         open={showTableChangePinDialog}
         onSuccess={() => {
           setShowTableChangePinDialog(false);
-          localStorage.removeItem(TABLE_ID_KEY);
-          setTableNumber(null);
+          setIsTableChanging(true);
+          setShowTableSelectDialog(true);
         }}
         onCancel={() => setShowTableChangePinDialog(false)}
       />
