@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { collectionGroup, doc, getDocs, query, serverTimestamp, where, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
@@ -10,8 +11,12 @@ import { CustomerPageHeader } from "@/components/customer/CustomerPageHeader";
 import { normalizeOrder, normalizeOrderItem, comboLineHash, comboLineTotal } from "@/lib/order-utils";
 import Link from "next/link";
 
+const TABLE_ID_KEY = "gonmura-table-id";
+const TABLE_KEY = "gonmura-table";
+
 export default function BillPage() {
-  const { tableNumber, customerId } = useCart();
+  const { tableNumber, customerId, resetSession } = useCart();
+  const router = useRouter();
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(() => customerId !== null);
   const [paying, setPaying] = useState(false);
@@ -43,6 +48,12 @@ export default function BillPage() {
     fetchOrders();
   }, [customerId]);
 
+  useEffect(() => {
+    if (!payDone) return;
+    const timer = setTimeout(() => router.replace("/setup"), 5000);
+    return () => clearTimeout(timer);
+  }, [payDone, router]);
+
   async function handlePay() {
     if (!customerId || paying || orders.length === 0) return;
     setPaying(true);
@@ -55,6 +66,9 @@ export default function BillPage() {
         });
       }
       await batch.commit();
+      resetSession();
+      localStorage.removeItem(TABLE_ID_KEY);
+      localStorage.removeItem(TABLE_KEY);
       setPayDone(true);
     } finally {
       setPaying(false);
