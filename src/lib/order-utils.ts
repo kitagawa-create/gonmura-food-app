@@ -73,6 +73,7 @@ export function normalizeMenu(id: string, data: Record<string, unknown>): Menu {
     imageUrl: typeof data.imageUrl === "string" ? data.imageUrl : "",
     status,
     sortOrder: typeof data.sortOrder === "number" ? data.sortOrder : Number.MAX_SAFE_INTEGER,
+    sortOrderFeatured: typeof data.sortOrderFeatured === "number" ? data.sortOrderFeatured : Number.MAX_SAFE_INTEGER,
     createdAt: data.createdAt as Menu["createdAt"],
     updatedAt: data.updatedAt as Menu["updatedAt"],
   };

@@ -33,6 +33,8 @@ export type Menu = {
   status: MenuStatus;
   /** 表示順（整数、小さいほど上）。Firestore に未設定のドキュメントは Number.MAX_SAFE_INTEGER に正規化 */
   sortOrder: number;
+  /** おすすめカテゴリ内での表示順。sortOrder とは独立して管理 */
+  sortOrderFeatured: number;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };

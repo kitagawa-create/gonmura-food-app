@@ -186,12 +186,17 @@ export default function MenuPage() {
   }, [tableNumber, guestCount, ordersLoaded, hasUnpaidOrders]);
 
   const filteredMenus = activeCategory
-    ? menus
-        .filter((menu) => menu.categoryIds.includes(activeCategory))
-        .sort((a, b) => {
-          if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
-          return a.name.localeCompare(b.name, "ja");
-        })
+    ? (() => {
+        const isOsusume = categories.find((c) => c.id === activeCategory)?.name === "おすすめ";
+        return menus
+          .filter((menu) => menu.categoryIds.includes(activeCategory))
+          .sort((a, b) => {
+            const aOrder = isOsusume ? a.sortOrderFeatured : a.sortOrder;
+            const bOrder = isOsusume ? b.sortOrderFeatured : b.sortOrder;
+            if (aOrder !== bOrder) return aOrder - bOrder;
+            return a.name.localeCompare(b.name, "ja");
+          });
+      })()
     : [];
 
   const activeCategoryName = categories.find((c) => c.id === activeCategory)?.name;
