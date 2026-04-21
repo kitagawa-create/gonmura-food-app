@@ -184,7 +184,7 @@ export default function AdminTablesPage() {
                   </p>
                   {unclaimed(table) && (
                     <span className="shrink-0 rounded-full bg-[color:var(--color-accent-negi)]/15 px-2 py-0.5 text-xs text-[color:var(--color-accent-negi)] font-medium">
-                      未接続
+                      端末と未接続
                     </span>
                   )}
                 </div>
