@@ -598,8 +598,8 @@ export default function AdminMenusPage() {
                         </div>
                       </div>
 
-                      {/* ドラッグハンドル + 表示順（左下） */}
-                      <div className="absolute left-3 bottom-3 z-10 pointer-events-none flex flex-col items-center gap-0.5">
+                      {/* ドラッグハンドル + 表示順（チェックボックス下） */}
+                      <div className="absolute left-3 top-10 z-10 pointer-events-none flex flex-col items-center gap-0.5">
                         {role === "owner" && (
                           <svg className="w-4 h-4 shrink-0 text-[color:var(--color-text-muted)]/50" viewBox="0 0 16 16" fill="currentColor">
                             <circle cx="5" cy="4" r="1.5"/><circle cx="11" cy="4" r="1.5"/>
@@ -630,7 +630,7 @@ export default function AdminMenusPage() {
                         </button>
                       )}
 
-                      <div className="flex gap-3 pl-7 pb-10">
+                      <div className="flex gap-3 pl-7 pb-4">
                         {m.imageUrl && (
                           <FadeImage
                             src={m.imageUrl}
