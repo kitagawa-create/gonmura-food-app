@@ -148,7 +148,7 @@ export default function SetupPage() {
 
   return (
     <div className="min-h-screen bg-[color:var(--color-bg-base)] flex items-center justify-center p-4">
-      <div className="w-full max-w-lg bg-[color:var(--color-bg-card)] rounded-2xl border border-[color:var(--color-border)] p-8">
+      <div className="w-full max-w-sm bg-[color:var(--color-bg-card)] rounded-2xl border border-[color:var(--color-border)] p-8">
         <h1 className="text-xl font-bold text-center text-[color:var(--color-text-primary)] mb-6">
           テーブルを選択
         </h1>
@@ -157,32 +157,32 @@ export default function SetupPage() {
             登録済みのテーブルがありません。<br />管理者にお問い合わせください。
           </p>
         ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-            {tables.map((t) => {
-              const isOccupied = occupiedTableIds.has(t.id);
-              return (
-                <button
-                  key={t.id}
-                  onClick={() => handleSelectTable(t)}
-                  className={`flex flex-col items-center justify-center rounded-xl border-2 p-4 aspect-square transition-all ${
-                    isOccupied
-                      ? "border-[color:var(--color-accent-warn)]/40 bg-[color:var(--color-accent-warn)]/5 hover:border-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10"
-                      : "border-[color:var(--color-border)] bg-[color:var(--color-bg-subtle)] hover:border-[color:var(--color-accent-char)] hover:bg-[color:var(--color-accent-char)]/5"
-                  }`}
-                >
-                  <span className="text-xl font-bold text-[color:var(--color-text-primary)]">
-                    {t.tableNumber}
-                  </span>
-                  <span className={`text-[10px] mt-1 font-semibold ${
-                    isOccupied
-                      ? "text-[color:var(--color-accent-warn)]"
-                      : "text-[color:var(--color-accent-negi)]"
-                  }`}>
-                    {isOccupied ? "使用中" : "空き"}
-                  </span>
-                </button>
-              );
-            })}
+          <div className="space-y-4">
+            <select
+              value={selectedTable?.id ?? ""}
+              onChange={(e) => {
+                setSelectedTable(tables.find((t) => t.id === e.target.value) ?? null);
+              }}
+              className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-base text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
+            >
+              <option value="">テーブルを選択してください</option>
+              {tables.map((t) => {
+                const isOccupied = occupiedTableIds.has(t.id);
+                return (
+                  <option key={t.id} value={t.id}>
+                    {t.tableNumber}番{isOccupied ? "（使用中）" : "（空き）"}
+                  </option>
+                );
+              })}
+            </select>
+            <button
+              type="button"
+              disabled={!selectedTable}
+              onClick={() => { if (selectedTable) { setGuestCountInput(1); setStep("guests"); } }}
+              className="w-full bg-[color:var(--color-accent-char)] text-white py-4 rounded-xl text-lg font-bold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              次へ
+            </button>
           </div>
         )}
       </div>

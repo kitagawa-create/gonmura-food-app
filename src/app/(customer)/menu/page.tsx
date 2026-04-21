@@ -43,6 +43,7 @@ export default function MenuPage() {
   const [showTableSelectDialog, setShowTableSelectDialog] = useState(false);
   const [dialogTables, setDialogTables] = useState<{ id: string; tableNumber: string }[]>([]);
   const [dialogTablesLoading, setDialogTablesLoading] = useState(false);
+  const [selectedDialogTableId, setSelectedDialogTableId] = useState<string>("");
   const { addItem, updateItem, totalItems, tableNumber, setTableNumber, clearCart, resetSession, guestCount, setGuestCount, customerId } =
     useCart();
   const router = useRouter();
@@ -189,7 +190,10 @@ export default function MenuPage() {
 
   // テーブル選択ダイアログが開いたらテーブル一覧をフェッチ
   useEffect(() => {
-    if (!showTableSelectDialog) return;
+    if (!showTableSelectDialog) {
+      setSelectedDialogTableId("");
+      return;
+    }
     setDialogTablesLoading(true);
     getDocs(query(collection(db, "tables"), orderBy("tableNumber")))
       .then((snap) => {
@@ -721,7 +725,7 @@ export default function MenuPage() {
       {showTableSelectDialog && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
           <div
-            className="w-full max-w-lg rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-8"
+            className="w-full max-w-sm rounded-2xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-8"
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="mb-6 text-xl font-bold text-center text-[color:var(--color-text-primary)]">
@@ -736,22 +740,33 @@ export default function MenuPage() {
                 テーブルが見つかりません
               </p>
             ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                {dialogTables.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => {
-                      localStorage.setItem(TABLE_ID_KEY, t.id);
-                      setTableNumber(t.tableNumber);
-                      setShowTableSelectDialog(false);
-                      setGuestCountInput(1);
-                      setShowGuestCountDialog(true);
-                    }}
-                    className="flex items-center justify-center rounded-xl border-2 border-[color:var(--color-border)] bg-[color:var(--color-bg-subtle)] p-4 aspect-square text-xl font-bold text-[color:var(--color-text-primary)] hover:border-[color:var(--color-accent-char)] hover:bg-[color:var(--color-accent-char)]/5 transition-all"
-                  >
-                    {t.tableNumber}
-                  </button>
-                ))}
+              <div className="space-y-4">
+                <select
+                  value={selectedDialogTableId}
+                  onChange={(e) => setSelectedDialogTableId(e.target.value)}
+                  className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-base text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
+                >
+                  <option value="">テーブルを選択してください</option>
+                  {dialogTables.map((t) => (
+                    <option key={t.id} value={t.id}>{t.tableNumber}番</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={!selectedDialogTableId}
+                  onClick={() => {
+                    const t = dialogTables.find((t) => t.id === selectedDialogTableId);
+                    if (!t) return;
+                    localStorage.setItem(TABLE_ID_KEY, t.id);
+                    setTableNumber(t.tableNumber);
+                    setShowTableSelectDialog(false);
+                    setGuestCountInput(1);
+                    setShowGuestCountDialog(true);
+                  }}
+                  className="w-full bg-[color:var(--color-accent-char)] text-white py-4 rounded-xl text-lg font-bold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  次へ
+                </button>
               </div>
             )}
           </div>
