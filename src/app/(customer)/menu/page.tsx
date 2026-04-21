@@ -495,20 +495,17 @@ export default function MenuPage() {
           onClick={closeModal}
         >
           <div
-            className="w-full max-w-lg md:max-w-xl lg:max-w-2xl max-h-[100dvh] md:max-h-[90dvh] flex flex-col bg-[color:var(--color-bg-card)] rounded-t-2xl md:rounded-2xl overflow-hidden animate-slide-up"
+            className="w-full max-w-lg md:max-w-2xl max-h-[100dvh] md:max-h-[90dvh] flex flex-col md:flex-row bg-[color:var(--color-bg-card)] rounded-t-2xl md:rounded-2xl overflow-hidden animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
-              {/* 画像: モバイルは上段フル幅、md+は左列2/5 */}
-              <div className="shrink-0 md:w-2/5 bg-[color:var(--color-bg-subtle)] max-h-[25dvh] md:max-h-none overflow-hidden">
-                <div className="relative w-full overflow-hidden" style={{ paddingTop: "75%" }}>
+            {/* 画像列 */}
+            <div className="relative shrink-0 bg-[color:var(--color-bg-subtle)] overflow-hidden md:w-2/5">
+              {/* モバイル: 4:3アスペクト・高さ上限あり */}
+              <div className="md:hidden max-h-[30dvh] overflow-hidden">
+                <div className="relative w-full" style={{ paddingTop: "75%" }}>
                   <div className="absolute inset-0">
                     {selectedMenu.imageUrl ? (
-                      <FadeImage
-                        src={selectedMenu.imageUrl}
-                        alt={selectedMenu.name}
-                        className="w-full h-full"
-                      />
+                      <FadeImage src={selectedMenu.imageUrl} alt={selectedMenu.name} className="w-full h-full" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <span className="text-sm text-[color:var(--color-text-muted)]">画像なし</span>
@@ -517,7 +514,20 @@ export default function MenuPage() {
                   </div>
                 </div>
               </div>
-              {/* コンテンツ: md+は独立スクロール */}
+              {/* PC: 左列全体に画像を充填 */}
+              <div className="hidden md:block absolute inset-0">
+                {selectedMenu.imageUrl ? (
+                  <FadeImage src={selectedMenu.imageUrl} alt={selectedMenu.name} className="w-full h-full" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <span className="text-sm text-[color:var(--color-text-muted)]">画像なし</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* コンテンツ + フッター */}
+            <div className="flex flex-col flex-1 min-h-0 min-w-0">
               <div className="flex-1 overflow-y-auto p-5 space-y-5">
                 <div>
                   <h2 className="text-xl font-bold text-[color:var(--color-text-primary)]">
@@ -646,62 +656,62 @@ export default function MenuPage() {
                     {selectedNote.length}/100
                   </p>
                 </div>
-
               </div>
-            </div>
 
-            <div className="border-t border-[color:var(--color-border)] p-4 flex gap-3 bg-[color:var(--color-bg-card)]">
-              <button
-                onClick={closeModal}
-                className="flex-1 py-3 rounded-xl border border-[color:var(--color-border)] text-[color:var(--color-text-primary)] font-medium hover:opacity-80 transition-opacity"
-              >
-                閉じる
-              </button>
-              <button
-                onClick={() => {
-                  if (!selectedMenu) return;
-                  if (isRamenFlow) {
-                    const toppings: CartItemTopping[] = extraLines.map((l) => ({
-                      menuId: l.menu.id,
-                      name: l.menu.name,
-                      price: l.menu.price,
-                      quantity: l.quantity,
-                    }));
-                    if (editingLineId) {
-                      updateItem(editingLineId, { quantity: 1, toppings, note: selectedNote.trim() });
+              {/* フッター */}
+              <div className="shrink-0 border-t border-[color:var(--color-border)] p-4 flex gap-3 bg-[color:var(--color-bg-card)]">
+                <button
+                  onClick={closeModal}
+                  className="flex-1 py-3 rounded-xl border border-[color:var(--color-border)] text-[color:var(--color-text-primary)] font-medium hover:opacity-80 transition-opacity"
+                >
+                  閉じる
+                </button>
+                <button
+                  onClick={() => {
+                    if (!selectedMenu) return;
+                    if (isRamenFlow) {
+                      const toppings: CartItemTopping[] = extraLines.map((l) => ({
+                        menuId: l.menu.id,
+                        name: l.menu.name,
+                        price: l.menu.price,
+                        quantity: l.quantity,
+                      }));
+                      if (editingLineId) {
+                        updateItem(editingLineId, { quantity: 1, toppings, note: selectedNote.trim() });
+                      } else {
+                        addItem(
+                          {
+                            menuId: selectedMenu.id,
+                            name: selectedMenu.name,
+                            price: selectedMenu.price,
+                            toppings,
+                            ...(selectedNote.trim() ? { note: selectedNote.trim() } : {}),
+                          },
+                          1
+                        );
+                      }
                     } else {
-                      addItem(
-                        {
-                          menuId: selectedMenu.id,
-                          name: selectedMenu.name,
-                          price: selectedMenu.price,
-                          toppings,
-                          ...(selectedNote.trim() ? { note: selectedNote.trim() } : {}),
-                        },
-                        1
-                      );
+                      if (editingLineId) {
+                        updateItem(editingLineId, { quantity: selectedQuantity, toppings: [], note: selectedNote.trim() });
+                      } else {
+                        addItem(
+                          {
+                            menuId: selectedMenu.id,
+                            name: selectedMenu.name,
+                            price: selectedMenu.price,
+                            ...(selectedNote.trim() ? { note: selectedNote.trim() } : {}),
+                          },
+                          selectedQuantity
+                        );
+                      }
                     }
-                  } else {
-                    if (editingLineId) {
-                      updateItem(editingLineId, { quantity: selectedQuantity, toppings: [], note: selectedNote.trim() });
-                    } else {
-                      addItem(
-                        {
-                          menuId: selectedMenu.id,
-                          name: selectedMenu.name,
-                          price: selectedMenu.price,
-                          ...(selectedNote.trim() ? { note: selectedNote.trim() } : {}),
-                        },
-                        selectedQuantity
-                      );
-                    }
-                  }
-                  closeModal();
-                }}
-                className="flex-[2] py-3 rounded-xl bg-[color:var(--color-accent-char)] text-white font-bold hover:opacity-90 transition-opacity"
-              >
-                {editingLineId ? `変更を保存 ¥${modalTotal.toLocaleString()}` : `カートに追加 ¥${modalTotal.toLocaleString()}`}
-              </button>
+                    closeModal();
+                  }}
+                  className="flex-[2] py-3 rounded-xl bg-[color:var(--color-accent-char)] text-white font-bold hover:opacity-90 transition-opacity"
+                >
+                  {editingLineId ? `変更を保存 ¥${modalTotal.toLocaleString()}` : `カートに追加 ¥${modalTotal.toLocaleString()}`}
+                </button>
+              </div>
             </div>
           </div>
         </div>
