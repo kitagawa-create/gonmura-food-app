@@ -23,6 +23,22 @@ import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { useToast } from "@/components/ui/Snackbar";
 import type { Category } from "@/types";
+import {
+  DndContext,
+  closestCenter,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 export default function AdminCategoriesPage() {
   const role = useAdminRole();
@@ -32,16 +48,16 @@ export default function AdminCategoriesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
-
-  // 並び替え状態 (DnD + 長押し→タップ移動)
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [savingOrder, setSavingOrder] = useState(false);
-  const [movingId, setMovingId] = useState<string | null>(null);
 
   // 削除確認ダイアログ
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  );
 
   useEffect(() => {
     if (role !== "owner") router.replace("/admin/orders");
@@ -157,38 +173,13 @@ export default function AdminCategoriesPage() {
     }
   }
 
-  function handleDrop(targetId: string) {
-    if (!draggingId || draggingId === targetId) {
-      setDraggingId(null);
-      setDragOverId(null);
-      return;
-    }
-    const fromIdx = categories.findIndex((c) => c.id === draggingId);
-    const toIdx = categories.findIndex((c) => c.id === targetId);
-    if (fromIdx < 0 || toIdx < 0) return;
-
-    const next = [...categories];
-    const [moved] = next.splice(fromIdx, 1);
-    next.splice(toIdx, 0, moved);
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIdx = categories.findIndex((c) => c.id === active.id);
+    const newIdx = categories.findIndex((c) => c.id === over.id);
+    const next = arrayMove(categories, oldIdx, newIdx);
     setCategories(next);
-    setDraggingId(null);
-    setDragOverId(null);
-    persistOrder(next);
-  }
-
-  function handleTapMove(targetId: string) {
-    if (!movingId || movingId === targetId) {
-      setMovingId(null);
-      return;
-    }
-    const fromIdx = categories.findIndex((c) => c.id === movingId);
-    const toIdx = categories.findIndex((c) => c.id === targetId);
-    if (fromIdx < 0 || toIdx < 0) return;
-    const next = [...categories];
-    const [moved] = next.splice(fromIdx, 1);
-    next.splice(toIdx, 0, moved);
-    setCategories(next);
-    setMovingId(null);
     persistOrder(next);
   }
 
@@ -221,33 +212,24 @@ export default function AdminCategoriesPage() {
       ) : (
         <>
           <p className="mb-2 text-xs text-[color:var(--color-text-muted)]">
-            {movingId ? "移動先をタップしてください" : "長押しで並び替え"}{savingOrder && " (保存中...)"}
+            ハンドルをドラッグして並び替え{savingOrder && " (保存中...)"}
           </p>
-          <ul className="space-y-2">
-            {categories.map((c, i) => (
-              <CategoryRow
-                key={c.id}
-                index={i}
-                category={c}
-                isDragging={draggingId === c.id}
-                isDragOver={dragOverId === c.id && draggingId !== c.id}
-                isMoving={movingId === c.id}
-                isMoveTarget={movingId !== null && movingId !== c.id}
-                onDragStart={() => setDraggingId(c.id)}
-                onDragEnter={() => setDragOverId(c.id)}
-                onDragEnd={() => {
-                  setDraggingId(null);
-                  setDragOverId(null);
-                }}
-                onDrop={() => handleDrop(c.id)}
-                onLongPress={() => setMovingId(c.id)}
-                onTapMove={() => handleTapMove(c.id)}
-                onRename={(name) => handleRename(c.id, name)}
-                onDelete={() => requestDelete(c)}
-                findDuplicate={findDuplicateName}
-              />
-            ))}
-          </ul>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={categories.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+              <ul className="space-y-2">
+                {categories.map((c, i) => (
+                  <CategoryRow
+                    key={c.id}
+                    index={i}
+                    category={c}
+                    onRename={(name) => handleRename(c.id, name)}
+                    onDelete={() => requestDelete(c)}
+                    findDuplicate={findDuplicateName}
+                  />
+                ))}
+              </ul>
+            </SortableContext>
+          </DndContext>
         </>
       )}
 
@@ -380,32 +362,12 @@ function CategoryAddDialog({
 function CategoryRow({
   index,
   category,
-  isDragging,
-  isDragOver,
-  isMoving,
-  isMoveTarget,
-  onDragStart,
-  onDragEnter,
-  onDragEnd,
-  onDrop,
-  onLongPress,
-  onTapMove,
   onRename,
   onDelete,
   findDuplicate,
 }: {
   index: number;
   category: Category;
-  isDragging: boolean;
-  isDragOver: boolean;
-  isMoving: boolean;
-  isMoveTarget: boolean;
-  onDragStart: () => void;
-  onDragEnter: () => void;
-  onDragEnd: () => void;
-  onDrop: () => void;
-  onLongPress: () => void;
-  onTapMove: () => void;
   onRename: (name: string) => Promise<void>;
   onDelete: () => void;
   findDuplicate: (name: string, excludeId?: string) => string | null;
@@ -413,7 +375,20 @@ function CategoryRow({
   const [name, setName] = useState(category.name);
   const [nameError, setNameError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: category.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
   useEffect(() => {
     setName(category.name);
@@ -442,52 +417,20 @@ function CategoryRow({
 
   return (
     <li
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.effectAllowed = "move";
-        onDragStart();
-      }}
-      onDragEnter={onDragEnter}
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={(e) => {
-        e.preventDefault();
-        onDrop();
-      }}
-      onDragEnd={onDragEnd}
-      onTouchStart={() => {
-        longPressTimer.current = setTimeout(() => {
-          onLongPress();
-          longPressTimer.current = null;
-        }, 400);
-      }}
-      onTouchEnd={() => {
-        if (longPressTimer.current) {
-          clearTimeout(longPressTimer.current);
-          longPressTimer.current = null;
-          if (isMoveTarget) onTapMove();
-        }
-      }}
-      onTouchMove={() => {
-        if (longPressTimer.current) {
-          clearTimeout(longPressTimer.current);
-          longPressTimer.current = null;
-        }
-      }}
-      onClick={() => { if (isMoveTarget) onTapMove(); }}
-      className={`rounded-xl border bg-[color:var(--color-bg-card)] p-3 shadow-sm transition-all select-none ${
-        isDragging ? "opacity-40" : ""
-      } ${isMoving ? "border-[color:var(--color-accent-char)] ring-2 ring-[color:var(--color-accent-char)]/30 bg-[color:var(--color-accent-char)]/5" : ""}${
-        isMoveTarget ? " cursor-pointer" : ""
-      } ${
-        isDragOver
-          ? "border-[color:var(--color-accent-char)] ring-2 ring-[color:var(--color-accent-char)]/30"
-          : isMoving ? "" : "border-[color:var(--color-border)]"
+      ref={setNodeRef}
+      style={style}
+      className={`rounded-xl border bg-[color:var(--color-bg-card)] p-3 shadow-sm transition-shadow ${
+        isDragging
+          ? "opacity-50 shadow-xl z-50"
+          : "border-[color:var(--color-border)]"
       }`}
     >
       <div className="flex items-center gap-2">
         <span
-          className="select-none px-2 text-[color:var(--color-text-muted)]"
-          title="長押しで並び替え"
+          {...attributes}
+          {...listeners}
+          className="cursor-grab touch-none px-2 text-xl text-[color:var(--color-text-muted)] active:cursor-grabbing"
+          title="ドラッグして並び替え"
         >
           ⠿
         </span>
