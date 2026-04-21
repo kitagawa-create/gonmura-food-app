@@ -76,6 +76,15 @@ export default function BillPage() {
     }
   }
 
+  if (payDone) {
+    return (
+      <div className="min-h-screen bg-[color:var(--color-bg-base)] flex flex-col items-center justify-center px-4 gap-3">
+        <p className="text-lg font-bold text-[color:var(--color-accent-negi)]">お支払いが完了しました</p>
+        <p className="text-sm text-[color:var(--color-text-muted)]">ご利用ありがとうございました</p>
+      </div>
+    );
+  }
+
   if (!customerId) {
     return (
       <div className="min-h-screen bg-[color:var(--color-bg-base)] flex flex-col items-center justify-center px-4">
@@ -199,16 +208,6 @@ export default function BillPage() {
           </div>
 
           <div className="px-6 py-5 border-t border-dashed border-[color:var(--color-border)] text-center space-y-3">
-            {payDone ? (
-              <>
-                <p className="text-sm font-bold text-[color:var(--color-accent-negi)]">
-                  お支払いが完了しました
-                </p>
-                <p className="text-xs text-[color:var(--color-text-muted)]">
-                  ご利用ありがとうございました
-                </p>
-              </>
-            ) : (
               <button
                 onClick={() => setShowConfirm(true)}
                 disabled={paying}
@@ -216,7 +215,6 @@ export default function BillPage() {
               >
                 支払い完了
               </button>
-            )}
           </div>
 
         </div>
