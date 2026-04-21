@@ -73,11 +73,6 @@ export default function BillPage() {
           updatedAt: serverTimestamp(),
         });
       }
-      // テーブルの使用中状態を解除
-      batch.update(doc(db, "customers", customerId), {
-        tableId: "",
-        updatedAt: serverTimestamp(),
-      });
       await batch.commit();
       resetSession();
       localStorage.removeItem(TABLE_ID_KEY);
