@@ -184,7 +184,7 @@ export default function AdminTablesPage() {
                   </p>
                   {unclaimed(table) && (
                     <span className="shrink-0 rounded-full bg-[color:var(--color-accent-negi)]/15 px-2 py-0.5 text-xs text-[color:var(--color-accent-negi)] font-medium">
-                      未登録
+                      未接続
                     </span>
                   )}
                 </div>
@@ -194,7 +194,7 @@ export default function AdminTablesPage() {
                       onClick={() => setResetTarget(table)}
                       className="rounded-lg border border-[color:var(--color-border)] px-3 py-1 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
                     >
-                      端末とテーブルの紐付け解除
+                      端末とテーブルの接続解除
                     </button>
                   )}
                   <button
