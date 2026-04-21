@@ -547,8 +547,8 @@ export default function AdminMenusPage() {
                               : "border-[color:var(--color-border)]"
                       } ${isDragging ? "opacity-40" : ""}`}
                     >
-                      {/* チェックボックス（常時表示） */}
-                      <div className="absolute left-3 top-3 z-10 pointer-events-none">
+                      {/* チェックボックス + 順番 */}
+                      <div className="absolute left-3 top-3 z-10 pointer-events-none flex flex-col items-center gap-1">
                         <div className={`h-5 w-5 rounded border-2 flex items-center justify-center ${
                           isSelected
                             ? "border-[color:var(--color-accent-char)] bg-[color:var(--color-accent-char)]"
@@ -560,6 +560,9 @@ export default function AdminMenusPage() {
                             </svg>
                           )}
                         </div>
+                        <span className="text-[9px] tabular-nums leading-none text-[color:var(--color-text-muted)]/60">
+                          {menuIdx + 1}
+                        </span>
                       </div>
 
                       {/* 鉛筆アイコン編集ボタン（右上） */}
@@ -595,9 +598,6 @@ export default function AdminMenusPage() {
                             {m.categoryIds
                               .map((id) => categoryMap.get(id)?.name ?? "(不明)")
                               .join(", ") || "(カテゴリ未設定)"}
-                          </p>
-                          <p className="mt-0.5 text-[10px] text-[color:var(--color-text-muted)]/60">
-                            表示順 {menuIdx + 1}
                           </p>
                           {m.description && (
                             <p className="mt-1 line-clamp-2 text-xs text-[color:var(--color-text-muted)]">
