@@ -41,20 +41,21 @@ const EMPTY_FORM: MenuFormData = {
   status: "active",
 };
 
-function resizeToJpeg(blob: Blob, size = 800): Promise<Blob> {
+type CropRect = { x: number; y: number; w: number; h: number };
+
+function cropToJpeg(blob: Blob, crop: CropRect, outputW = 800): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(blob);
     img.onload = () => {
       URL.revokeObjectURL(url);
+      const outputH = Math.round(outputW * 3 / 4);
       const canvas = document.createElement("canvas");
-      canvas.width = size;
-      canvas.height = size;
+      canvas.width = outputW;
+      canvas.height = outputH;
       const ctx = canvas.getContext("2d");
       if (!ctx) { reject(new Error("canvas context unavailable")); return; }
-      const { naturalWidth: w, naturalHeight: h } = img;
-      const side = Math.min(w, h);
-      ctx.drawImage(img, (w - side) / 2, (h - side) / 2, side, side, 0, 0, size, size);
+      ctx.drawImage(img, crop.x, crop.y, crop.w, crop.h, 0, 0, outputW, outputH);
       canvas.toBlob(
         (b) => (b ? resolve(b) : reject(new Error("toBlob failed"))),
         "image/jpeg",
@@ -175,13 +176,13 @@ export default function AdminMenusPage() {
     }
   }
 
-  async function handleSave(data: MenuFormData, imageFile: File | null, id?: string) {
+  async function handleSave(data: MenuFormData, imageBlob: Blob | null, id?: string) {
     setError(null);
     try {
       let imageUrl = data.imageUrl;
       let newDocId: string | undefined;
 
-      if (imageFile) {
+      if (imageBlob) {
         const menuId = id ?? doc(collection(db, "menus")).id;
         if (!id) newDocId = menuId;
 
@@ -190,9 +191,8 @@ export default function AdminMenusPage() {
           if (oldPath) await deleteObject(ref(storage, oldPath)).catch(() => {});
         }
 
-        const converted = await resizeToJpeg(imageFile);
         const fileRef = ref(storage, `menus/${menuId}.jpg`);
-        await uploadBytes(fileRef, converted);
+        await uploadBytes(fileRef, imageBlob);
         imageUrl = await getDownloadURL(fileRef);
       }
 
@@ -674,7 +674,7 @@ function MenuFormModal({
   menu: Menu | null;
   categories: Category[];
   onClose: () => void;
-  onSave: (data: MenuFormData, imageFile: File | null, id?: string) => Promise<void>;
+  onSave: (data: MenuFormData, imageBlob: Blob | null, id?: string) => Promise<void>;
 }) {
   const [form, setForm] = useState<MenuFormData>(
     menu
@@ -688,9 +688,11 @@ function MenuFormModal({
         }
       : EMPTY_FORM
   );
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const [croppedBlob, setCroppedBlob] = useState<Blob | null>(null);
   const [preview, setPreview] = useState<string | null>(menu?.imageUrl || null);
   const [saving, setSaving] = useState(false);
+
   function toggleCategory(id: string) {
     setForm((f) => ({
       ...f,
@@ -702,10 +704,8 @@ function MenuFormModal({
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
-    setImageFile(file);
-    if (file) {
-      setPreview(URL.createObjectURL(file));
-    }
+    if (file) setCropFile(file);
+    e.target.value = "";
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -713,11 +713,23 @@ function MenuFormModal({
     if (!form.name.trim()) return;
     if (form.categoryIds.length === 0) return;
     setSaving(true);
-    await onSave(form, imageFile, menu?.id);
+    await onSave(form, croppedBlob, menu?.id);
     setSaving(false);
   }
 
   return (
+    <>
+    {cropFile && (
+      <ImageCropModal
+        file={cropFile}
+        onConfirm={(blob, previewUrl) => {
+          setCroppedBlob(blob);
+          setPreview(previewUrl);
+          setCropFile(null);
+        }}
+        onCancel={() => setCropFile(null)}
+      />
+    )}
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <form
         onSubmit={handleSubmit}
@@ -787,11 +799,13 @@ function MenuFormModal({
           </Field>
           <Field label="画像">
             {preview && (
-              <img
-                src={preview}
-                alt="プレビュー"
-                className="mb-2 h-32 w-32 rounded object-cover"
-              />
+              <div className="mb-2 relative w-full rounded-lg overflow-hidden" style={{ paddingTop: "75%" }}>
+                <img
+                  src={preview}
+                  alt="プレビュー"
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+              </div>
             )}
             <input
               type="file"
@@ -799,6 +813,9 @@ function MenuFormModal({
               onChange={handleFileChange}
               className="w-full text-sm text-[color:var(--color-text-muted)] file:mr-3 file:rounded file:border-0 file:bg-[color:var(--color-bg-subtle)] file:px-3 file:py-2 file:text-sm file:font-medium file:text-[color:var(--color-text-primary)] hover:file:bg-[color:var(--color-border)]"
             />
+            {croppedBlob && (
+              <p className="mt-1 text-xs text-[color:var(--color-accent-negi)]">✓ 4:3でトリミング済み</p>
+            )}
           </Field>
           <Field label="カテゴリ(複数選択可)" required>
             <div className="flex flex-wrap gap-2">
@@ -860,6 +877,115 @@ function MenuFormModal({
           </button>
         </div>
       </form>
+    </div>
+    </>
+  );
+}
+
+function ImageCropModal({
+  file,
+  onConfirm,
+  onCancel,
+}: {
+  file: File;
+  onConfirm: (blob: Blob, previewUrl: string) => void;
+  onCancel: () => void;
+}) {
+  const src = useMemo(() => URL.createObjectURL(file), [file]);
+  useEffect(() => () => URL.revokeObjectURL(src), [src]);
+
+  const [natW, setNatW] = useState(0);
+  const [natH, setNatH] = useState(0);
+  const [position, setPosition] = useState(50);
+  const [confirming, setConfirming] = useState(false);
+
+  const ratio = natW > 0 ? natW / natH : 1;
+  const isWider = ratio > 4 / 3 + 0.01;
+  const isTaller = ratio < 4 / 3 - 0.01;
+  const objPos = isWider ? `${position}% 50%` : `50% ${position}%`;
+
+  function getCropRect(): CropRect {
+    if (isWider) {
+      const cropW = Math.round(natH * 4 / 3);
+      const x = Math.round((natW - cropW) * position / 100);
+      return { x, y: 0, w: cropW, h: natH };
+    } else if (isTaller) {
+      const cropH = Math.round(natW * 3 / 4);
+      const y = Math.round((natH - cropH) * position / 100);
+      return { x: 0, y, w: natW, h: cropH };
+    } else {
+      return { x: 0, y: 0, w: natW, h: natH };
+    }
+  }
+
+  async function handleConfirm() {
+    setConfirming(true);
+    try {
+      const crop = getCropRect();
+      const result = await cropToJpeg(file, crop);
+      const previewUrl = URL.createObjectURL(result);
+      onConfirm(result, previewUrl);
+    } catch {
+      setConfirming(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
+      <div className="w-full max-w-md bg-[color:var(--color-bg-card)] rounded-2xl overflow-hidden border border-[color:var(--color-border)] shadow-xl">
+        <div className="px-5 py-4 border-b border-[color:var(--color-border)]">
+          <h3 className="font-bold text-[color:var(--color-text-primary)]">画像をトリミング</h3>
+          <p className="text-xs text-[color:var(--color-text-muted)] mt-0.5">4:3の枠に合わせて切り取ります</p>
+        </div>
+
+        <div className="relative w-full bg-[color:var(--color-bg-subtle)]" style={{ paddingTop: "75%" }}>
+          <img
+            src={src}
+            alt="crop preview"
+            onLoad={(e) => {
+              setNatW(e.currentTarget.naturalWidth);
+              setNatH(e.currentTarget.naturalHeight);
+            }}
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ objectPosition: objPos }}
+          />
+          <div className="absolute inset-0 ring-2 ring-inset ring-[color:var(--color-accent-char)] pointer-events-none" />
+        </div>
+
+        {(isWider || isTaller) && (
+          <div className="px-5 py-3 border-t border-[color:var(--color-border)]">
+            <p className="text-xs text-[color:var(--color-text-muted)] mb-2">
+              {isWider ? "← 左右にスライドして位置を調整 →" : "↑ 上下にスライドして位置を調整 ↓"}
+            </p>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={position}
+              onChange={(e) => setPosition(Number(e.target.value))}
+              className="w-full accent-[color:var(--color-accent-char)]"
+            />
+          </div>
+        )}
+
+        <div className="flex gap-2 px-5 py-4 border-t border-[color:var(--color-border)]">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 rounded-xl border border-[color:var(--color-border)] py-2.5 text-sm text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)]"
+          >
+            キャンセル
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={confirming || natW === 0}
+            className="flex-[2] rounded-xl bg-[color:var(--color-accent-char)] py-2.5 text-sm text-white font-bold disabled:opacity-50"
+          >
+            {confirming ? "処理中..." : "この範囲でトリミング"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
