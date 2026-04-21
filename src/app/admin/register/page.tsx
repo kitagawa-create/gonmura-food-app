@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Timestamp,
+  collection,
   collectionGroup,
   doc,
   getDoc,
@@ -23,39 +24,18 @@ import type { OrderWithItems } from "@/types";
 import { comboLineTotal, flattenForReceipt, normalizeOrder, normalizeOrderItem } from "@/lib/order-utils";
 import { DatePicker } from "@/components/admin/DatePicker";
 
-type CustomerTableInfo = { tableNumber: string; guestCount: number };
+type CustomerInfo = { tableId: string; guestCount: number };
 
-async function fetchCustomerTableInfo(customerIds: string[]): Promise<Map<string, CustomerTableInfo>> {
+async function fetchCustomerInfo(customerIds: string[]): Promise<Map<string, CustomerInfo>> {
   if (customerIds.length === 0) return new Map();
-
-  const customerSnaps = await Promise.all(customerIds.map((id) => getDoc(doc(db, "customers", id))));
-
-  const customerData = new Map<string, { tableId: string; guestCount: number }>();
-  for (const snap of customerSnaps) {
+  const snaps = await Promise.all(customerIds.map((id) => getDoc(doc(db, "customers", id))));
+  const result = new Map<string, CustomerInfo>();
+  for (const snap of snaps) {
     if (!snap.exists()) continue;
     const d = snap.data();
-    customerData.set(snap.id, {
+    result.set(snap.id, {
       tableId: typeof d.tableId === "string" ? d.tableId : "",
       guestCount: typeof d.guestCount === "number" ? Math.trunc(d.guestCount) : 1,
-    });
-  }
-
-  const uniqueTableIds = [...new Set([...customerData.values()].map((c) => c.tableId).filter(Boolean))];
-  const tableNumberMap = new Map<string, string>();
-  if (uniqueTableIds.length > 0) {
-    const tableSnaps = await Promise.all(uniqueTableIds.map((id) => getDoc(doc(db, "tables", id))));
-    for (const snap of tableSnaps) {
-      if (!snap.exists()) continue;
-      const d = snap.data();
-      tableNumberMap.set(snap.id, typeof d.tableNumber === "string" ? d.tableNumber : "");
-    }
-  }
-
-  const result = new Map<string, CustomerTableInfo>();
-  for (const [customerId, info] of customerData) {
-    result.set(customerId, {
-      tableNumber: tableNumberMap.get(info.tableId) ?? "",
-      guestCount: info.guestCount,
     });
   }
   return result;
@@ -99,7 +79,11 @@ function persistTableName(num: string, name: string) {
   } catch {}
 }
 
-function groupByCustomer(orders: OrderWithItems[], customerInfoMap: Map<string, CustomerTableInfo>): TableBill[] {
+function groupByCustomer(
+  orders: OrderWithItems[],
+  customerInfoMap: Map<string, CustomerInfo>,
+  tableNumberMap: Map<string, string>
+): TableBill[] {
   const map = new Map<string, OrderWithItems[]>();
   for (const o of orders) {
     map.set(o.customerId, [...(map.get(o.customerId) ?? []), o]);
@@ -107,9 +91,10 @@ function groupByCustomer(orders: OrderWithItems[], customerInfoMap: Map<string, 
   return Array.from(map.entries())
     .map(([customerId, tableOrders]) => {
       const info = customerInfoMap.get(customerId);
+      const tableNumber = tableNumberMap.get(info?.tableId ?? "") ?? "";
       return {
         customerId,
-        tableNumber: info?.tableNumber ?? "",
+        tableNumber,
         guestCount: info?.guestCount ?? 1,
         orders: tableOrders,
         totalAmount: tableOrders.reduce((s, o) => s + o.items.reduce((ss, i) => ss + comboLineTotal(i), 0), 0),
@@ -166,8 +151,9 @@ export default function AdminRegisterPage() {
   const [unpaidOrders, setUnpaidOrders] = useState<OrderWithItems[]>([]);
   const [paidOrders, setPaidOrders] = useState<OrderWithItems[]>([]);
   const [todayPaidOrders, setTodayPaidOrders] = useState<OrderWithItems[]>([]);
-  const [customerInfoMap, setCustomerInfoMap] = useState<Map<string, CustomerTableInfo>>(new Map());
-  const customerInfoMapRef = useRef<Map<string, CustomerTableInfo>>(new Map());
+  const [customerInfoMap, setCustomerInfoMap] = useState<Map<string, CustomerInfo>>(new Map());
+  const customerInfoMapRef = useRef<Map<string, CustomerInfo>>(new Map());
+  const [tableNumberMap, setTableNumberMap] = useState<Map<string, string>>(new Map());
 
   const [ordersLoaded, setOrdersLoaded] = useState(false);
   const [todayLoaded, setTodayLoaded] = useState(false);
@@ -192,6 +178,15 @@ export default function AdminRegisterPage() {
     if (s) { const n = parseInt(s, 10); if (!isNaN(n) && n > 0) setGoal(n); }
   }, []);
 
+  // tables コレクションをリアルタイム購読して tableId→tableNumber マップを維持
+  useEffect(() => {
+    return onSnapshot(collection(db, "tables"), (snap) => {
+      const map = new Map<string, string>();
+      for (const d of snap.docs) map.set(d.id, d.data().tableNumber as string);
+      setTableNumberMap(map);
+    });
+  }, []);
+
   // 全注文から未取得の customer+table 情報を増分取得
   useEffect(() => {
     const missingIds = [
@@ -205,7 +200,7 @@ export default function AdminRegisterPage() {
     if (missingIds.length === 0) return;
     let cancelled = false;
     (async () => {
-      const newData = await fetchCustomerTableInfo(missingIds);
+      const newData = await fetchCustomerInfo(missingIds);
       if (cancelled) return;
       customerInfoMapRef.current = new Map([...customerInfoMapRef.current, ...newData]);
       setCustomerInfoMap(new Map(customerInfoMapRef.current));
@@ -305,8 +300,8 @@ export default function AdminRegisterPage() {
     return () => { cancelled = true; unsub(); };
   }, [dateFilter]);
 
-  const unpaidBills = useMemo(() => groupByCustomer(unpaidOrders, customerInfoMap), [unpaidOrders, customerInfoMap]);
-  const paidBills = useMemo(() => groupByCustomer(paidOrders, customerInfoMap), [paidOrders, customerInfoMap]);
+  const unpaidBills = useMemo(() => groupByCustomer(unpaidOrders, customerInfoMap, tableNumberMap), [unpaidOrders, customerInfoMap, tableNumberMap]);
+  const paidBills = useMemo(() => groupByCustomer(paidOrders, customerInfoMap, tableNumberMap), [paidOrders, customerInfoMap, tableNumberMap]);
 
   const todaySales = useMemo(
     () => todayPaidOrders.reduce((s, o) => s + o.items.reduce((ss, i) => ss + comboLineTotal(i), 0), 0),
