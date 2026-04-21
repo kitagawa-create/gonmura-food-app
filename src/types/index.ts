@@ -66,15 +66,6 @@ export type OrderStatus = "pending" | "completed" | "paid";
 
 export type AdminRole = "owner" | "staff";
 
-export type Customer = {
-  id: string;
-  /** tables/{tableId} への参照 */
-  tableId: string;
-  guestCount: number;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-};
-
 export type Order = {
   id: string;
   status: OrderStatus;
@@ -86,15 +77,6 @@ export type Order = {
 
 /** orders/{orderId}/items サブコレクションを結合したランタイム型 */
 export type OrderWithItems = Order & { items: OrderItem[] };
-
-
-export type Admin = {
-  uid: string;
-  email: string;
-  role: AdminRole;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-};
 
 export type CartItemTopping = {
   menuId: string;

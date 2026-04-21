@@ -60,7 +60,7 @@ src/
 │   ├── analytics.ts             # trackEvent（Firebase Analytics logEvent wrapper）
 │   └── order-utils.ts           # comboUnitPrice, comboLineTotal, orderGrandTotal, flattenForReceipt, comboLineHash（menuId+toppings+noteの3要素でハッシュ）, normalizeMenu, normalizeOrder, normalizeOrderItem, newLineId
 └── types/
-    └── index.ts                 # Category, Menu, Order, OrderItem, OrderStatus, AdminRole, Admin, CartItem
+    └── index.ts                 # Category, Menu, Order, OrderItem, OrderStatus, AdminRole, CartItem
 ```
 
 ## 型定義 (src/types/index.ts)
@@ -72,9 +72,8 @@ OrderItemTopping  { menuId, name, price: number, quantity: number }  ← quantit
 OrderItem         { id, menuId, name, price: number, quantity: number, toppings: OrderItemTopping[], note: string, checked: boolean }  ← 注文時スナップショット。price は単品価格（トッピング分は含まない）
 OrderStatus       "pending" | "completed" | "paid"
 AdminRole         "owner" | "staff"
-Order             { id, status: OrderStatus, customerId: string, tableNumber: string, guestCount: number, createdAt, updatedAt }  ← items はサブコレクション
+Order             { id, status: OrderStatus, customerId: string, createdAt, updatedAt }  ← items はサブコレクション
 OrderWithItems    Order & { items: OrderItem[] }  ← ランタイム結合型
-Admin             { uid, email, role, createdAt, updatedAt }
 Table             { id, tableNumber: string, deviceId: string, pin: string, createdAt, updatedAt }
 CartItemTopping   { menuId, name, price: number, quantity: number }  ← quantity は「1コンボあたり」
 CartItem          { lineId, menuId, name, price: number, quantity: number, toppings: CartItemTopping[], note: string }  ← localStorage保存、Firestore不使用。lineId でコンボを識別（同 menuId でも構成が違えば別 line）
@@ -83,7 +82,7 @@ CartItem          { lineId, menuId, name, price: number, quantity: number, toppi
 ## Firestore コレクション
 - `categories/{categoryId}` → Category型。name, sortOrder（長押し→タップ並替え対応）
 - `menus/{menuId}` → Menu型。price整数, categoryIds配列, status で公開/売切/非公開/削除を制御, sortOrder で並び替え
-- `customers/{customerId}` → 顧客セッション（createdAt, updatedAt のみ）
+- `customers/{customerId}` → 顧客セッション（id, tableId, guestCount, createdAt, updatedAt）
 - `customers/{customerId}/orders/{orderId}` → Order型。items はサブコレクション。status で遷移管理
 - `customers/{customerId}/orders/{orderId}/items/{itemId}` → OrderItem型。checked で調理チェック状態管理
 - `tables/{tableId}` → Table型。deviceId でタブレット紐付け、pin でテーブル変更認証
@@ -100,7 +99,7 @@ paid への変更は管理者のみ（レジ画面から）
 ## Security Rules (firestore.rules)
 - categories: 誰でも読める、owner のみ書ける
 - menus: 誰でも読める / create・delete は owner / update は owner、staff は status + updatedAt のみ可
-- customers: 誰でも作成・読める / update・delete は staff 以上（tableNumber 変更は不可）
+- customers: 誰でも作成・読める / update・delete は staff 以上（tableId 変更は不可）
 - customers/orders: 誰でも作成・読める / update・delete は staff 以上
 - customers/orders/items: 誰でも作成・読める / update・delete は staff 以上
 - tables: 誰でも読める / create は staff / update は staff または未割当タブレットの自己登録 / delete は owner
