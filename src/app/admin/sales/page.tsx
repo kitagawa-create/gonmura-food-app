@@ -6,6 +6,8 @@ import { PageLoader } from "@/components/ui/PageLoader";
 import {
   Timestamp,
   collectionGroup,
+  doc,
+  getDoc,
   getDocs,
   orderBy,
   query,
@@ -210,6 +212,7 @@ export default function AdminSalesPage() {
   const role = useAdminRole();
   const router = useRouter();
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
+  const [customerGuestMap, setCustomerGuestMap] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
 
   const monthOptions = useMemo(() => generateMonthOptions(), []);
@@ -251,6 +254,17 @@ export default function AdminSalesPage() {
           })
         );
         if (cancelled) return;
+        const uniqueIds = [...new Set(withItems.map((o) => o.customerId))];
+        const customerSnaps = await Promise.all(uniqueIds.map((id) => getDoc(doc(db, "customers", id))));
+        const guestMap = new Map<string, number>();
+        for (const snap of customerSnaps) {
+          if (snap.exists()) {
+            const gc = snap.data().guestCount;
+            guestMap.set(snap.id, typeof gc === "number" && gc > 0 ? Math.trunc(gc) : 1);
+          }
+        }
+        if (cancelled) return;
+        setCustomerGuestMap(guestMap);
         setOrders(withItems);
       } catch (e) {
         if (!cancelled) console.error("[sales] fetchData failed:", e);
@@ -289,9 +303,11 @@ export default function AdminSalesPage() {
     const [year, month] = selectedYearMonth.split("-").map(Number);
     const daysInMonth = new Date(year, month, 0).getDate();
     const dailyAvgRevenue = daysInMonth > 0 ? Math.round(revenue / daysInMonth) : 0;
-    const atv = count > 0 ? Math.round(revenue / count) : null;
-    return { revenue, count, dailyAvgRevenue, atv };
-  }, [orders, selectedYearMonth]);
+    const uniqueCustomers = [...new Set(orders.map((o) => o.customerId))];
+    const totalGuests = uniqueCustomers.reduce((s, id) => s + (customerGuestMap.get(id) ?? 1), 0);
+    const guestUnitPrice = totalGuests > 0 ? Math.round(revenue / totalGuests) : null;
+    return { revenue, count, dailyAvgRevenue, guestUnitPrice, totalGuests };
+  }, [orders, selectedYearMonth, customerGuestMap]);
 
   if (role !== "owner") return null;
   if (loading) return <PageLoader />;
@@ -328,8 +344,9 @@ export default function AdminSalesPage() {
           value={`${kpi.count.toLocaleString()}件`}
         />
         <KpiCard
-          label="1注文あたり"
-          value={kpi.atv !== null ? yen(kpi.atv) : "−"}
+          label="客単価"
+          value={kpi.guestUnitPrice !== null ? yen(kpi.guestUnitPrice) : "−"}
+          sub={kpi.totalGuests > 0 ? `来客数 ${kpi.totalGuests}名` : undefined}
         />
       </div>
 
