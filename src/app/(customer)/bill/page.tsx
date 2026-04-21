@@ -10,6 +10,7 @@ import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import { CustomerPageHeader } from "@/components/customer/CustomerPageHeader";
 import { normalizeOrder, normalizeOrderItem, comboLineHash, comboLineTotal } from "@/lib/order-utils";
 import Link from "next/link";
+import { PinDialog } from "@/components/customer/PinDialog";
 
 const TABLE_ID_KEY = "gonmura-table-id";
 const TABLE_KEY = "gonmura-table";
@@ -21,6 +22,7 @@ export default function BillPage() {
   const [loading, setLoading] = useState(() => customerId !== null);
   const [paying, setPaying] = useState(false);
   const [payDone, setPayDone] = useState(false);
+  const [showPayPinDialog, setShowPayPinDialog] = useState(false);
 
   useEffect(() => {
     if (!customerId) return;
@@ -209,7 +211,7 @@ export default function BillPage() {
               </>
             ) : (
               <button
-                onClick={handlePay}
+                onClick={() => setShowPayPinDialog(true)}
                 disabled={paying}
                 className="w-full rounded-xl bg-[color:var(--color-accent-char)] py-3 text-base font-bold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
               >
@@ -221,6 +223,11 @@ export default function BillPage() {
         </div>
         </div>
       </div>
+      <PinDialog
+        open={showPayPinDialog}
+        onSuccess={() => { setShowPayPinDialog(false); handlePay(); }}
+        onCancel={() => setShowPayPinDialog(false)}
+      />
     </div>
   );
 }

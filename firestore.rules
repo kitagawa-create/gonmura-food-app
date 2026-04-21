@@ -104,5 +104,10 @@ service cloud.firestore {
     match /admins/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;
     }
+
+    match /settings/{document} {
+      allow read: if true;
+      allow write: if isOwner();
+    }
   }
 }

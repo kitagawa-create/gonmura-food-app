@@ -11,6 +11,7 @@ import { FadeImage } from "@/components/ui/FadeImage";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import { CartPanel } from "@/components/customer/CartPanel";
 import Link from "next/link";
+import { PinDialog } from "@/components/customer/PinDialog";
 
 const TABLE_KEY = "gonmura-table";
 const TABLE_ID_KEY = "gonmura-table-id";
@@ -44,6 +45,7 @@ export default function MenuPage() {
   const [dialogTables, setDialogTables] = useState<{ id: string; tableNumber: string }[]>([]);
   const [dialogTablesLoading, setDialogTablesLoading] = useState(false);
   const [selectedDialogTableId, setSelectedDialogTableId] = useState<string>("");
+  const [showTableChangePinDialog, setShowTableChangePinDialog] = useState(false);
   const { addItem, updateItem, totalItems, tableNumber, setTableNumber, clearCart, resetSession, guestCount, setGuestCount, customerId } =
     useCart();
   const router = useRouter();
@@ -354,10 +356,7 @@ export default function MenuPage() {
               <p className="text-xs text-[color:var(--color-text-muted)]">テーブル {tableNumber}</p>
               <button
                 type="button"
-                onClick={() => {
-                  localStorage.removeItem(TABLE_ID_KEY);
-                  setTableNumber(null);
-                }}
+                onClick={() => setShowTableChangePinDialog(true)}
                 className="text-[10px] text-[color:var(--color-text-muted)] underline hover:text-[color:var(--color-text-primary)] transition-colors"
               >
                 変更
@@ -772,6 +771,16 @@ export default function MenuPage() {
           </div>
         </div>
       )}
+
+      <PinDialog
+        open={showTableChangePinDialog}
+        onSuccess={() => {
+          setShowTableChangePinDialog(false);
+          localStorage.removeItem(TABLE_ID_KEY);
+          setTableNumber(null);
+        }}
+        onCancel={() => setShowTableChangePinDialog(false)}
+      />
 
       {/* 人数選択ダイアログ（精算後の新規セッション開始時） */}
       {showGuestCountDialog && (

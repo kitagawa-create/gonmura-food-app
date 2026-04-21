@@ -34,10 +34,40 @@ export default function AdminTablesPage() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Table | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [globalPin, setGlobalPin] = useState("");
+  const [pinInput, setPinInput] = useState("");
+  const [editingPin, setEditingPin] = useState(false);
+  const [savingPin, setSavingPin] = useState(false);
+  const [pinLoaded, setPinLoaded] = useState(false);
+  const [showPin, setShowPin] = useState(false);
 
   useEffect(() => {
     if (role !== "owner") router.replace("/admin/orders");
   }, [role, router]);
+
+  useEffect(() => {
+    if (role !== "owner") return;
+    getDoc(doc(db, "settings", "global")).then((snap) => {
+      if (snap.exists()) setGlobalPin((snap.data().tableChangePin as string) ?? "");
+      setPinLoaded(true);
+    }).catch(() => setPinLoaded(true));
+  }, [role]);
+
+  async function handleSavePin() {
+    setSavingPin(true);
+    try {
+      await setDoc(doc(db, "settings", "global"), { tableChangePin: pinInput.trim() }, { merge: true });
+      setGlobalPin(pinInput.trim());
+      setPinInput("");
+      setEditingPin(false);
+      setShowPin(false);
+      toast("PINコードを更新しました");
+    } catch {
+      toast("更新に失敗しました");
+    } finally {
+      setSavingPin(false);
+    }
+  }
 
   useEffect(() => {
     return onSnapshot(
@@ -124,6 +154,65 @@ export default function AdminTablesPage() {
           </button>
         }
       />
+
+      {/* PINコード管理 */}
+      <div className="mb-6 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-4">
+        <h2 className="text-sm font-semibold text-[color:var(--color-text-primary)] mb-1">PINコード</h2>
+        <p className="text-xs text-[color:var(--color-text-muted)] mb-3">
+          テーブル変更・支払い完了時に必要な共通PINコードです。
+        </p>
+        {!pinLoaded ? (
+          <p className="text-xs text-[color:var(--color-text-muted)]">読み込み中...</p>
+        ) : editingPin ? (
+          <div className="flex flex-wrap gap-2 items-center">
+            <input
+              autoFocus
+              type={showPin ? "text" : "password"}
+              inputMode="numeric"
+              maxLength={8}
+              value={pinInput}
+              onChange={(e) => setPinInput(e.target.value)}
+              placeholder="新しいPINコード"
+              className="w-40 bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPin((v) => !v)}
+              className="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+            >
+              {showPin ? "隠す" : "表示"}
+            </button>
+            <button
+              type="button"
+              onClick={handleSavePin}
+              disabled={!pinInput.trim() || savingPin}
+              className="rounded-lg bg-[color:var(--color-accent-char)] px-3 py-2 text-xs font-bold text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+            >
+              {savingPin ? "保存中..." : "保存"}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setEditingPin(false); setPinInput(""); setShowPin(false); }}
+              className="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+            >
+              キャンセル
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-[color:var(--color-text-primary)]">
+              {globalPin ? "••••" : "未設定"}
+            </span>
+            <button
+              type="button"
+              onClick={() => { setEditingPin(true); setPinInput(""); }}
+              className="rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+            >
+              {globalPin ? "変更" : "設定"}
+            </button>
+          </div>
+        )}
+      </div>
 
       {tables.length === 0 ? (
         <div className="rounded-xl border border-dashed border-[color:var(--color-border)] py-16 text-center">
