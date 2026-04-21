@@ -861,7 +861,7 @@ function HistoryView({
           <p className="text-[color:var(--color-text-muted)]">この日の履歴はありません</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        <div className="flex flex-col gap-2">
           {filteredOrders.map((order) => (
             <HistoryOrderCard
               key={order.id}
@@ -888,86 +888,123 @@ function HistoryOrderCard({
   onRevert: (order: OrderWithItems) => void;
 }) {
   const [showRevert, setShowRevert] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [selected, setSelected] = useState(false);
+
   const total = order.items.reduce((s, i) => s + comboLineTotal(i), 0);
   const created = order.createdAt?.toDate?.();
+  const updated = order.updatedAt?.toDate?.();
   const isPaid = order.status === "paid";
+  const PREVIEW = 2;
+  const visibleItems = expanded ? order.items : order.items.slice(0, PREVIEW);
+  const hiddenCount = order.items.length - PREVIEW;
 
   return (
-    <div className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-4 shadow-sm">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center justify-center min-w-[40px] h-8 px-2 rounded-md bg-[color:var(--color-accent-soy)] text-white text-sm font-bold leading-none">
-            {tableNumber ?? "?"}
-          </span>
-          <span
-            className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-              isPaid
-                ? "bg-[color:var(--color-accent-negi)]/15 text-[color:var(--color-accent-negi)]"
-                : "bg-[color:var(--color-bg-subtle)] text-[color:var(--color-text-muted)]"
-            }`}
-          >
-            {isPaid ? "精算済" : "提供済"}
-          </span>
-        </div>
-        <div className="text-right">
-          <p className="text-xs text-[color:var(--color-text-muted)]">
-            {created ? timeStr(created) : ""}
+    <div
+      className={`flex items-start gap-2 sm:gap-3 rounded-xl border bg-[color:var(--color-bg-card)] p-3 shadow-sm transition-colors ${
+        selected
+          ? "border-[color:var(--color-accent-char)] ring-2 ring-[color:var(--color-accent-char)]/20"
+          : "border-[color:var(--color-border)]"
+      }`}
+    >
+      {/* チェックボックス */}
+      <div className="shrink-0 pt-1">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => setSelected((s) => !s)}
+          className="h-4 w-4 rounded cursor-pointer"
+          style={{ accentColor: "var(--color-accent-char)" }}
+        />
+      </div>
+
+      {/* テーブル + ステータス */}
+      <div className="shrink-0 flex flex-col items-center gap-1 w-14">
+        <span className="inline-flex items-center justify-center w-full h-8 px-1 rounded-md bg-[color:var(--color-accent-soy)] text-white text-sm font-bold leading-none">
+          {tableNumber}
+        </span>
+        <span
+          className={`rounded-full px-2 py-0.5 text-[10px] font-bold whitespace-nowrap ${
+            isPaid
+              ? "bg-[color:var(--color-accent-negi)]/15 text-[color:var(--color-accent-negi)]"
+              : "bg-[color:var(--color-bg-subtle)] text-[color:var(--color-text-muted)]"
+          }`}
+        >
+          {isPaid ? "精算済" : "提供済"}
+        </span>
+      </div>
+
+      {/* 注文時間 / 提供時間 */}
+      <div className="shrink-0 text-xs space-y-1.5 w-[68px]">
+        <div>
+          <p className="text-[color:var(--color-text-muted)] leading-none mb-0.5">注文</p>
+          <p className="font-medium text-[color:var(--color-text-primary)] tabular-nums">
+            {created ? timeStr(created) : "−"}
           </p>
-          <p className="text-sm font-bold text-[color:var(--color-text-primary)] tabular-nums">
-            ¥{total.toLocaleString()}
+        </div>
+        <div>
+          <p className="text-[color:var(--color-text-muted)] leading-none mb-0.5">提供</p>
+          <p className="font-medium text-[color:var(--color-text-primary)] tabular-nums">
+            {updated ? timeStr(updated) : "−"}
           </p>
         </div>
       </div>
-      <ul className="text-sm text-[color:var(--color-text-primary)] space-y-0.5">
-        {order.items.map((item) => {
-          const hasNestedToppings = item.toppings.length > 0;
-          return (
+
+      {/* 注文メニュー */}
+      <div className="flex-1 min-w-0">
+        <ul className="text-sm space-y-0.5">
+          {visibleItems.map((item) => (
             <li key={item.id}>
-              <div className="flex justify-between">
-                <span>{item.name}</span>
-                <span className="text-[color:var(--color-text-muted)]">×{item.quantity}</span>
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[color:var(--color-text-primary)] truncate">{item.name}</span>
+                <span className="shrink-0 text-[color:var(--color-text-muted)] tabular-nums">×{item.quantity}</span>
               </div>
-              {hasNestedToppings && (
-                <ul className="mt-0.5 ml-4 space-y-0">
-                  {item.toppings!.map((t) => (
-                    <li
-                      key={t.menuId}
-                      className="flex justify-between text-xs text-[color:var(--color-text-muted)]"
-                    >
-                      <span>
-                        <span className="mr-0.5">＋</span>
-                        {t.name}
-                      </span>
+              {expanded && item.toppings.length > 0 && (
+                <ul className="ml-3 mt-0.5 space-y-0">
+                  {item.toppings.map((t) => (
+                    <li key={t.menuId} className="flex justify-between text-xs text-[color:var(--color-text-muted)]">
+                      <span>＋{t.name}</span>
                       <span>×{t.quantity * item.quantity}</span>
                     </li>
                   ))}
                 </ul>
               )}
-              {item.note && (
-                <p className="mt-0.5 ml-4 text-xs text-[color:var(--color-accent-warn)]">
-                  ※ {item.note}
-                </p>
+              {expanded && item.note && (
+                <p className="ml-3 mt-0.5 text-xs text-[color:var(--color-accent-warn)]">※ {item.note}</p>
               )}
             </li>
-          );
-        })}
-      </ul>
+          ))}
+        </ul>
+        {order.items.length > PREVIEW && (
+          <button
+            type="button"
+            onClick={() => setExpanded((e) => !e)}
+            className="mt-1 text-xs text-[color:var(--color-accent-char)] hover:underline"
+          >
+            {expanded ? "▲ 閉じる" : `▼ 他${hiddenCount}品を見る`}
+          </button>
+        )}
+      </div>
 
-      {!isPaid && (
-        <div className="mt-3 flex justify-end">
+      {/* 金額 + アクション */}
+      <div className="shrink-0 flex flex-col items-end gap-2 pl-1">
+        <p className="text-sm font-bold text-[color:var(--color-text-primary)] tabular-nums whitespace-nowrap">
+          ¥{total.toLocaleString()}
+        </p>
+        {!isPaid && (
           <button
             type="button"
             onClick={() => setShowRevert(true)}
-            className="rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+            className="rounded-lg border border-[color:var(--color-border)] px-2.5 py-1 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors whitespace-nowrap"
           >
             新規に戻す
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       <ConfirmDialog
         open={showRevert}
-        title={`テーブル ${tableNumber ?? "?"} の注文を新規に戻す`}
+        title={`テーブル ${tableNumber} の注文を新規に戻す`}
         message="この注文を提供前(新規)に戻します。チェック状態はすべてリセットされます。"
         confirmLabel="戻す"
         confirmColor="green"
