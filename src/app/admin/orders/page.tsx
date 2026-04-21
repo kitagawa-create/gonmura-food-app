@@ -833,7 +833,7 @@ function HistoryView({
           type="button"
           onClick={() => setDateSearch(todayISO())}
           className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
-            dateSearch === todayISO()
+            dateSearch !== todayISO()
               ? "border-[color:var(--color-accent-char)] bg-[color:var(--color-accent-char)] text-white"
               : "border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)]"
           }`}
