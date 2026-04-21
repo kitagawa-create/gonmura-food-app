@@ -187,7 +187,7 @@ export default function AdminRegisterPage() {
               const tax = Math.floor((table.totalAmount * 10) / 110);
               const subtotal = table.totalAmount - tax;
               return (
-                <div key={table.tableNumber} className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-subtle)] p-4">
+                <div key={table.customerId} className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-subtle)] p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div>
                       <h2 className="text-lg font-bold text-[color:var(--color-text-primary)]">
