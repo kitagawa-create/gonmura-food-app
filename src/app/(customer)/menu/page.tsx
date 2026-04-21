@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, collectionGroup, query, where, getDocs, orderBy, onSnapshot, doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, collectionGroup, query, where, orderBy, onSnapshot, doc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Menu, Category, CartItemTopping, CartItem } from "@/types";
 import { normalizeMenu } from "@/lib/order-utils";
@@ -151,15 +151,17 @@ export default function MenuPage() {
     };
   }, [menusLoaded, menus, imagesReady]);
 
-  // カテゴリは変更頻度低 - 一度だけ
   useEffect(() => {
-    (async () => {
-      const snap = await getDocs(query(collection(db, "categories"), orderBy("sortOrder", "asc")));
-      const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Category);
-      setCategories(data);
-      if (data.length > 0) setActiveCategory((cur) => cur ?? data[0].id);
-      setLoading(false);
-    })();
+    return onSnapshot(
+      query(collection(db, "categories"), orderBy("sortOrder", "asc")),
+      (snap) => {
+        const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Category);
+        setCategories(data);
+        if (data.length > 0) setActiveCategory((cur) => cur ?? data[0].id);
+        setLoading(false);
+      },
+      () => setLoading(false)
+    );
   }, []);
 
   // モーダルが開いている商品が非公開化または売り切れになったら強制クローズ
@@ -191,21 +193,21 @@ export default function MenuPage() {
     setShowTableSelectDialog(true);
   }, [tableNumber, guestCount, ordersLoaded, hasUnpaidOrders]);
 
-  // テーブル選択ダイアログが開いたらテーブル一覧をフェッチ
+  // テーブル選択ダイアログが開いている間だけリアルタイム購読
   useEffect(() => {
     if (!showTableSelectDialog) {
       setSelectedDialogTableId("");
       return;
     }
     setDialogTablesLoading(true);
-    getDocs(query(collection(db, "tables"), orderBy("tableNumber")))
-      .then((snap) => {
-        setDialogTables(
-          snap.docs.map((d) => ({ id: d.id, tableNumber: d.data().tableNumber as string }))
-        );
-      })
-      .catch(() => {})
-      .finally(() => setDialogTablesLoading(false));
+    return onSnapshot(
+      query(collection(db, "tables"), orderBy("tableNumber")),
+      (snap) => {
+        setDialogTables(snap.docs.map((d) => ({ id: d.id, tableNumber: d.data().tableNumber as string })));
+        setDialogTablesLoading(false);
+      },
+      () => setDialogTablesLoading(false)
+    );
   }, [showTableSelectDialog]);
 
   const filteredMenus = activeCategory

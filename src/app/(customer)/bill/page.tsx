@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collectionGroup, doc, getDocs, query, serverTimestamp, where, writeBatch } from "firebase/firestore";
+import { collectionGroup, doc, getDocs, onSnapshot, query, serverTimestamp, where, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
 import type { OrderWithItems } from "@/types";
@@ -26,27 +26,28 @@ export default function BillPage() {
   useEffect(() => {
     if (!customerId) return;
 
-    async function fetchOrders() {
-      const q = query(
+    const unsub = onSnapshot(
+      query(
         collectionGroup(db, "orders"),
         where("customerId", "==", customerId),
         where("status", "in", ["pending", "completed"])
-      );
-      const snap = await getDocs(q);
-      const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, customerId!));
-      const withItems: OrderWithItems[] = await Promise.all(
-        orderDocs.map(async (order) => {
-          const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.id)));
-          return {
-            ...order,
-            items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)),
-          };
-        })
-      );
-      setOrders(withItems.sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0)));
-      setLoading(false);
-    }
-    fetchOrders();
+      ),
+      async (snap) => {
+        const orderDocs = snap.docs.map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, customerId));
+        const withItems: OrderWithItems[] = await Promise.all(
+          orderDocs.map(async (order) => {
+            const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.id)));
+            return {
+              ...order,
+              items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)),
+            };
+          })
+        );
+        setOrders(withItems.sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0)));
+        setLoading(false);
+      }
+    );
+    return unsub;
   }, [customerId]);
 
   useEffect(() => {

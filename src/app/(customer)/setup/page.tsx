@@ -7,7 +7,7 @@ import {
   collectionGroup,
   doc,
   getDoc,
-  getDocs,
+  onSnapshot,
   orderBy,
   query,
   where,
@@ -41,39 +41,41 @@ export default function SetupPage() {
       return;
     }
 
-    async function load() {
-      try {
-        const [tablesSnap, ordersSnap] = await Promise.all([
-          getDocs(query(collection(db, "tables"), orderBy("tableNumber"))),
-          getDocs(query(collectionGroup(db, "orders"), where("status", "in", ["pending", "completed"]))),
-        ]);
+    const unsub1 = onSnapshot(
+      query(collection(db, "tables"), orderBy("tableNumber")),
+      (snap) => {
+        setTables(snap.docs.map((d) => ({
+          id: d.id,
+          tableNumber: d.data().tableNumber as string,
+        })));
+        setLoadingTables(false);
+      },
+      () => setLoadingTables(false)
+    );
 
+    const unsub2 = onSnapshot(
+      query(collectionGroup(db, "orders"), where("status", "in", ["pending", "completed"])),
+      async (snap) => {
         const customerIds = [...new Set(
-          ordersSnap.docs
+          snap.docs
             .filter((d) => d.ref.parent.parent !== null)
             .map((d) => d.ref.parent.parent!.id)
         )];
-
         const occupied = new Set<string>();
         if (customerIds.length > 0) {
-          const customerDocs = await Promise.all(customerIds.map((id) => getDoc(doc(db, "customers", id))));
-          for (const snap of customerDocs) {
-            if (snap.exists()) {
-              const tid = snap.data().tableId;
+          const snaps = await Promise.all(customerIds.map((id) => getDoc(doc(db, "customers", id))));
+          for (const csnap of snaps) {
+            if (csnap.exists()) {
+              const tid = csnap.data().tableId;
               if (tid) occupied.add(tid);
             }
           }
         }
-
         setOccupiedTableIds(occupied);
-        setTables(tablesSnap.docs.map((d) => ({
-          id: d.id,
-          tableNumber: d.data().tableNumber as string,
-        })));
-      } catch {}
-      setLoadingTables(false);
-    }
-    load();
+      }
+    );
+
+    return () => { unsub1(); unsub2(); };
   }, [router]);
 
   function handleSelectTable(t: { id: string; tableNumber: string }) {
