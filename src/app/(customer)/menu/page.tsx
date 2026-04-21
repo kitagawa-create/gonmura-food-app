@@ -14,7 +14,6 @@ import Link from "next/link";
 
 const TABLE_KEY = "gonmura-table";
 const TABLE_ID_KEY = "gonmura-table-id";
-const DEVICE_ID_KEY = "gonmura-device-id";
 
 type SelectionLine = { menu: Menu; quantity: number };
 
@@ -723,10 +722,12 @@ export default function MenuPage() {
                 setSelectedNewTableId("");
                 setLoadingAvailableTables(true);
                 setShowTableChange(true);
-                getDocs(query(collection(db, "tables"), where("deviceId", "==", "")))
+                getDocs(collection(db, "tables"))
                   .then((snap) => {
+                    const currentTableId = localStorage.getItem(TABLE_ID_KEY);
                     setAvailableTables(
                       snap.docs
+                        .filter((d) => d.id !== currentTableId)
                         .map((d) => ({ id: d.id, tableNumber: d.data().tableNumber as string }))
                         .sort((a, b) => a.tableNumber.localeCompare(b.tableNumber, "ja", { numeric: true }))
                     );
@@ -828,14 +829,14 @@ export default function MenuPage() {
                   }
                   const newTable = availableTables.find((t) => t.id === selectedNewTableId);
                   if (!newTable) return;
-                  const oldTableId = localStorage.getItem(TABLE_ID_KEY);
-                  const deviceId = localStorage.getItem(DEVICE_ID_KEY) ?? "";
+                  const currentTableId = localStorage.getItem(TABLE_ID_KEY);
+                  if (!currentTableId || !tableNumber) {
+                    setTableChangeError("端末情報が見つかりません。再セットアップしてください");
+                    return;
+                  }
                   try {
-                    if (oldTableId) {
-                      updateDoc(doc(db, "tables", oldTableId), { deviceId: "", pin: "", updatedAt: serverTimestamp() }).catch(() => {});
-                    }
-                    await updateDoc(doc(db, "tables", newTable.id), { deviceId, pin: pinInput, updatedAt: serverTimestamp() });
-                    localStorage.setItem(TABLE_ID_KEY, newTable.id);
+                    await updateDoc(doc(db, "tables", currentTableId), { tableNumber: newTable.tableNumber, updatedAt: serverTimestamp() });
+                    updateDoc(doc(db, "tables", newTable.id), { tableNumber: tableNumber, updatedAt: serverTimestamp() }).catch(() => {});
                     moveToTable(newTable.tableNumber);
                   } catch {
                     setTableChangeError("変更に失敗しました。再試行してください");
