@@ -91,6 +91,11 @@ export default function AdminMenusPage() {
   const [savingMenuOrder, setSavingMenuOrder] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
+  const [bulkMode, setBulkMode] = useState<"hidden" | "soldout" | "deleted" | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [applyingBulk, setApplyingBulk] = useState(false);
+
   const handleTabChange = useCallback((tabId: string) => {
     setActiveTab(tabId);
     scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
@@ -128,7 +133,6 @@ export default function AdminMenusPage() {
     return m;
   }, [categories]);
 
-  // カテゴリ順でメニューをグルーピング。複数カテゴリ所属のメニューは各カテゴリに重複表示する。
   const visibleMenus = useMemo(() => menus.filter((m) => m.status !== "deleted"), [menus]);
 
   const groupedMenus = useMemo(() => {
@@ -147,14 +151,12 @@ export default function AdminMenusPage() {
         groups.set(cid, arr);
       }
     }
-    // 各グループ内は sortOrder 昇順 (未設定は末尾)、同値は名前順
     for (const arr of groups.values()) {
       arr.sort((a, b) => {
         if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
         return a.name.localeCompare(b.name, "ja");
       });
     }
-    // セクションをカテゴリの sortOrder 順に並べ、最後に未分類
     const sections: { category: Category | null; items: Menu[] }[] = [];
     for (const c of categories) {
       const items = groups.get(c.id);
@@ -312,7 +314,6 @@ export default function AdminMenusPage() {
     [draggingMenuId, persistMenuOrder]
   );
 
-  // 長押し→タップ移動 (iPad 対応)
   const handleTapMoveMenu = useCallback(
     (sectionItems: Menu[], targetId: string) => {
       if (!movingMenuId || movingMenuId === targetId) {
@@ -349,26 +350,112 @@ export default function AdminMenusPage() {
     }
   }, [deleteTarget, toast]);
 
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function enterBulkMode(mode: "hidden" | "soldout" | "deleted") {
+    setBulkMode(mode);
+    setSelectedIds(new Set());
+  }
+
+  function exitBulkMode() {
+    setBulkMode(null);
+    setSelectedIds(new Set());
+  }
+
+  async function applyBulkAction() {
+    if (selectedIds.size === 0 || !bulkMode) return;
+    setApplyingBulk(true);
+    try {
+      const batch = writeBatch(db);
+      for (const id of selectedIds) {
+        batch.update(doc(db, "menus", id), { status: bulkMode, updatedAt: serverTimestamp() });
+      }
+      await batch.commit();
+      const label = bulkMode === "hidden" ? "非公開" : bulkMode === "soldout" ? "売り切れ" : "削除";
+      toast(`${selectedIds.size}件を${label}にしました`);
+      exitBulkMode();
+      setBulkConfirmOpen(false);
+    } catch {
+      toast("一括変更に失敗しました");
+    } finally {
+      setApplyingBulk(false);
+    }
+  }
+
+  const bulkLabel = bulkMode === "hidden" ? "非公開" : bulkMode === "soldout" ? "売り切れ" : "削除";
+
   return (
     <div className="w-full h-full flex flex-col -m-3 md:-m-6">
-      {/* 固定ヘッダー (スクロールしない) */}
+      {/* 固定ヘッダー */}
       <div className="shrink-0 px-3 md:px-6 pt-3 md:pt-6 pb-2 bg-[color:var(--color-bg-base)] border-b border-[color:var(--color-border)]">
         <AdminPageHeader
           title="メニュー管理"
           className="mb-3"
           rightSlot={
             role === "owner" ? (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    setEditing(null);
-                    setShowForm(true);
-                  }}
-                  className="rounded-xl bg-[color:var(--color-accent-char)] px-4 py-2 text-sm text-white font-bold hover:bg-[color:var(--color-accent-char-hover)] transition-colors"
-                >
-                  新規追加
-                </button>
-              </div>
+              bulkMode ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-[color:var(--color-text-muted)] font-medium">
+                    {selectedIds.size}件選択中
+                  </span>
+                  <button
+                    onClick={exitBulkMode}
+                    className="rounded-xl border border-[color:var(--color-border)] px-4 py-2 text-sm text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    onClick={() => setBulkConfirmOpen(true)}
+                    disabled={selectedIds.size === 0}
+                    className={`rounded-xl px-4 py-2 text-sm text-white font-bold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed ${
+                      bulkMode === "deleted"
+                        ? "bg-[color:var(--color-accent-warn)]"
+                        : bulkMode === "soldout"
+                          ? "bg-[color:var(--color-accent-warn)]"
+                          : "bg-[color:var(--color-text-muted)]"
+                    }`}
+                  >
+                    {bulkLabel}にする
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => enterBulkMode("hidden")}
+                    className="rounded-xl border border-[color:var(--color-border)] px-3 py-2 text-sm text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+                  >
+                    非公開
+                  </button>
+                  <button
+                    onClick={() => enterBulkMode("soldout")}
+                    className="rounded-xl border border-[color:var(--color-accent-warn)]/40 px-3 py-2 text-sm text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors"
+                  >
+                    売り切れ
+                  </button>
+                  <button
+                    onClick={() => enterBulkMode("deleted")}
+                    className="rounded-xl border border-[color:var(--color-accent-warn)]/40 px-3 py-2 text-sm text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors"
+                  >
+                    削除
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditing(null);
+                      setShowForm(true);
+                    }}
+                    className="rounded-xl bg-[color:var(--color-accent-char)] px-4 py-2 text-sm text-white font-bold hover:bg-[color:var(--color-accent-char-hover)] transition-colors"
+                  >
+                    新規追加
+                  </button>
+                </div>
+              )
             ) : undefined
           }
         />
@@ -426,7 +513,6 @@ export default function AdminMenusPage() {
           {(activeTab === "all"
             ? groupedMenus
             : (() => {
-                // 特定カテゴリタブ: 主カテゴリに関係なく categoryIds に含む全メニューを表示
                 const cat = categories.find((c) => c.id === activeTab) ?? null;
                 const items = visibleMenus
                   .filter((m) => m.categoryIds.includes(activeTab))
@@ -452,19 +538,22 @@ export default function AdminMenusPage() {
                 {items.map((m) => {
                   const isDragging = draggingMenuId === m.id;
                   const isMovingThis = movingMenuId === m.id;
-                  const isMoveTarget = role === "owner" && movingMenuId !== null && movingMenuId !== m.id;
+                  const isMoveTarget = role === "owner" && !bulkMode && movingMenuId !== null && movingMenuId !== m.id;
+                  const isSelected = selectedIds.has(m.id);
                   const longPressRef = { current: null as ReturnType<typeof setTimeout> | null };
                   return (
                     <div
                       key={m.id}
-                      draggable={role === "owner"}
+                      draggable={role === "owner" && !bulkMode}
                       onDragStart={(e) => {
+                        if (bulkMode) return;
                         e.dataTransfer.effectAllowed = "move";
                         setDraggingMenuId(m.id);
                       }}
-                      onDragEnter={() => setDragOverMenuId(m.id)}
-                      onDragOver={(e) => e.preventDefault()}
+                      onDragEnter={() => { if (!bulkMode) setDragOverMenuId(m.id); }}
+                      onDragOver={(e) => { if (!bulkMode) e.preventDefault(); }}
                       onDrop={(e) => {
+                        if (bulkMode) return;
                         e.preventDefault();
                         handleMenuDrop(items, m.id);
                       }}
@@ -473,7 +562,7 @@ export default function AdminMenusPage() {
                         setDragOverMenuId(null);
                       }}
                       onTouchStart={() => {
-                        if (role !== "owner") return;
+                        if (role !== "owner" || bulkMode) return;
                         longPressRef.current = setTimeout(() => {
                           setMovingMenuId(m.id);
                           longPressRef.current = null;
@@ -492,19 +581,43 @@ export default function AdminMenusPage() {
                           longPressRef.current = null;
                         }
                       }}
-                      onClick={() => { if (isMoveTarget) handleTapMoveMenu(items, m.id); }}
+                      onClick={() => {
+                        if (bulkMode) { toggleSelect(m.id); return; }
+                        if (isMoveTarget) handleTapMoveMenu(items, m.id);
+                      }}
                       className={`relative rounded-xl border bg-[color:var(--color-bg-card)] p-4 shadow-sm select-none ${
+                        bulkMode ? "cursor-pointer" : ""
+                      } ${
                         m.status === "hidden" ? "bg-[color:var(--color-bg-subtle)] opacity-60 border-dashed" : ""
                       } ${
-                        isMovingThis
-                          ? "border-[color:var(--color-accent-char)] ring-2 ring-[color:var(--color-accent-char)]/30 bg-[color:var(--color-accent-char)]/5"
-                          : m.status === "soldout"
-                            ? "border-[color:var(--color-accent-warn)]"
-                            : "border-[color:var(--color-border)]"
+                        isSelected
+                          ? "border-[color:var(--color-accent-char)] ring-2 ring-[color:var(--color-accent-char)]/30"
+                          : isMovingThis
+                            ? "border-[color:var(--color-accent-char)] ring-2 ring-[color:var(--color-accent-char)]/30 bg-[color:var(--color-accent-char)]/5"
+                            : m.status === "soldout"
+                              ? "border-[color:var(--color-accent-warn)]"
+                              : "border-[color:var(--color-border)]"
                       } ${isMoveTarget ? "cursor-pointer" : ""} ${isDragging ? "opacity-40" : ""}`}
                     >
-                      {/* 鉛筆アイコン編集ボタン（右上） */}
-                      {role === "owner" && (
+                      {/* 一括選択モード: チェックボックス */}
+                      {bulkMode && (
+                        <div className="absolute left-3 top-3 z-10 pointer-events-none">
+                          <div className={`h-5 w-5 rounded border-2 flex items-center justify-center ${
+                            isSelected
+                              ? "border-[color:var(--color-accent-char)] bg-[color:var(--color-accent-char)]"
+                              : "border-[color:var(--color-border)] bg-[color:var(--color-bg-card)]"
+                          }`}>
+                            {isSelected && (
+                              <svg className="h-3 w-3 text-white" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="2,6 5,9 10,3" />
+                              </svg>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 鉛筆アイコン編集ボタン（右上）: 一括モード時は非表示 */}
+                      {role === "owner" && !bulkMode && (
                         <button
                           onClick={() => {
                             setEditing(m);
@@ -519,7 +632,7 @@ export default function AdminMenusPage() {
                           </svg>
                         </button>
                       )}
-                      <div className="flex gap-3">
+                      <div className={`flex gap-3 ${bulkMode ? "pl-7" : ""}`}>
                         {m.imageUrl && (
                           <FadeImage
                             src={m.imageUrl}
@@ -540,7 +653,6 @@ export default function AdminMenusPage() {
                               {m.description}
                             </p>
                           )}
-                          {/* 非公開・売り切れバッジ */}
                           {(m.status === "hidden" || m.status === "soldout") && (
                             <div className="mt-1.5 flex flex-wrap gap-1">
                               {m.status === "hidden" && (
@@ -557,51 +669,54 @@ export default function AdminMenusPage() {
                           )}
                         </div>
                       </div>
-                      {/* 下部ボタン行: 非公開・売り切れ左寄せ、削除右端 */}
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <button
-                          onClick={() => {
-                            if (m.status !== "hidden") {
-                              setToggleConfirm({ menu: m, type: "available" });
-                            } else {
-                              handleToggleAvailable(m);
-                            }
-                          }}
-                          aria-pressed={m.status === "hidden"}
-                          className={`rounded-lg border px-3 py-1 text-xs transition-colors ${
-                            m.status === "hidden"
-                              ? "border-[color:var(--color-accent-char)] bg-[color:var(--color-accent-char)] text-white hover:opacity-90"
-                              : "border-[color:var(--color-accent-char)]/40 text-[color:var(--color-accent-char)] hover:bg-[color:var(--color-accent-char)]/10"
-                          }`}
-                        >
-                          {m.status === "hidden" ? "公開する" : "非公開にする"}
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (m.status !== "soldout") {
-                              setToggleConfirm({ menu: m, type: "soldout" });
-                            } else {
-                              handleToggleSoldOut(m);
-                            }
-                          }}
-                          aria-pressed={m.status === "soldout"}
-                          className={`rounded-lg border px-3 py-1 text-xs transition-colors ${
-                            m.status === "soldout"
-                              ? "border-[color:var(--color-accent-warn)] bg-[color:var(--color-accent-warn)] text-white hover:opacity-90"
-                              : "border-[color:var(--color-accent-warn)]/40 text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10"
-                          }`}
-                        >
-                          {m.status === "soldout" ? "売り切れ解除" : "売り切れにする"}
-                        </button>
-                        {role === "owner" && (
+
+                      {/* 下部ボタン行: 一括モード時は非表示 */}
+                      {!bulkMode && (
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
                           <button
-                            onClick={() => setDeleteTarget(m)}
-                            className="ml-auto rounded-lg bg-[color:var(--color-accent-warn)] px-3 py-1 text-xs text-white hover:opacity-90 transition-colors"
+                            onClick={() => {
+                              if (m.status !== "hidden") {
+                                setToggleConfirm({ menu: m, type: "available" });
+                              } else {
+                                handleToggleAvailable(m);
+                              }
+                            }}
+                            aria-pressed={m.status === "hidden"}
+                            className={`rounded-lg border px-3 py-1 text-xs transition-colors ${
+                              m.status === "hidden"
+                                ? "border-[color:var(--color-accent-char)] bg-[color:var(--color-accent-char)] text-white hover:opacity-90"
+                                : "border-[color:var(--color-accent-char)]/40 text-[color:var(--color-accent-char)] hover:bg-[color:var(--color-accent-char)]/10"
+                            }`}
                           >
-                            削除
+                            {m.status === "hidden" ? "公開する" : "非公開にする"}
                           </button>
-                        )}
-                      </div>
+                          <button
+                            onClick={() => {
+                              if (m.status !== "soldout") {
+                                setToggleConfirm({ menu: m, type: "soldout" });
+                              } else {
+                                handleToggleSoldOut(m);
+                              }
+                            }}
+                            aria-pressed={m.status === "soldout"}
+                            className={`rounded-lg border px-3 py-1 text-xs transition-colors ${
+                              m.status === "soldout"
+                                ? "border-[color:var(--color-accent-warn)] bg-[color:var(--color-accent-warn)] text-white hover:opacity-90"
+                                : "border-[color:var(--color-accent-warn)]/40 text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10"
+                            }`}
+                          >
+                            {m.status === "soldout" ? "売り切れ解除" : "売り切れにする"}
+                          </button>
+                          {role === "owner" && (
+                            <button
+                              onClick={() => setDeleteTarget(m)}
+                              className="ml-auto rounded-lg bg-[color:var(--color-accent-warn)] px-3 py-1 text-xs text-white hover:opacity-90 transition-colors"
+                            >
+                              削除
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -660,6 +775,23 @@ export default function AdminMenusPage() {
           setToggleConfirm(null);
         }}
         onCancel={() => setToggleConfirm(null)}
+      />
+
+      <ConfirmDialog
+        open={bulkConfirmOpen}
+        title={`選択した${selectedIds.size}件を${bulkLabel}にする`}
+        message={
+          bulkMode === "hidden"
+            ? "選択したメニューをお客様から非表示にします。注文できなくなります。"
+            : bulkMode === "soldout"
+              ? "選択したメニューを売り切れに設定します。お客様は注文できなくなります。"
+              : "選択したメニューを削除します。過去の売上データへの影響を防ぐためデータは内部に保持されます。"
+        }
+        confirmLabel={`${bulkLabel}にする`}
+        confirmColor="red"
+        onConfirm={applyBulkAction}
+        onCancel={() => setBulkConfirmOpen(false)}
+        loading={applyingBulk}
       />
     </div>
   );
@@ -735,7 +867,6 @@ function MenuFormModal({
         onSubmit={handleSubmit}
         className="relative flex max-h-[90dvh] w-full max-w-lg flex-col rounded-2xl bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] shadow-xl"
       >
-        {/* 閉じる: 右上固定 */}
         <button
           type="button"
           onClick={onClose}
@@ -747,14 +878,12 @@ function MenuFormModal({
           </svg>
         </button>
 
-        {/* ヘッダー (固定) */}
         <div className="shrink-0 border-b border-[color:var(--color-border)] px-6 py-4 pr-16">
           <h2 className="text-lg font-bold text-[color:var(--color-text-primary)]">
             {menu ? "メニュー編集" : "メニュー追加"}
           </h2>
         </div>
 
-        {/* ボディ (スクロール) */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
 
         <div className="space-y-3">
@@ -866,7 +995,6 @@ function MenuFormModal({
 
         </div>
 
-        {/* フッター (sticky 下部固定) */}
         <div className="sticky bottom-0 shrink-0 flex justify-end border-t border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] px-6 py-4 rounded-b-2xl">
           <button
             type="submit"
