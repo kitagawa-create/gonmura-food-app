@@ -13,6 +13,7 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Table } from "@/types";
@@ -35,6 +36,10 @@ export default function AdminTablesPage() {
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState("");
   const [savingPin, setSavingPin] = useState(false);
+  const [showUnifyPinDialog, setShowUnifyPinDialog] = useState(false);
+  const [unifyPinInput, setUnifyPinInput] = useState("");
+  const [unifyPinError, setUnifyPinError] = useState("");
+  const [savingUnifyPin, setSavingUnifyPin] = useState(false);
   const [resetTarget, setResetTarget] = useState<Table | null>(null);
   const [resetting, setResetting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Table | null>(null);
@@ -102,6 +107,29 @@ export default function AdminTablesPage() {
     }
   }, [resetTarget, toast]);
 
+  async function unifyAllPins() {
+    if (!/^\d{4}$/.test(unifyPinInput)) {
+      setUnifyPinError("4桁の数字で入力してください");
+      return;
+    }
+    setSavingUnifyPin(true);
+    try {
+      const batch = writeBatch(db);
+      for (const table of tables) {
+        batch.update(doc(db, "tables", table.id), { pin: unifyPinInput, updatedAt: serverTimestamp() });
+      }
+      await batch.commit();
+      toast(`全${tables.length}テーブルのPINを統一しました`);
+      setShowUnifyPinDialog(false);
+      setUnifyPinInput("");
+      setUnifyPinError("");
+    } catch {
+      toast("PINの統一に失敗しました");
+    } finally {
+      setSavingUnifyPin(false);
+    }
+  }
+
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -126,12 +154,20 @@ export default function AdminTablesPage() {
       <AdminPageHeader
         title="テーブル管理"
         rightSlot={
-          <button
-            onClick={() => setShowAddDialog(true)}
-            className="rounded-lg bg-[color:var(--color-accent-char)] px-4 py-2 text-sm text-white font-bold hover:opacity-90 transition-opacity"
-          >
-            ＋ テーブル追加
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setShowUnifyPinDialog(true); setUnifyPinInput(""); setUnifyPinError(""); }}
+              className="rounded-lg border border-[color:var(--color-border)] px-4 py-2 text-sm text-[color:var(--color-text-muted)] font-bold hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+            >
+              PIN統一
+            </button>
+            <button
+              onClick={() => setShowAddDialog(true)}
+              className="rounded-lg bg-[color:var(--color-accent-char)] px-4 py-2 text-sm text-white font-bold hover:opacity-90 transition-opacity"
+            >
+              ＋ テーブル追加
+            </button>
+          </div>
         }
       />
 
@@ -228,6 +264,46 @@ export default function AdminTablesPage() {
         </div>
       )}
 
+      {showUnifyPinDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] shadow-xl p-6">
+            <h2 className="text-lg font-bold text-[color:var(--color-text-primary)] mb-1">全テーブルPIN統一</h2>
+            <p className="text-sm text-[color:var(--color-text-muted)] mb-4">
+              全{tables.length}テーブルに同じPINを設定します
+            </p>
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={4}
+              autoFocus
+              value={unifyPinInput}
+              onChange={(e) => { setUnifyPinInput(e.target.value.replace(/\D/g, "").slice(0, 4)); setUnifyPinError(""); }}
+              placeholder="4桁の数字"
+              className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-center text-2xl tracking-[0.5em] text-[color:var(--color-text-primary)] placeholder-[color:var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)] mb-2"
+            />
+            {unifyPinError && (
+              <p className="text-xs text-[color:var(--color-accent-warn)] mb-2">{unifyPinError}</p>
+            )}
+            <div className="flex gap-3 mt-4">
+              <button
+                type="button"
+                onClick={() => setShowUnifyPinDialog(false)}
+                className="flex-1 rounded-xl border border-[color:var(--color-border)] py-2.5 text-sm text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={unifyAllPins}
+                disabled={savingUnifyPin || unifyPinInput.length !== 4}
+                className="flex-1 rounded-xl bg-[color:var(--color-accent-char)] py-2.5 text-sm text-white font-bold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {savingUnifyPin ? "適用中..." : "統一する"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <TableAddDialog
         open={showAddDialog}
         onClose={() => setShowAddDialog(false)}
