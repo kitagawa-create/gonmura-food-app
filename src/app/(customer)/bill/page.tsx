@@ -96,7 +96,8 @@ export default function BillPage() {
   return (
     <div className="h-[100dvh] flex flex-col bg-[color:var(--color-bg-base)]">
       <CustomerPageHeader title="お会計" />
-      <div className="flex-1 overflow-y-auto flex items-center justify-center p-4">
+      <div className="flex-1 overflow-y-auto">
+        <div className="min-h-full flex items-center justify-center p-4">
         {/* レシート: 外側 padding 撤去、各セクションが px-6 + 全幅 dashed divider */}
         <div className="w-full max-w-sm md:max-w-md lg:max-w-lg bg-[color:var(--color-bg-card)] rounded-2xl border border-[color:var(--color-border)] overflow-hidden">
           <div className="text-center px-6 pt-6 pb-4">
@@ -173,6 +174,7 @@ export default function BillPage() {
             </p>
           </div>
 
+        </div>
         </div>
       </div>
     </div>
