@@ -49,7 +49,7 @@ export default function MenuPage() {
   const [selectedNewTableId, setSelectedNewTableId] = useState("");
   const [showGuestCountDialog, setShowGuestCountDialog] = useState(false);
   const [guestCountInput, setGuestCountInput] = useState<number>(1);
-  const { addItem, updateItem, totalItems, tableNumber, setTableNumber, clearCart, resetSession, guestCount, setGuestCount, customerId } =
+  const { addItem, updateItem, totalItems, tableNumber, setTableNumber, clearCart, resetSession, moveToTable, guestCount, setGuestCount, customerId } =
     useCart();
   const router = useRouter();
   const prevHasUnpaidRef = useRef<boolean | undefined>(undefined);
@@ -810,11 +810,6 @@ export default function MenuPage() {
                 {tableChangeError}
               </p>
             )}
-            {totalItems > 0 && (
-              <p className="text-xs text-[color:var(--color-accent-warn)] text-center mb-3">
-                現在のカート ({totalItems}点) は破棄されます
-              </p>
-            )}
             <div className="flex gap-3">
               <button
                 type="button"
@@ -833,10 +828,6 @@ export default function MenuPage() {
                   }
                   const newTable = availableTables.find((t) => t.id === selectedNewTableId);
                   if (!newTable) return;
-                  if (totalItems > 0) {
-                    const ok = window.confirm(`現在のカート (${totalItems}点) は破棄されます。よろしいですか？`);
-                    if (!ok) return;
-                  }
                   const oldTableId = localStorage.getItem(TABLE_ID_KEY);
                   const deviceId = localStorage.getItem(DEVICE_ID_KEY) ?? "";
                   try {
@@ -845,8 +836,7 @@ export default function MenuPage() {
                     }
                     await updateDoc(doc(db, "tables", newTable.id), { deviceId, pin: pinInput, updatedAt: serverTimestamp() });
                     localStorage.setItem(TABLE_ID_KEY, newTable.id);
-                    clearCart();
-                    setTableNumber(newTable.tableNumber);
+                    moveToTable(newTable.tableNumber);
                   } catch {
                     setTableChangeError("変更に失敗しました。再試行してください");
                     return;
