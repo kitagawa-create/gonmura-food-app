@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   collection,
   collectionGroup,
@@ -29,7 +29,16 @@ export default function AdminTablesPage() {
   const router = useRouter();
   const { show: toast } = useToast();
   const [tables, setTables] = useState<Table[]>([]);
-  const [occupiedTableIds, setOccupiedTableIds] = useState<Set<string>>(new Set());
+  const [activeCustomerIds, setActiveCustomerIds] = useState<Set<string>>(new Set());
+  const [customerTableMap, setCustomerTableMap] = useState<Map<string, string>>(new Map());
+  const occupiedTableIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const cid of activeCustomerIds) {
+      const tid = customerTableMap.get(cid);
+      if (tid) ids.add(tid);
+    }
+    return ids;
+  }, [activeCustomerIds, customerTableMap]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Table | null>(null);
@@ -79,36 +88,30 @@ export default function AdminTablesPage() {
     );
   }, []);
 
-  // アクティブな注文から使用中テーブルを導出
+  // アクティブな注文を持つ customerIds を購読
   useEffect(() => {
-    let cancelled = false;
-    let gen = 0;
-    const unsub = onSnapshot(
+    return onSnapshot(
       query(collectionGroup(db, "orders"), where("status", "in", ["pending", "completed"])),
-      async (snap) => {
-        const current = ++gen;
-        const customerIds = [...new Set(
+      (snap) => {
+        setActiveCustomerIds(new Set(
           snap.docs
             .filter((d) => d.ref.parent.parent !== null)
             .map((d) => d.ref.parent.parent!.id)
-        )];
-        if (customerIds.length === 0) {
-          if (!cancelled && current === gen) setOccupiedTableIds(new Set());
-          return;
-        }
-        const customerDocs = await Promise.all(customerIds.map((id) => getDoc(doc(db, "customers", id))));
-        if (cancelled || current !== gen) return;
-        const tableIds = new Set<string>();
-        for (const snap of customerDocs) {
-          if (snap.exists()) {
-            const tid = snap.data().tableId;
-            if (tid) tableIds.add(tid);
-          }
-        }
-        setOccupiedTableIds(tableIds);
+        ));
       }
     );
-    return () => { cancelled = true; unsub(); };
+  }, []);
+
+  // customers コレクションを購読してテーブル移動もリアルタイム反映
+  useEffect(() => {
+    return onSnapshot(collection(db, "customers"), (snap) => {
+      const map = new Map<string, string>();
+      for (const d of snap.docs) {
+        const tid = d.data().tableId;
+        if (typeof tid === "string" && tid) map.set(d.id, tid);
+      }
+      setCustomerTableMap(map);
+    });
   }, []);
 
   async function handleAddTable(tableNumber: string) {
