@@ -501,7 +501,7 @@ function ActiveOrderCard({
       {/* テーブル番号 + 経過 + 進捗 + 編集 */}
       <div className="flex items-center justify-between gap-2 mb-3">
         <span className="inline-flex items-center justify-center min-w-[56px] h-12 px-3 rounded-lg bg-[color:var(--color-accent-char)] text-white text-2xl font-black leading-none">
-          T{tableNumber ?? "?"}
+          {tableNumber ?? "?"}
         </span>
         <div className="flex items-center gap-2">
           <span className="text-xs text-[color:var(--color-text-muted)]">{progress}</span>
@@ -900,7 +900,7 @@ function HistoryOrderCard({
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center justify-center min-w-[40px] h-8 px-2 rounded-md bg-[color:var(--color-accent-soy)] text-white text-sm font-bold leading-none">
-            T{tableNumber ?? "?"}
+            {tableNumber ?? "?"}
           </span>
           <span
             className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
