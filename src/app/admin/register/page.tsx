@@ -112,21 +112,6 @@ export default function AdminRegisterPage() {
   }, []);
 
   useEffect(() => {
-    const missingIds = [...new Set(paidOrders.map((o) => o.customerId))].filter(
-      (id) => !customerInfoMapRef.current.has(id)
-    );
-    if (missingIds.length === 0) return;
-    let cancelled = false;
-    (async () => {
-      const newData = await fetchCustomerInfo(missingIds);
-      if (cancelled) return;
-      customerInfoMapRef.current = new Map([...customerInfoMapRef.current, ...newData]);
-      setCustomerInfoMap(new Map(customerInfoMapRef.current));
-    })();
-    return () => { cancelled = true; };
-  }, [paidOrders]);
-
-  useEffect(() => {
     const start = new Date(`${dateFilter}T00:00:00`);
     const end = new Date(start.getTime() + 86_400_000);
     let cancelled = false;
@@ -151,7 +136,16 @@ export default function AdminRegisterPage() {
           })
         );
         if (cancelled || current !== gen) return;
+        const missingIds = [...new Set(withItems.map((o) => o.customerId))].filter(
+          (id) => !customerInfoMapRef.current.has(id)
+        );
+        if (missingIds.length > 0) {
+          const newData = await fetchCustomerInfo(missingIds);
+          if (cancelled || current !== gen) return;
+          customerInfoMapRef.current = new Map([...customerInfoMapRef.current, ...newData]);
+        }
         setPaidOrders(withItems);
+        setCustomerInfoMap(new Map(customerInfoMapRef.current));
         setOrdersLoaded(true);
       },
       () => { if (!cancelled) { setPaidOrders([]); setOrdersLoaded(true); } }
