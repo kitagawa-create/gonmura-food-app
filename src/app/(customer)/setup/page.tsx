@@ -100,47 +100,56 @@ export default function SetupPage() {
 
   if (step === "guests" && selectedTable) {
     return (
-      <div className="min-h-screen bg-[color:var(--color-bg-base)] flex items-center justify-center p-4">
-        <div className="w-full max-w-sm bg-[color:var(--color-bg-card)] rounded-2xl border border-[color:var(--color-border)] p-8">
-          <button
-            type="button"
-            onClick={() => setStep("table")}
-            className="mb-5 text-xs text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-primary)] transition-colors"
-          >
-            ← テーブル選択に戻る
-          </button>
-          <h1 className="text-xl font-bold text-center text-[color:var(--color-text-primary)] mb-1">
-            テーブル {selectedTable.tableNumber}
-          </h1>
-          <p className="text-sm text-center text-[color:var(--color-text-muted)] mb-8">
-            何名様ですか？
-          </p>
-          <div className="flex items-center justify-center gap-8 mb-8">
+      <div className="h-[100dvh] flex flex-col bg-[color:var(--color-bg-base)]">
+        <header className="sticky top-0 z-10 bg-[color:var(--color-bg-base)] border-b border-[color:var(--color-border)]">
+          <div className="flex items-center gap-3 px-4 sm:px-6 py-3">
             <button
               type="button"
-              onClick={() => setGuestCountInput((n) => Math.max(1, n - 1))}
-              className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-[color:var(--color-border)] text-3xl font-bold text-[color:var(--color-text-primary)] hover:opacity-80 transition-opacity"
+              onClick={() => setStep("table")}
+              aria-label="テーブル選択に戻る"
+              className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-full bg-[color:var(--color-bg-card)] text-[color:var(--color-text-primary)] border border-[color:var(--color-border)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
             >
-              −
+              <svg aria-hidden="true" viewBox="0 0 20 20" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12.5 4.5L6 11l6.5 6.5" />
+              </svg>
             </button>
-            <span className="w-20 text-center text-5xl font-black text-[color:var(--color-text-primary)] tabular-nums">
-              {guestCountInput}
-            </span>
+            <h1 className="text-base font-bold text-[color:var(--color-text-primary)]">
+              テーブル {selectedTable.tableNumber}
+            </h1>
+          </div>
+        </header>
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="w-full max-w-sm">
+            <p className="text-sm text-center text-[color:var(--color-text-muted)] mb-8">
+              何名様ですか？
+            </p>
+            <div className="flex items-center justify-center gap-8 mb-8">
+              <button
+                type="button"
+                onClick={() => setGuestCountInput((n) => Math.max(1, n - 1))}
+                className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-[color:var(--color-border)] text-3xl font-bold text-[color:var(--color-text-primary)] hover:opacity-80 transition-opacity"
+              >
+                −
+              </button>
+              <span className="w-20 text-center text-5xl font-black text-[color:var(--color-text-primary)] tabular-nums">
+                {guestCountInput}
+              </span>
+              <button
+                type="button"
+                onClick={() => setGuestCountInput((n) => n + 1)}
+                className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-[color:var(--color-border)] text-3xl font-bold text-[color:var(--color-text-primary)] hover:opacity-80 transition-opacity"
+              >
+                ＋
+              </button>
+            </div>
             <button
               type="button"
-              onClick={() => setGuestCountInput((n) => n + 1)}
-              className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-[color:var(--color-border)] text-3xl font-bold text-[color:var(--color-text-primary)] hover:opacity-80 transition-opacity"
+              onClick={handleConfirm}
+              className="w-full bg-[color:var(--color-accent-char)] text-white py-4 rounded-xl text-lg font-bold hover:opacity-90 transition-opacity"
             >
-              ＋
+              注文を開始する
             </button>
           </div>
-          <button
-            type="button"
-            onClick={handleConfirm}
-            className="w-full bg-[color:var(--color-accent-char)] text-white py-4 rounded-xl text-lg font-bold hover:opacity-90 transition-opacity"
-          >
-            注文を開始する
-          </button>
         </div>
       </div>
     );
