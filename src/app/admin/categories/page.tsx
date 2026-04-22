@@ -219,17 +219,12 @@ export default function AdminCategoriesPage() {
             ハンドルをドラッグして並び替え{savingOrder && " (保存中...)"}
           </p>
           <ul className="space-y-2">
-            {/* おすすめは常に先頭固定 */}
-            {osusumeCategory && (
-              <FixedCategoryRow category={osusumeCategory} />
-            )}
-            {/* 通常カテゴリは並び替え可能 */}
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={otherCategories.map((c) => c.categoryId)} strategy={verticalListSortingStrategy}>
                 {otherCategories.map((c, i) => (
                   <CategoryRow
                     key={c.categoryId}
-                    index={i + (osusumeCategory ? 1 : 0)}
+                    index={i}
                     category={c}
                     onRename={(name) => handleRename(c.categoryId, name)}
                     onDelete={() => requestDelete(c)}
@@ -263,27 +258,6 @@ export default function AdminCategoriesPage() {
   );
 }
 
-// おすすめ専用の固定行（編集・削除・並び替え不可）
-function FixedCategoryRow({ category }: { category: Category }) {
-  return (
-    <li className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-3 shadow-sm">
-      <div className="flex items-center gap-2">
-        <span className="px-2 text-xl text-[color:var(--color-text-muted)] opacity-20 select-none">
-          ⠿
-        </span>
-        <span className="w-8 shrink-0 text-right text-sm tabular-nums text-[color:var(--color-text-muted)]">
-          1.
-        </span>
-        <span className="flex-1 px-2 py-1 text-sm font-medium text-[color:var(--color-text-primary)]">
-          {category.name}
-        </span>
-        <span className="text-xs text-[color:var(--color-text-muted)]">
-          ※おすすめは動かせません
-        </span>
-      </div>
-    </li>
-  );
-}
 
 function CategoryAddDialog({
   open,
