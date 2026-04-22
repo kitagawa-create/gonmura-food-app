@@ -277,8 +277,8 @@ function FixedCategoryRow({ category }: { category: Category }) {
         <span className="flex-1 px-2 py-1 text-sm font-medium text-[color:var(--color-text-primary)]">
           {category.name}
         </span>
-        <span className="rounded-md border border-[color:var(--color-border)] px-2 py-1 text-xs text-[color:var(--color-text-muted)]">
-          固定
+        <span className="text-xs text-[color:var(--color-text-muted)]">
+          ※おすすめは動かせません
         </span>
       </div>
     </li>

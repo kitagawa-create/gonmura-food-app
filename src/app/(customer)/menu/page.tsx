@@ -803,12 +803,12 @@ export default function MenuPage() {
             <p className="text-center text-sm text-[color:var(--color-text-muted)] mb-5">名様</p>
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
                 setGuestCount(guestCountInput);
                 if (!customerId) {
                   const tableId = localStorage.getItem(TABLE_ID_KEY) ?? "";
                   const customerRef = doc(collection(db, "customers"));
-                  setDoc(customerRef, {
+                  await setDoc(customerRef, {
                     customerId: customerRef.id,
                     tableId,
                     guestCount: guestCountInput,

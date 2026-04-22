@@ -550,10 +550,7 @@ export default function AdminMenusPage() {
                         </div>
                       )}
 
-                      {/* 表示順（左下） */}
-                      <span className="absolute left-3 bottom-3 z-10 pointer-events-none text-xs tabular-nums leading-none text-[color:var(--color-text-muted)]/60">
-                        表示順{menuIdx + 1}
-                      </span>
+
 
                       {/* 鉛筆アイコン編集ボタン（右上） */}
                       {role === "owner" && (
@@ -573,7 +570,7 @@ export default function AdminMenusPage() {
                         </button>
                       )}
 
-                      <div className="flex gap-3 pl-7 pb-6">
+                      <div className="flex gap-3 pl-7">
                         {m.imageUrl && (
                           <FadeImage
                             src={m.imageUrl}
