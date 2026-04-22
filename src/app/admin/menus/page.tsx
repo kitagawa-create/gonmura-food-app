@@ -79,7 +79,6 @@ export default function AdminMenusPage() {
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Menu | null>(null);
-  const [activeTab, setActiveTab] = useState<string>("all");
   const [deleting, setDeleting] = useState(false);
   const [movingMenuId, setMovingMenuId] = useState<string | null>(null);
   const [movingMenuSectionCatId, setMovingMenuSectionCatId] = useState<string | null>(null);
@@ -93,11 +92,6 @@ export default function AdminMenusPage() {
   const [pendingAction, setPendingAction] = useState<"hidden" | "soldout" | "deleted" | "active" | null>(null);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [applyingBulk, setApplyingBulk] = useState(false);
-
-  const handleTabChange = useCallback((tabId: string) => {
-    setActiveTab(tabId);
-    scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
 
   useEffect(() => {
     const unsubMenus = onSnapshot(
@@ -356,10 +350,8 @@ export default function AdminMenusPage() {
         batch.update(doc(db, "menus", id), { status: pendingAction, updatedAt: serverTimestamp() });
       }
       await batch.commit();
-      const label = pendingAction === "hidden" ? "非公開" : pendingAction === "soldout" ? "売り切れ" : pendingAction === "active" ? "active" : "削除";
-      const toastMsg = pendingAction === "active"
-        ? `${selectedIds.size}件を販売中に戻しました`
-        : `${selectedIds.size}件を${label}にしました`;
+      const label = pendingAction === "hidden" ? "非公開" : pendingAction === "soldout" ? "売り切れ" : pendingAction === "active" ? "解除" : "削除";
+      const toastMsg = `${selectedIds.size}件を${label}しました`;
       toast(toastMsg);
       setSelectedIds(new Set());
       setPendingAction(null);
@@ -371,7 +363,16 @@ export default function AdminMenusPage() {
     }
   }
 
-  const actionLabel = pendingAction === "hidden" ? "非公開" : pendingAction === "soldout" ? "売り切れ" : pendingAction === "active" ? "販売中に戻す" : "削除";
+  const actionLabel = pendingAction === "hidden" ? "非公開" : pendingAction === "soldout" ? "売り切れ" : pendingAction === "active" ? "解除" : "削除";
+
+  const selectedStatusCounts = useMemo(() => {
+    const selected = visibleMenus.filter((m) => selectedIds.has(m.menuId));
+    return {
+      active: selected.filter((m) => m.status === "active").length,
+      soldout: selected.filter((m) => m.status === "soldout").length,
+      hidden: selected.filter((m) => m.status === "hidden").length,
+    };
+  }, [selectedIds, visibleMenus]);
 
   return (
     <div className="w-full h-full flex flex-col -m-3 md:-m-6">
@@ -381,100 +382,17 @@ export default function AdminMenusPage() {
           title="メニュー管理"
           className="mb-3"
           rightSlot={
-            role === "owner" || role === "staff" ? (
-              <div className="flex items-center gap-2">
-                {selectedIds.size > 0 && (
-                  <span className="text-sm text-[color:var(--color-text-muted)] font-medium">
-                    {selectedIds.size}件選択中
-                  </span>
-                )}
-                <div className="flex flex-col gap-1">
-                  <button
-                    onClick={() => { setPendingAction("hidden"); setBulkConfirmOpen(true); }}
-                    disabled={selectedIds.size === 0}
-                    className="rounded-xl border border-[color:var(--color-accent-warn)]/40 px-3 py-1.5 text-sm text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    非公開
-                  </button>
-                  <button
-                    onClick={() => { setPendingAction("active"); setBulkConfirmOpen(true); }}
-                    disabled={selectedIds.size === 0}
-                    className="rounded-xl border border-[color:var(--color-accent-char)]/40 px-3 py-1.5 text-xs text-[color:var(--color-accent-char)] hover:bg-[color:var(--color-accent-char)]/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    解除
-                  </button>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <button
-                    onClick={() => { setPendingAction("soldout"); setBulkConfirmOpen(true); }}
-                    disabled={selectedIds.size === 0}
-                    className="rounded-xl border border-[color:var(--color-accent-warn)]/40 px-3 py-1.5 text-sm text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    売り切れ
-                  </button>
-                  <button
-                    onClick={() => { setPendingAction("active"); setBulkConfirmOpen(true); }}
-                    disabled={selectedIds.size === 0}
-                    className="rounded-xl border border-[color:var(--color-accent-char)]/40 px-3 py-1.5 text-xs text-[color:var(--color-accent-char)] hover:bg-[color:var(--color-accent-char)]/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    解除
-                  </button>
-                </div>
-                {role === "owner" && (
-                  <>
-                    <button
-                      onClick={() => { setPendingAction("deleted"); setBulkConfirmOpen(true); }}
-                      disabled={selectedIds.size === 0}
-                      className="rounded-xl border border-[color:var(--color-accent-warn)]/40 px-3 py-2 text-sm text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      削除
-                    </button>
-                    <button
-                      onClick={() => { setEditing(null); setShowForm(true); }}
-                      className="rounded-xl bg-[color:var(--color-accent-char)] px-4 py-2 text-sm text-white font-bold hover:bg-[color:var(--color-accent-char-hover)] transition-colors"
-                    >
-                      新規追加
-                    </button>
-                  </>
-                )}
-              </div>
+            role === "owner" ? (
+              <button
+                onClick={() => { setEditing(null); setShowForm(true); }}
+                className="rounded-xl bg-[color:var(--color-accent-char)] px-4 py-2 text-sm text-white font-bold hover:bg-[color:var(--color-accent-char-hover)] transition-colors"
+              >
+                新規追加
+              </button>
             ) : undefined
           }
         />
 
-        {/* カテゴリタブ */}
-        {!loading && categories.length > 0 && (
-          <div className="flex gap-1 overflow-x-auto no-scrollbar">
-            <button
-              onClick={() => handleTabChange("all")}
-              className={`shrink-0 border-b-2 px-4 py-2 text-sm transition-colors ${
-                activeTab === "all"
-                  ? "border-[color:var(--color-accent-char)] font-semibold text-[color:var(--color-accent-char)]"
-                  : "border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-primary)]"
-              }`}
-            >
-              すべて
-              <span className="ml-1 text-xs">({visibleMenus.length})</span>
-            </button>
-            {categories.map((cat) => {
-              const count = visibleMenus.filter((m) => m.categoryIds.includes(cat.categoryId)).length;
-              return (
-                <button
-                  key={cat.categoryId}
-                  onClick={() => handleTabChange(cat.categoryId)}
-                  className={`shrink-0 border-b-2 px-4 py-2 text-sm transition-colors ${
-                    activeTab === cat.categoryId
-                      ? "border-[color:var(--color-accent-char)] font-semibold text-[color:var(--color-accent-char)]"
-                      : "border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-primary)]"
-                  }`}
-                >
-                  {cat.name}
-                  <span className="ml-1 text-xs">({count})</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
       </div>
 
       {/* スクロール領域 */}
@@ -492,33 +410,21 @@ export default function AdminMenusPage() {
         <p className="text-sm text-[color:var(--color-text-muted)]">メニューがまだありません。</p>
       ) : (
         <div className="space-y-6">
-          {(activeTab === "all"
-            ? groupedMenus
-            : (() => {
-                const cat = categories.find((c) => c.categoryId === activeTab) ?? null;
-                const items = sortByCategory(
-                  visibleMenus.filter((m) => m.categoryIds.includes(activeTab)),
-                  activeTab
-                );
-                return items.length > 0 ? [{ category: cat, items }] : [];
-              })()
-          ).map(({ category, items }) => {
+          {groupedMenus.map(({ category, items }) => {
             const fieldName: "sortOrder" | "sortOrderFeatured" =
               category?.categoryId === osusumeId ? "sortOrderFeatured" : "sortOrder";
             const movingInThisSection = movingMenuId !== null && items.some((item) => item.menuId === movingMenuId) && movingMenuSectionCatId === (category?.categoryId ?? null);
             return (
             <section key={category?.categoryId ?? "__uncategorized__"}>
-              {activeTab === "all" && (
-                <div className="mb-2 flex items-baseline gap-2 border-b border-[color:var(--color-border)] pb-1">
-                  <h2 className="text-lg font-bold text-[color:var(--color-text-primary)]">
-                    {category?.name ?? "未分類"}
-                  </h2>
-                  <span className="text-xs text-[color:var(--color-text-muted)]">
-                    {items.length}件
-                  </span>
-                </div>
-              )}
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="mb-2 flex items-baseline gap-2 border-b border-[color:var(--color-border)] pb-1">
+                <h2 className="text-lg font-bold text-[color:var(--color-text-primary)]">
+                  {category?.name ?? "未分類"}
+                </h2>
+                <span className="text-xs text-[color:var(--color-text-muted)]">
+                  {items.length}件
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
                 {items.map((m, menuIdx) => {
                   const isDragging = draggingMenuId === m.menuId;
                   const isMovingThis = movingMenuId === m.menuId;
@@ -706,7 +612,7 @@ export default function AdminMenusPage() {
 
       <ConfirmDialog
         open={bulkConfirmOpen}
-        title={pendingAction === "active" ? `選択した${selectedIds.size}件を販売中に戻す` : `選択した${selectedIds.size}件を${actionLabel}にする`}
+        title={`選択した${selectedIds.size}件を${actionLabel}`}
         message={
           pendingAction === "hidden"
             ? "選択したメニューをお客様から非表示にします。注文できなくなります。"
@@ -716,12 +622,64 @@ export default function AdminMenusPage() {
                 ? "選択したメニューを販売中に戻します。お客様から注文できるようになります。"
                 : "選択したメニューを削除します。過去の売上データへの影響を防ぐためデータは内部に保持されます。"
         }
-        confirmLabel={pendingAction === "active" ? "販売中に戻す" : `${actionLabel}にする`}
+        confirmLabel={pendingAction === "active" ? "解除する" : `${actionLabel}にする`}
         confirmColor={pendingAction === "active" ? "blue" : "red"}
         onConfirm={applyPendingAction}
         onCancel={() => { setBulkConfirmOpen(false); setPendingAction(null); }}
         loading={applyingBulk}
       />
+
+      {/* 下部アクションバー（選択時のみ表示） */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-0 left-14 md:left-60 right-0 z-40 border-t border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] shadow-lg">
+          <div className="flex items-center gap-3 px-4 py-3 overflow-x-auto">
+            <div className="shrink-0 text-sm font-medium text-[color:var(--color-text-primary)]">
+              {selectedIds.size}件選択中
+              <span className="ml-2 text-xs font-normal text-[color:var(--color-text-muted)]">
+                （{[
+                  selectedStatusCounts.active > 0 && `公開${selectedStatusCounts.active}`,
+                  selectedStatusCounts.soldout > 0 && `売り切れ${selectedStatusCounts.soldout}`,
+                  selectedStatusCounts.hidden > 0 && `非公開${selectedStatusCounts.hidden}`,
+                ].filter(Boolean).join(" / ")}）
+              </span>
+            </div>
+            <div className="flex items-center gap-2 ml-auto shrink-0">
+              <button
+                onClick={() => { setPendingAction("hidden"); setBulkConfirmOpen(true); }}
+                className="rounded-lg border border-[color:var(--color-accent-warn)]/40 px-3 py-2 text-sm text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors"
+              >
+                非公開
+              </button>
+              <button
+                onClick={() => { setPendingAction("soldout"); setBulkConfirmOpen(true); }}
+                className="rounded-lg border border-[color:var(--color-accent-warn)]/40 px-3 py-2 text-sm text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors"
+              >
+                売り切れ
+              </button>
+              <button
+                onClick={() => { setPendingAction("active"); setBulkConfirmOpen(true); }}
+                className="rounded-lg border border-[color:var(--color-accent-char)]/40 px-3 py-2 text-sm text-[color:var(--color-accent-char)] hover:bg-[color:var(--color-accent-char)]/10 transition-colors"
+              >
+                解除
+              </button>
+              {role === "owner" && (
+                <button
+                  onClick={() => { setPendingAction("deleted"); setBulkConfirmOpen(true); }}
+                  className="rounded-lg border border-[color:var(--color-accent-warn)]/40 px-3 py-2 text-sm text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors"
+                >
+                  削除
+                </button>
+              )}
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="rounded-lg border border-[color:var(--color-border)] px-3 py-2 text-sm text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+              >
+                選択解除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

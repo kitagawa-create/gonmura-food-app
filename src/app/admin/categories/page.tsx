@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAdminRole } from "@/components/admin/AdminContext";
 import {
@@ -50,7 +50,6 @@ export default function AdminCategoriesPage() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
 
-  // 削除確認ダイアログ
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -74,6 +73,10 @@ export default function AdminCategoriesPage() {
     return unsub;
   }, []);
 
+  // おすすめと通常カテゴリを分離
+  const osusumeCategory = categories.find((c) => c.name === "おすすめ") ?? null;
+  const otherCategories = categories.filter((c) => c.name !== "おすすめ");
+
   function findDuplicateName(name: string, excludeId?: string): string | null {
     const trimmed = name.trim();
     if (!trimmed) return null;
@@ -87,8 +90,8 @@ export default function AdminCategoriesPage() {
     setError(null);
     try {
       const nextOrder =
-        categories.length > 0
-          ? Math.max(...categories.map((c) => c.sortOrder)) + 1
+        otherCategories.length > 0
+          ? Math.max(...otherCategories.map((c) => c.sortOrder)) + 1
           : 0;
       const categoryRef = doc(collection(db, "categories"));
       await setDoc(categoryRef, {
@@ -152,6 +155,7 @@ export default function AdminCategoriesPage() {
     }
   }
 
+  // おすすめ以外の並び順を保存
   async function persistOrder(ordered: Category[]) {
     setSavingOrder(true);
     setError(null);
@@ -176,10 +180,10 @@ export default function AdminCategoriesPage() {
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const oldIdx = categories.findIndex((c) => c.categoryId === active.id);
-    const newIdx = categories.findIndex((c) => c.categoryId === over.id);
-    const next = arrayMove(categories, oldIdx, newIdx);
-    setCategories(next);
+    const oldIdx = otherCategories.findIndex((c) => c.categoryId === active.id);
+    const newIdx = otherCategories.findIndex((c) => c.categoryId === over.id);
+    const next = arrayMove(otherCategories, oldIdx, newIdx);
+    setCategories([...(osusumeCategory ? [osusumeCategory] : []), ...next]);
     persistOrder(next);
   }
 
@@ -214,22 +218,27 @@ export default function AdminCategoriesPage() {
           <p className="mb-2 text-xs text-[color:var(--color-text-muted)]">
             ハンドルをドラッグして並び替え{savingOrder && " (保存中...)"}
           </p>
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={categories.map((c) => c.categoryId)} strategy={verticalListSortingStrategy}>
-              <ul className="space-y-2">
-                {categories.map((c, i) => (
+          <ul className="space-y-2">
+            {/* おすすめは常に先頭固定 */}
+            {osusumeCategory && (
+              <FixedCategoryRow category={osusumeCategory} />
+            )}
+            {/* 通常カテゴリは並び替え可能 */}
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={otherCategories.map((c) => c.categoryId)} strategy={verticalListSortingStrategy}>
+                {otherCategories.map((c, i) => (
                   <CategoryRow
                     key={c.categoryId}
-                    index={i}
+                    index={i + (osusumeCategory ? 1 : 0)}
                     category={c}
                     onRename={(name) => handleRename(c.categoryId, name)}
                     onDelete={() => requestDelete(c)}
                     findDuplicate={findDuplicateName}
                   />
                 ))}
-              </ul>
-            </SortableContext>
-          </DndContext>
+              </SortableContext>
+            </DndContext>
+          </ul>
         </>
       )}
 
@@ -251,6 +260,28 @@ export default function AdminCategoriesPage() {
         loading={deleting}
       />
     </div>
+  );
+}
+
+// おすすめ専用の固定行（編集・削除・並び替え不可）
+function FixedCategoryRow({ category }: { category: Category }) {
+  return (
+    <li className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-3 shadow-sm">
+      <div className="flex items-center gap-2">
+        <span className="px-2 text-xl text-[color:var(--color-text-muted)] opacity-20 select-none">
+          ⠿
+        </span>
+        <span className="w-8 shrink-0 text-right text-sm tabular-nums text-[color:var(--color-text-muted)]">
+          1.
+        </span>
+        <span className="flex-1 px-2 py-1 text-sm font-medium text-[color:var(--color-text-primary)]">
+          {category.name}
+        </span>
+        <span className="rounded-md border border-[color:var(--color-border)] px-2 py-1 text-xs text-[color:var(--color-text-muted)]">
+          固定
+        </span>
+      </div>
+    </li>
   );
 }
 
