@@ -82,7 +82,7 @@ export function CartPanel({
     if (submitting || !tableNumber || items.length === 0) return;
     setSubmitting(true);
     try {
-      // コンボ本体 + 全サイドの menuId を重複なく収集して一括で在庫確認
+      // アイテム本体 + 全サイドの menuId を重複なく収集して一括で在庫確認
       const idSet = new Set<string>();
       for (const i of items) {
         idSet.add(i.menuId);
@@ -105,7 +105,7 @@ export function CartPanel({
         const data = d.data() as { status?: string };
         orderable.set(d.id, data.status === "active");
       });
-      // コンボ本体 または いずれかのサイドが注文不可ならコンボ全体を落とす
+      // アイテム本体 または いずれかのサイドが注文不可ならアイテム全体を落とす
       const unavailable = items.filter((i) => {
         if (orderable.get(i.menuId) !== true) return true;
         for (const t of i.toppings) {

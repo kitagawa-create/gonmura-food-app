@@ -39,12 +39,12 @@ export type Menu = {
   updatedAt: Timestamp;
 };
 
-/** コンボに付随するサイドメニュー。price は注文時スナップショット。 */
+/** 注文アイテムに付随するサイドメニュー。price は注文時スナップショット。 */
 export type OrderItemTopping = {
   menuId: string;
   name: string;
   price: number;
-  /** 「1コンボあたり」の個数。コンボ数量 N 個なら実数 = N * quantity */
+  /** 「1アイテムあたり」の個数。数量 N 個なら実数 = N * quantity */
   quantity: number;
 };
 
@@ -54,9 +54,9 @@ export type OrderItem = {
   name: string;
   /** 注文時点のスナップショット。整数（円）。単品価格 (サイドメニュー分は含まない) */
   price: number;
-  /** 整数。コンボなら数量 */
+  /** 整数 */
   quantity: number;
-  /** メインディッシュコンボのみ。このコンボに付くサイドメニュー一覧 (quantity は1個あたり)。それ以外は空配列 */
+  /** メインディッシュのみ。付くサイドメニュー一覧 (quantity は1個あたり)。それ以外は空配列 */
   toppings: OrderItemTopping[];
   /** 注文時スナップショット。備考なしは空文字 */
   note: string;
@@ -85,7 +85,7 @@ export type CartItemTopping = {
   name: string;
   /** 整数（円） */
   price: number;
-  /** 1コンボあたりの個数 */
+  /** 1アイテムあたりの個数 */
   quantity: number;
 };
 
@@ -99,15 +99,15 @@ export type Table = {
 };
 
 export type CartItem = {
-  /** コンボ識別子 (同一 menuId でも異なる構成のコンボは別 lineId)  */
+  /** ライン識別子 (同一 menuId でも異なる構成なら別 lineId)  */
   lineId: string;
   menuId: string;
   /** 整数（円）。単品価格 (サイドメニュー分は含まない) */
   price: number;
-  /** 整数。コンボなら数量 */
+  /** 整数 */
   quantity: number;
   name: string;
-  /** メインディッシュコンボのみ。それ以外は空配列 */
+  /** メインディッシュのみ。それ以外は空配列 */
   toppings: CartItemTopping[];
   /** 商品ごとの備考（アレルギー等）。備考なしは空文字 */
   note: string;

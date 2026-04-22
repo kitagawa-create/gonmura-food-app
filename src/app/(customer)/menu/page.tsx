@@ -275,7 +275,7 @@ export default function MenuPage() {
         .filter((x): x is SelectionLine => x !== null)
     : [];
 
-  // メインディッシュは 1 品 = 1 コンボ固定。サイド追加なし商品のみ selectedQuantity を使う。
+  // メインディッシュは 1 品固定。サイド追加なし商品のみ selectedQuantity を使う。
   const effectiveQty = isMainDishFlow ? 1 : selectedQuantity;
   const baseSubtotal = selectedMenu ? taxIncluded(selectedMenu.price) * effectiveQty : 0;
   const extrasSubtotal = extraLines.reduce((s, l) => s + taxIncluded(l.menu.price) * l.quantity, 0);
@@ -541,7 +541,7 @@ export default function MenuPage() {
                   </p>
                 </div>
 
-                {/* 数量ステッパー (メインディッシュは 1 コンボ固定のため非メインのみ) */}
+                {/* 数量ステッパー (メインディッシュは 1 品固定のため非メインのみ) */}
                 {!isMainDishFlow && (
                   <div className="flex items-center justify-between rounded-xl bg-[color:var(--color-bg-subtle)] p-3">
                     <span className="text-sm text-[color:var(--color-text-primary)]">数量</span>
@@ -645,7 +645,7 @@ export default function MenuPage() {
                   <textarea
                     value={selectedNote}
                     onChange={(e) => setSelectedNote(e.target.value)}
-                    placeholder="例: 辛め、ネギ抜き、アレルギー情報など"
+                    placeholder="例: 辛さ控えめ、抜き、アレルギー情報など"
                     maxLength={100}
                     rows={2}
                     className="w-full rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-subtle)] px-3 py-2 text-sm text-[color:var(--color-text-primary)] placeholder-[color:var(--color-text-muted)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)] resize-none"

@@ -2,7 +2,7 @@ import type { CartItem, Menu, MenuStatus, Order, OrderItem, OrderItemTopping } f
 
 // 以下 OrderItem / CartItem 双方で使える汎用ヘルパー。
 // - price フィールドは単品価格 (サイドメニュー除く) として扱う。
-// - toppings.quantity は 1 コンボあたり。実消費 = コンボ quantity × side.quantity。
+// - toppings.quantity は 1 アイテムあたり。実消費 = quantity × side.quantity。
 
 type ItemLike = {
   price: number;
@@ -15,12 +15,12 @@ export function taxIncluded(price: number): number {
   return Math.round(price * 1.1);
 }
 
-/** コンボ 1 個あたり (メインディッシュ単価 + 全サイド単価×個数) の合計。 */
+/** 1 アイテムあたり (単価 + 全サイド単価×個数) の合計。 */
 export function comboUnitPrice(item: ItemLike): number {
   return item.price + item.toppings.reduce((s, x) => s + x.price * x.quantity, 0);
 }
 
-/** コンボ全体の小計 (数量 × 1個あたり単価)。 */
+/** アイテム全体の小計 (数量 × 1個あたり単価)。 */
 export function comboLineTotal(item: ItemLike): number {
   return comboUnitPrice(item) * item.quantity;
 }
@@ -30,7 +30,7 @@ export function orderGrandTotal(items: ItemLike[]): number {
   return items.reduce((s, i) => s + comboLineTotal(i), 0);
 }
 
-/** レシート/売上集計用: コンボを分解してフラットな {menuId,name,price,quantity} に展開。 */
+/** レシート/売上集計用: アイテムを分解してフラットな {menuId,name,price,quantity} に展開。 */
 export function flattenForReceipt(
   items: (CartItem | OrderItem)[]
 ): { menuId: string; name: string; price: number; quantity: number }[] {
@@ -49,7 +49,7 @@ export function flattenForReceipt(
   return out;
 }
 
-/** コンボ識別ハッシュ: menuId + ソート済 toppings + note で決定論的に。merge 判定に使う。 */
+/** 注文ライン識別ハッシュ: menuId + ソート済 toppings + note で決定論的に。merge 判定に使う。 */
 export function comboLineHash(
   menuId: string,
   toppings: { menuId: string; quantity: number }[] = [],
