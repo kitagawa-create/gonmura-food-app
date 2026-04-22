@@ -556,7 +556,7 @@ function SortableMenuCard({
       ref={setNodeRef}
       style={style}
       onClick={onSelect}
-      className={`relative rounded-xl border bg-[color:var(--color-bg-card)] p-4 shadow-sm select-none cursor-pointer ${
+      className={`relative rounded-xl border bg-[color:var(--color-bg-card)] p-4 pb-7 shadow-sm select-none cursor-pointer ${
         menu.status === "hidden" ? "bg-[color:var(--color-bg-subtle)] opacity-60 border-dashed" : ""
       } ${
         isSelected
