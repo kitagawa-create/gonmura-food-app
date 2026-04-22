@@ -217,7 +217,7 @@ export function CartPanel({
                             {item.name}
                           </h3>
                           <p className="text-xs font-bold text-[color:var(--color-accent-char)] tabular-nums">
-                            ¥{taxIncluded(unitPrice).toLocaleString()}
+                            ¥{taxIncluded(unitPrice).toLocaleString()}<span className="ml-1 font-normal text-[color:var(--color-text-muted)]">（税抜¥{unitPrice.toLocaleString()}）</span>
                           </p>
                         </div>
                         {onEditItem && (
@@ -301,7 +301,7 @@ export function CartPanel({
           <div className="flex items-center justify-between">
             <span className="text-sm font-bold text-[color:var(--color-text-primary)]">合計</span>
             <span className="text-lg font-bold text-[color:var(--color-accent-char)] tabular-nums">
-              {taxIncluded(totalAmount).toLocaleString()}円
+              {taxIncluded(totalAmount).toLocaleString()}円<span className="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">（税抜{totalAmount.toLocaleString()}円）</span>
             </span>
           </div>
           <button

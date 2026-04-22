@@ -18,7 +18,7 @@ import {
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import type { Category, Menu, MenuStatus } from "@/types";
-import { normalizeMenu } from "@/lib/order-utils";
+import { normalizeMenu, taxIncluded } from "@/lib/order-utils";
 import { useAdminRole } from "@/components/admin/AdminContext";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { useToast } from "@/components/ui/Snackbar";
@@ -604,8 +604,8 @@ function SortableMenuCard({
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-semibold text-[color:var(--color-text-primary)] pr-8">{menu.name}</h3>
           <p className="text-sm text-[color:var(--color-accent-char)]">
-            ¥{menu.price.toLocaleString()}
-            <span className="ml-1 text-xs text-[color:var(--color-text-muted)]">税抜</span>
+            ¥{taxIncluded(menu.price).toLocaleString()}
+            <span className="ml-1 text-xs text-[color:var(--color-text-muted)]">（税抜¥{menu.price.toLocaleString()}）</span>
           </p>
           <p className="mt-1 text-xs text-[color:var(--color-text-muted)]">
             {menu.categoryIds

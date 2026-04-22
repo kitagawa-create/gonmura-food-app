@@ -250,21 +250,22 @@ export default function MenuPage() {
     setActiveCategory(categoriesWithMenus[0].categoryId);
   }, [categoriesWithMenus, activeCategory]);
 
-  // 「トッピング」カテゴリの商品
+  // 「サイド」カテゴリの商品
   const toppings = useMemo(
     () =>
       menus
-        .filter((m) => menuBelongsToCategory(m, categories, "トッピング") && m.status !== "soldout")
+        .filter((m) => menuBelongsToCategory(m, categories, "サイド") && m.status !== "soldout")
         .sort((a, b) => a.sortOrder - b.sortOrder),
     [menus, categories]
   );
 
-  // 選択中の商品が「ラーメン」カテゴリかどうか
-  const isRamenFlow = selectedMenu
-    ? menuBelongsToCategory(selectedMenu, categories, "ラーメン")
+  // 選択中の商品がメインディッシュカテゴリ（サイド追加対象）かどうか
+  const MAIN_DISH_CATEGORIES = ["ハンバーグ", "パスタ", "ピザ"];
+  const isMainDishFlow = selectedMenu
+    ? MAIN_DISH_CATEGORIES.some((name) => menuBelongsToCategory(selectedMenu, categories, name))
     : false;
 
-  const extraLines: SelectionLine[] = isRamenFlow
+  const extraLines: SelectionLine[] = isMainDishFlow
     ? Object.entries(extraQty)
         .filter(([, q]) => q > 0)
         .map(([id, q]) => {
@@ -274,8 +275,8 @@ export default function MenuPage() {
         .filter((x): x is SelectionLine => x !== null)
     : [];
 
-  // ラーメンコンボは 1 杯 = 1 コンボ固定。非ラーメンのみ selectedQuantity を使う。
-  const effectiveQty = isRamenFlow ? 1 : selectedQuantity;
+  // メインディッシュは 1 品 = 1 コンボ固定。サイド追加なし商品のみ selectedQuantity を使う。
+  const effectiveQty = isMainDishFlow ? 1 : selectedQuantity;
   const baseSubtotal = selectedMenu ? taxIncluded(selectedMenu.price) * effectiveQty : 0;
   const extrasSubtotal = extraLines.reduce((s, l) => s + taxIncluded(l.menu.price) * l.quantity, 0);
   const modalTotal = baseSubtotal + extrasSubtotal;
@@ -475,8 +476,8 @@ export default function MenuPage() {
                     <p className="h-10 text-sm leading-5 line-clamp-2 text-[color:var(--color-text-muted)]">
                       {menu.description || " "}
                     </p>
-                    <p className="h-7 text-lg font-bold leading-7 text-[color:var(--color-accent-char)]">
-                      {taxIncluded(menu.price).toLocaleString()}円
+                    <p className="text-lg font-bold leading-7 text-[color:var(--color-accent-char)]">
+                      {taxIncluded(menu.price).toLocaleString()}円<span className="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">（税抜{menu.price.toLocaleString()}円）</span>
                     </p>
                   </div>
                   {sold && (
@@ -536,12 +537,12 @@ export default function MenuPage() {
                     </p>
                   )}
                   <p className="text-2xl font-bold text-[color:var(--color-accent-char)] mt-3">
-                    {taxIncluded(selectedMenu.price).toLocaleString()}円
+                    {taxIncluded(selectedMenu.price).toLocaleString()}円<span className="ml-1 text-sm font-normal text-[color:var(--color-text-muted)]">（税抜{selectedMenu.price.toLocaleString()}円）</span>
                   </p>
                 </div>
 
-                {/* 数量ステッパー (ラーメンは 1 杯固定のため非ラーメンのみ) */}
-                {!isRamenFlow && (
+                {/* 数量ステッパー (メインディッシュは 1 コンボ固定のため非メインのみ) */}
+                {!isMainDishFlow && (
                   <div className="flex items-center justify-between rounded-xl bg-[color:var(--color-bg-subtle)] p-3">
                     <span className="text-sm text-[color:var(--color-text-primary)]">数量</span>
                     <div className="flex items-center gap-4">
@@ -568,11 +569,11 @@ export default function MenuPage() {
                   </div>
                 )}
 
-                {/* ラーメン選択時のみ: トッピング選択 */}
-                {isRamenFlow && toppings.length > 0 && (
+                {/* メインディッシュ選択時のみ: サイド追加 */}
+                {isMainDishFlow && toppings.length > 0 && (
                   <section>
                     <h3 className="text-sm font-bold text-[color:var(--color-text-primary)] mb-2">
-                      トッピングを追加
+                      サイドを追加
                     </h3>
                     <ul className="space-y-2">
                       {toppings.map((t) => {
@@ -594,7 +595,7 @@ export default function MenuPage() {
                                 {t.name}
                               </p>
                               <p className="text-xs text-[color:var(--color-accent-char)] font-bold">
-                                +{taxIncluded(t.price).toLocaleString()}円
+                                +{taxIncluded(t.price).toLocaleString()}円<span className="ml-1 font-normal text-[color:var(--color-text-muted)]">（税抜{t.price.toLocaleString()}円）</span>
                               </p>
                             </div>
                             <div className="flex items-center gap-2">
@@ -666,7 +667,7 @@ export default function MenuPage() {
                 <button
                   onClick={() => {
                     if (!selectedMenu) return;
-                    if (isRamenFlow) {
+                    if (isMainDishFlow) {
                       const toppings: CartItemTopping[] = extraLines.map((l) => ({
                         menuId: l.menu.menuId,
                         name: l.menu.name,

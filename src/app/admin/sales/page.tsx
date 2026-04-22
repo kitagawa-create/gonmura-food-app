@@ -193,7 +193,7 @@ function BarChart({
 }
 
 // ===== KPI Card =====
-function KpiCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function KpiCard({ label, value, sub, sub2 }: { label: string; value: string; sub?: string; sub2?: string }) {
   return (
     <div className="rounded-xl bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] p-4 shadow-sm">
       <p className="text-xs text-[color:var(--color-text-muted)] mb-1">{label}</p>
@@ -202,6 +202,9 @@ function KpiCard({ label, value, sub }: { label: string; value: string; sub?: st
       </p>
       {sub && (
         <p className="text-[11px] text-[color:var(--color-text-muted)] mt-1">{sub}</p>
+      )}
+      {sub2 && (
+        <p className="text-[11px] text-[color:var(--color-text-muted)] mt-0.5">{sub2}</p>
       )}
     </div>
   );
@@ -338,6 +341,7 @@ export default function AdminSalesPage() {
           label="月間売上"
           value={yen(taxIncluded(kpi.revenue))}
           sub={`1日平均 ${yen(taxIncluded(kpi.dailyAvgRevenue))}`}
+          sub2={`税抜 ${yen(kpi.revenue)}`}
         />
         <KpiCard
           label="注文数"
@@ -347,6 +351,7 @@ export default function AdminSalesPage() {
           label="客単価"
           value={kpi.guestUnitPrice !== null ? yen(taxIncluded(kpi.guestUnitPrice)) : "−"}
           sub={kpi.totalGuests > 0 ? `来客数 ${kpi.totalGuests}名` : undefined}
+          sub2={kpi.guestUnitPrice !== null ? `税抜 ${yen(kpi.guestUnitPrice)}` : undefined}
         />
       </div>
 
