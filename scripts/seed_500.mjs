@@ -7,8 +7,8 @@
  *   - 冬季(11-2月) 1.4倍・金曜 1.5倍・土日 2.0倍
  *   - ランチはソロ多め・ディナーはグループ多め
  *   - 土日はファミリー(3-4名)多め
- *   - アルコールはディナーに集中
- *   - 8%のラーメン注文に備考メモ(麺硬め等)
+ *   - デザートはランチ・ディナー問わず注文あり
+ *   - 8%のメインディッシュ注文に備考メモ(アレルギー等)
  *
  * スキーマ:
  *   Customer:  { customerId, tableId, guestCount, createdAt, updatedAt }
@@ -37,55 +37,47 @@ const TABLES = [
 ];
 
 // ---- メニュー (id, name, price, w=重み) ----
-const RAMEN = [
-  { id: "F2zoFM33eWfwECWUG7PN", name: "ラーメン",           price: 900,  w: 32 },
-  { id: "INOvuctqwz2Ut7h0mJCH", name: "味玉ラーメン",       price: 980,  w: 22 },
-  { id: "kYutrrRUh75etMp0lnTj", name: "チャーシューラーメン", price: 1200, w: 14 },
-  { id: "8rvuPjZM4959CMwOz1DQ", name: "野菜ラーメン",        price: 950,  w:  9 },
-  { id: "UfB59LNm8KfuWiOx5qn8", name: "にんにくラーメン",    price: 950,  w:  8 },
-  { id: "RKu84R1GkTffQGGatbEQ", name: "激辛ラーメン",        price: 1050, w:  5 },
-  { id: "0nnYYWsNmpX1z4i9D5bh", name: "辛味噌ラーメン",      price: 1000, w:  6 },
-  { id: "CSrdmcSQTObvQHmal5i8", name: "鶏白湯ラーメン",      price: 950,  w:  8 },
-  { id: "LJoEr5KWxRbfTnIPugck", name: "鶏白湯塩ラーメン",    price: 1000, w:  5 },
-  { id: "BPrS25LoUsZWAHSiSBw1", name: "濃厚鶏白湯ラーメン",  price: 1100, w:  4 },
-];
-
-const TOPPINGS = [
-  { id: "1l82tbhksuOgEduBvx6O", name: "味玉",          price: 150, w: 40 },
-  { id: "6N32LzNt5m9zBVbHInRI", name: "海苔増し(5枚)", price: 150, w: 25 },
-  { id: "Skj5cujaYOOT4wlSVzOK", name: "チャーシュー増し", price: 250, w: 30 },
-  { id: "ZqBYIDrLQ4iGBEwqaoeV", name: "もやし",         price: 100, w: 20 },
-];
-
-const RICE = [
-  { id: "0s3HQqw08SX7stV7g6sJ", name: "半ライス", price: 150, w: 35 },
-  { id: "5hBjrrPXK8ZpkXxs4QdB", name: "ライス",   price: 200, w: 18 },
+// ※ ID は seed-famires.mjs 実行後に Firestore に生成された実際の ID に差し替えること
+const MAIN_DISHES = [
+  { id: "F2zoFM33eWfwECWUG7PN", name: "和風おろしハンバーグ", price: 980,  w: 28 },
+  { id: "INOvuctqwz2Ut7h0mJCH", name: "チーズハンバーグ",     price: 1080, w: 24 },
+  { id: "kYutrrRUh75etMp0lnTj", name: "デミグラスハンバーグ", price: 1150, w: 14 },
+  { id: "8rvuPjZM4959CMwOz1DQ", name: "カルボナーラ",         price: 950,  w: 18 },
+  { id: "UfB59LNm8KfuWiOx5qn8", name: "ボロネーゼ",           price: 980,  w: 10 },
+  { id: "RKu84R1GkTffQGGatbEQ", name: "アラビアータ",         price: 920,  w:  8 },
+  { id: "0nnYYWsNmpX1z4i9D5bh", name: "マルゲリータ",         price: 1200, w: 12 },
+  { id: "CSrdmcSQTObvQHmal5i8", name: "4種のチーズピザ",     price: 1380, w:  8 },
+  { id: "LJoEr5KWxRbfTnIPugck", name: "ペパロニピザ",         price: 1280, w:  6 },
+  { id: "BPrS25LoUsZWAHSiSBw1", name: "ダブルハンバーグ",     price: 1380, w:  6 },
 ];
 
 const SIDES = [
-  { id: "e6kjLsFg4tqVDluV0XrE", name: "餃子(5個)",       price: 500, w: 14 },
-  { id: "6X0SqER3O3NVMgY6Sn53", name: "揚げ餃子(5個)",   price: 480, w: 10 },
-  { id: "jMtXqBeAmal9I2xzAatX", name: "唐揚げ(3個)",     price: 400, w: 10 },
-  { id: "XszUjVsqeCr5yytL4xKa", name: "チャーハン",       price: 450, w:  7 },
-  { id: "SU2O7fGiZyiEXBeYOMnb", name: "ミニチャーシュー丼", price: 400, w:  9 },
-  { id: "fm1oR7ZTtfYjfF2CKsna", name: "春巻き(3本)",     price: 450, w:  5 },
+  { id: "0s3HQqw08SX7stV7g6sJ", name: "ライス追加",     price: 165, w: 35 },
+  { id: "5hBjrrPXK8ZpkXxs4QdB", name: "パン追加",       price: 165, w: 28 },
+  { id: "6X0SqER3O3NVMgY6Sn53", name: "フライドポテト", price: 220, w: 20 },
+  { id: "SU2O7fGiZyiEXBeYOMnb", name: "オニオンリング", price: 220, w: 12 },
+  { id: "XszUjVsqeCr5yytL4xKa", name: "コーンスープ",   price: 220, w: 10 },
+  { id: "e6kjLsFg4tqVDluV0XrE", name: "ミニサラダ",     price: 165, w: 15 },
 ];
 
-const SOFT_DRINKS = [
-  { id: "f2Ayn4ItsEuS8dFWrI5r", name: "コーラ",           price: 200, w: 30 },
-  { id: "8AJnF0LNLTS7KDaQs5KS", name: "烏龍茶",           price: 200, w: 25 },
-  { id: "ZhsoWOOoBde8BJ0vbfZm", name: "カルピス",          price: 200, w: 15 },
-  { id: "0xdO4mZ7lXLyT4dVoVQN", name: "オレンジジュース",  price: 200, w: 10 },
+const DESSERTS = [
+  { id: "jMtXqBeAmal9I2xzAatX", name: "バニラアイス",       price: 380, w: 45 },
+  { id: "fm1oR7ZTtfYjfF2CKsna", name: "チョコレートパフェ", price: 680, w: 25 },
+  { id: "1l82tbhksuOgEduBvx6O", name: "チーズケーキ",       price: 520, w: 30 },
 ];
 
-const ALC_DRINKS = [
-  { id: "6BVtPDoInnCl1bUjfdmw", name: "瓶ビール",    price: 600, w: 55 },
-  { id: "mE2iYIuQgDHmapOWRR3v", name: "レモンサワー", price: 500, w: 45 },
+const DRINKS = [
+  { id: "f2Ayn4ItsEuS8dFWrI5r", name: "コーラ",           price: 280, w: 30 },
+  { id: "8AJnF0LNLTS7KDaQs5KS", name: "アイスティー",      price: 280, w: 25 },
+  { id: "ZhsoWOOoBde8BJ0vbfZm", name: "アイスコーヒー",    price: 320, w: 20 },
+  { id: "0xdO4mZ7lXLyT4dVoVQN", name: "オレンジジュース",  price: 280, w: 15 },
+  { id: "6BVtPDoInnCl1bUjfdmw", name: "ホットコーヒー",    price: 320, w: 10 },
 ];
 
-const RAMEN_NOTES = [
-  "麺硬め", "麺柔らかめ", "脂少なめ", "脂多め", "辛さ控えめ",
-  "塩分控えめ", "ネギ多め", "ネギ抜き", "にんにくなし", "スープ少なめ",
+const NOTES = [
+  "アレルギー: 乳製品なし", "ソースを別添えで", "辛さ控えめ",
+  "チーズ抜きで", "パスタかために", "ソースを少なめで",
+  "グルテンフリー対応でお願いします", "付け合わせ多めで", "塩分控えめ",
 ];
 
 // ---- 線形合同法の疑似乱数 (再現性あり) ----
@@ -173,53 +165,39 @@ function orderTime(date, session) {
 function genItems(guests, isDinner, customerId, orderId) {
   const items = [];
 
-  // 人数分のラーメン (1人1杯固定)
+  // 人数分のメインディッシュ (1人1品)
   for (let i = 0; i < guests; i++) {
-    const ramen = rng.weighted(RAMEN);
-    const toppings = [];
+    const main = rng.weighted(MAIN_DISHES);
+    const sides = [];
 
-    if (rng.next() < 0.42) {
-      const n = rng.next() < 0.72 ? 1 : 2;
-      for (const t of rng.sample(TOPPINGS, n)) {
-        toppings.push({ menuId: t.id, name: t.name, price: t.price, quantity: 1 });
-      }
+    if (rng.next() < 0.45) {
+      const s = rng.weighted(SIDES);
+      sides.push({ menuId: s.id, name: s.name, price: s.price, quantity: 1 });
     }
 
-    const note = rng.next() < 0.08 ? rng.pick(RAMEN_NOTES) : "";
+    const note = rng.next() < 0.08 ? rng.pick(NOTES) : "";
 
     items.push({
-      itemId: newId(), menuId: ramen.id, name: ramen.name,
-      price: ramen.price, quantity: 1, toppings, note,
+      itemId: newId(), menuId: main.id, name: main.name,
+      price: main.price, quantity: 1, toppings: sides, note,
       checked: true, customerId, orderId,
     });
   }
 
-  // ライス (28%)
-  if (rng.next() < 0.28) {
-    const r = rng.weighted(RICE);
+  // デザート (35%)
+  if (rng.next() < 0.35) {
+    const d = rng.weighted(DESSERTS);
     items.push({
-      itemId: newId(), menuId: r.id, name: r.name,
-      price: r.price, quantity: 1, toppings: [], note: "",
+      itemId: newId(), menuId: d.id, name: d.name,
+      price: d.price, quantity: 1, toppings: [], note: "",
       checked: true, customerId, orderId,
     });
   }
 
-  // サイドメニュー (15%)
-  if (rng.next() < 0.15) {
-    const s = rng.weighted(SIDES);
-    items.push({
-      itemId: newId(), menuId: s.id, name: s.name,
-      price: s.price, quantity: 1, toppings: [], note: "",
-      checked: true, customerId, orderId,
-    });
-  }
-
-  // ドリンク (ゲスト1人あたり40%)
+  // ドリンク (ゲスト1人あたり45%)
   for (let i = 0; i < guests; i++) {
-    if (rng.next() < 0.40) {
-      const d = isDinner && rng.next() < 0.35
-        ? rng.weighted(ALC_DRINKS)
-        : rng.weighted(SOFT_DRINKS);
+    if (rng.next() < 0.45) {
+      const d = rng.weighted(DRINKS);
       items.push({
         itemId: newId(), menuId: d.id, name: d.name,
         price: d.price, quantity: 1, toppings: [], note: "",

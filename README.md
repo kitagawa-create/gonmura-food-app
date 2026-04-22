@@ -1,6 +1,6 @@
 # Gonmura Food - モバイルオーダーシステム
 
-家系ラーメン店「権村家」のテーブル据え置きタブレット向けモバイルオーダー＆管理画面システム。
+ファミリーレストラン「Gonmura Food」のテーブル据え置きタブレット向けモバイルオーダー＆管理画面システム。
 iPad 横画面メインで、スマホ・PCまでレスポンシブ対応。
 
 ## 技術スタック
@@ -21,7 +21,7 @@ iPad 横画面メインで、スマホ・PCまでレスポンシブ対応。
 firestore-root
 │
 ├── categories/{categoryId}
-│   ├── name        : string           // "ラーメン" "トッピング" 等
+│   ├── name        : string           // "ハンバーグ" "パスタ" 等
 │   ├── sortOrder   : int              // 表示順（昇順、DnDで変更）
 │   ├── createdAt   : Timestamp
 │   └── updatedAt   : Timestamp
@@ -43,10 +43,10 @@ firestore-root
 │   │   └── [0..n]
 │   │       ├── menuId   : string
 │   │       ├── name     : string      // menus.name 複製
-│   │       ├── price    : int         // menus.price 複製（単品価格、トッピング分は含まない）
-│   │       ├── quantity : int         // コンボなら「杯数」
-│   │       └── toppings?: array[map]  // ラーメンコンボのみ。{ menuId, name, price, quantity }
-│   │                                  //   quantity は「1杯あたり」の個数
+│   │       ├── price    : int         // menus.price 複製（単品価格、サイドメニュー分は含まない）
+│   │       ├── quantity : int         // コンボなら数量
+│   │       └── toppings?: array[map]  // メインディッシュのみ。{ menuId, name, price, quantity }
+│   │                                  //   quantity は「1個あたり」の個数
 │   ├── status       : string          // "pending" → "completed" → "paid"
 │   │                                  // 取消は deleteDoc でドキュメント削除
 │   ├── tableNumber  : int
@@ -69,7 +69,7 @@ firestore-root
 - **カテゴリ多対多**: `categoryIds` を配列にし、1メニューが複数カテゴリ所属可
 - **支払いは管理者のみ**: Security Rules で status を "paid" に変更できるのは管理者のみ
 - **表示順は長押し→タップ並替えで制御**: `sortOrder` フィールドを `writeBatch` で原子的に更新
-- **コンボ（ラーメン+トッピング）モデル**: `items[i].toppings` にトッピングをネスト。ラーメンは 1コンボ=1杯 固定、トッピング `quantity` は「1杯あたり」の個数（実消費 = コンボ quantity × topping.quantity）
+- **コンボ（メインディッシュ+サイドメニュー）モデル**: `items[i].toppings` にサイドメニューをネスト。`quantity` は「1個あたり」の個数（実消費 = コンボ quantity × side.quantity）
 
 ---
 
@@ -79,7 +79,7 @@ firestore-root
 | パス | 内容 |
 |---|---|
 | `/setup` | 初期設定（テーブル番号 + テーブル変更用PIN） |
-| `/menu` | メニュー一覧（2カラム: カテゴリタブ+商品グリッド / サイドカート）。ラーメンはトッピング選択モーダル、サイドカートで**そのまま注文確定**（完了ダイアログ3秒オートクローズ） |
+| `/menu` | メニュー一覧（2カラム: カテゴリタブ+商品グリッド / サイドカート）。メインディッシュはサイド選択モーダル、サイドカートで**そのまま注文確定**（完了ダイアログ3秒オートクローズ） |
 | `/order/history` | テーブルの注文履歴（カードグリッド） |
 | `/bill` | お会計伝票（レシート風、レジに提示） |
 
@@ -114,7 +114,7 @@ firestore-root
   → getDocs(menus where isAvailable==true) + getDocs(categories orderBy sortOrder)
   → カテゴリタブ（スワイプ/ドラッグ切替）で filter
   → メニュータップで詳細モーダル
-     ├── ラーメン: トッピング選択（1杯あたりの個数を ± で調整）、数量ステッパーなし = 1コンボ固定
+     ├── メインディッシュ: サイド選択（1個あたりの個数を ± で調整）
      └── その他（単品メニュー）: 数量ステッパー
   → 「カートに追加」
   → CartContext.addItem → comboLineHash(menuId, toppings) で同構成コンボへ merge、

@@ -18,9 +18,9 @@ const PRICE_CHANGE_DATE = new Date("2025-10-18T00:00:00+09:00"); // 半年地点
 
 // 値上げするメニューと旧価格 (新価格は menus.price の現在値を使う)
 const PRICE_CHANGES = [
-  { menuId: "F2zoFM33eWfwECWUG7PN", oldPrice: 850 }, // ラーメン -> 900
-  { menuId: "kYutrrRUh75etMp0lnTj", oldPrice: 1100 }, // チャーシューラーメン -> 1200
-  { menuId: "e6kjLsFg4tqVDluV0XrE", oldPrice: 450 }, // 餃子(5個) -> 500
+  { menuId: "F2zoFM33eWfwECWUG7PN", oldPrice: 880 }, // 和風おろしハンバーグ -> 980
+  { menuId: "INOvuctqwz2Ut7h0mJCH", oldPrice: 980 }, // チーズハンバーグ -> 1080
+  { menuId: "0nnYYWsNmpX1z4i9D5bh", oldPrice: 1080 }, // マルゲリータ -> 1200
 ];
 const NEW_PRICES = {
   F2zoFM33eWfwECWUG7PN: 900,
@@ -93,11 +93,12 @@ const catNameById = new Map(
 function hasCategory(menu, catName) {
   return menu.categoryIds.some((id) => catNameById.get(id) === catName);
 }
-const ramens = menus.filter((m) => hasCategory(m, "ラーメン") && m.status === "active");
-const toppings = menus.filter((m) => hasCategory(m, "トッピング") && m.status === "active");
-const sides = menus.filter((m) => hasCategory(m, "サイドメニュー") && m.status === "active");
+const mainDishes = menus.filter((m) =>
+  (hasCategory(m, "ハンバーグ") || hasCategory(m, "パスタ") || hasCategory(m, "ピザ")) && m.status === "active"
+);
+const sides = menus.filter((m) => hasCategory(m, "サイド") && m.status === "active");
 const drinks = menus.filter((m) => hasCategory(m, "ドリンク") && m.status === "active");
-console.log(`  ラーメン:${ramens.length} トッピング:${toppings.length} サイド:${sides.length} ドリンク:${drinks.length}`);
+console.log(`  メインディッシュ:${mainDishes.length} サイド:${sides.length} ドリンク:${drinks.length}`);
 
 // ============== 2) 既存データ全削除 ==============
 console.log("→ 既存 orders 削除中...");
@@ -229,47 +230,38 @@ for (let day = new Date(START); day < END; day.setDate(day.getDate() + 1)) {
       const orderTs = new Date(sessionDate.getTime() + oi * (10 + Math.floor(Math.random() * 15)) * 60 * 1000);
       const isoTs = orderTs.toISOString();
 
-      // 人数分のラーメン (guestCountに合わせる、ただし追加注文は1〜2品)
+      // 人数分のメインディッシュ (guestCountに合わせる、ただし追加注文は1〜2品)
       const items = [];
-      const ramenCount = oi === 0
+      const mainCount = oi === 0
         ? guestCount  // 最初の注文はゲスト人数分
         : pickWeighted([{ value: 1, weight: 70 }, { value: 2, weight: 30 }]);
 
-      for (let r = 0; r < ramenCount; r++) {
-        const ramen = pick(ramens);
+      for (let r = 0; r < mainCount; r++) {
+        const main = pick(mainDishes);
         const note = Math.random() < 0.1 ? pick(NOTES) : "";
-        items.push({
-          menuId: ramen.id,
-          name: ramen.name,
-          price: priceAt(ramen.id, orderTs),
-          quantity: 1,
-          note,
-          toppings: [],
-        });
-        // トッピング (ラーメン1杯につき独立アイテムとして追加)
-        const topCount = pickWeighted([
-          { value: 0, weight: isWeekend ? 30 : 50 },
-          { value: 1, weight: 45 },
-          { value: 2, weight: isWeekend ? 25 : 5 },
-        ]);
-        const topPicked = new Set();
-        for (let t = 0; t < topCount; t++) {
-          const top = pick(toppings);
-          if (topPicked.has(top.id)) continue;
-          topPicked.add(top.id);
-          items.push({
-            menuId: top.id,
-            name: top.name,
-            price: priceAt(top.id, orderTs),
+        const sideToppings = [];
+        // サイドをコンボとしてネスト (45%の確率)
+        if (Math.random() < 0.45 && sides.length > 0) {
+          const s = pick(sides);
+          sideToppings.push({
+            menuId: s.id,
+            name: s.name,
+            price: priceAt(s.id, orderTs),
             quantity: 1,
-            note: "",
-            toppings: [],
           });
         }
+        items.push({
+          menuId: main.id,
+          name: main.name,
+          price: priceAt(main.id, orderTs),
+          quantity: 1,
+          note,
+          toppings: sideToppings,
+        });
       }
 
-      // サイドメニュー (1回目か2回目注文で追加されやすい)
-      const sideProb = isWeekend ? 0.6 : isLunch ? 0.25 : 0.45;
+      // デザート (1回目か2回目注文で追加されやすい)
+      const sideProb = isWeekend ? 0.5 : isLunch ? 0.3 : 0.4;
       if (Math.random() < sideProb) {
         const side = pick(sides);
         items.push({

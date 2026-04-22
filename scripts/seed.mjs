@@ -16,36 +16,30 @@ const fsTs = (offsetMin = 0) => {
   return d;
 };
 
-// Menu IDs from Firestore
+// Menu IDs from Firestore (seed-famires.mjs 実行後に採番された ID に差し替えること)
 const MENUS = {
-  ramen:         { id: "F2zoFM33eWfwECWUG7PN",  name: "ラーメン",         price: 900 },
-  ajitamaRamen:  { id: "INOvuctqwz2Ut7h0mJCH",  name: "味玉ラーメン",     price: 980 },
-  chashuRamen:   { id: "kYutrrRUh75etMp0lnTj",  name: "チャーシューラーメン", price: 1200 },
-  yasuiRamen:    { id: "8rvuPjZM4959CMwOz1DQ",  name: "野菜ラーメン",     price: 950 },
-  ninniku:       { id: "UfB59LNm8KfuWiOx5qn8",  name: "にんにくラーメン", price: 950 },
-  gekikara:      { id: "RKu84R1GkTffQGGatbEQ",  name: "激辛ラーメン",     price: 1050 },
-  karamiso:      { id: "0nnYYWsNmpX1z4i9D5bh",  name: "辛味噌ラーメン",   price: 1000 },
-  toriPaiTan:    { id: "CSrdmcSQTObvQHmal5i8",  name: "鶏白湯ラーメン",   price: 950 },
-  toriShio:      { id: "LJoEr5KWxRbfTnIPugck",  name: "鶏白湯塩ラーメン", price: 1000 },
-  noukouTori:    { id: "BPrS25LoUsZWAHSiSBw1",  name: "濃厚鶏白湯ラーメン", price: 1100 },
-  ajitama:       { id: "1l82tbhksuOgEduBvx6O",  name: "味玉",             price: 150 },
-  nori:          { id: "6N32LzNt5m9zBVbHInRI",  name: "海苔増し(5枚)",   price: 150 },
-  chashu:        { id: "Skj5cujaYOOT4wlSVzOK",  name: "チャーシュー増し", price: 250 },
-  moyashi:       { id: "ZqBYIDrLQ4iGBEwqaoeV",  name: "もやし",           price: 100 },
-  halfRice:      { id: "0s3HQqw08SX7stV7g6sJ",  name: "半ライス",         price: 150 },
-  rice:          { id: "5hBjrrPXK8ZpkXxs4QdB",  name: "ライス",           price: 200 },
-  agegyoza:      { id: "6X0SqER3O3NVMgY6Sn53",  name: "揚げ餃子(5個)",   price: 480 },
-  miniChashuDon: { id: "SU2O7fGiZyiEXBeYOMnb",  name: "ミニチャーシュー丼", price: 400 },
-  chahan:        { id: "XszUjVsqeCr5yytL4xKa",  name: "チャーハン",       price: 450 },
-  gyoza:         { id: "e6kjLsFg4tqVDluV0XrE",  name: "餃子(5個)",       price: 500 },
-  harumaki:      { id: "fm1oR7ZTtfYjfF2CKsna",  name: "春巻き(3本)",     price: 450 },
-  karaage:       { id: "jMtXqBeAmal9I2xzAatX",  name: "唐揚げ(3個)",     price: 400 },
-  beer:          { id: "6BVtPDoInnCl1bUjfdmw",  name: "瓶ビール",         price: 600 },
-  oolong:        { id: "8AJnF0LNLTS7KDaQs5KS",  name: "烏龍茶",           price: 200 },
-  cola:          { id: "f2Ayn4ItsEuS8dFWrI5r",  name: "コーラ",           price: 200 },
-  lemonSour:     { id: "mE2iYIuQgDHmapOWRR3v",  name: "レモンサワー",     price: 500 },
-  calpis:        { id: "ZhsoWOOoBde8BJ0vbfZm",  name: "カルピス",         price: 200 },
-  oj:            { id: "0xdO4mZ7lXLyT4dVoVQN",  name: "オレンジジュース", price: 200 },
+  hamburg:       { id: "F2zoFM33eWfwECWUG7PN",  name: "和風おろしハンバーグ", price: 980 },
+  cheeseHamburg: { id: "INOvuctqwz2Ut7h0mJCH",  name: "チーズハンバーグ",     price: 1080 },
+  demiHamburg:   { id: "kYutrrRUh75etMp0lnTj",  name: "デミグラスハンバーグ", price: 1150 },
+  carbonara:     { id: "8rvuPjZM4959CMwOz1DQ",  name: "カルボナーラ",         price: 950 },
+  bolognese:     { id: "UfB59LNm8KfuWiOx5qn8",  name: "ボロネーゼ",           price: 980 },
+  arabbiata:     { id: "RKu84R1GkTffQGGatbEQ",  name: "アラビアータ",         price: 920 },
+  margherita:    { id: "0nnYYWsNmpX1z4i9D5bh",  name: "マルゲリータ",         price: 1200 },
+  cheesePizza:   { id: "CSrdmcSQTObvQHmal5i8",  name: "4種のチーズピザ",     price: 1380 },
+  pepperoni:     { id: "LJoEr5KWxRbfTnIPugck",  name: "ペパロニピザ",         price: 1280 },
+  riceAdd:       { id: "0s3HQqw08SX7stV7g6sJ",  name: "ライス追加",           price: 165 },
+  breadAdd:      { id: "5hBjrrPXK8ZpkXxs4QdB",  name: "パン追加",             price: 165 },
+  fries:         { id: "6X0SqER3O3NVMgY6Sn53",  name: "フライドポテト",       price: 220 },
+  onionRing:     { id: "SU2O7fGiZyiEXBeYOMnb",  name: "オニオンリング",       price: 220 },
+  cornSoup:      { id: "XszUjVsqeCr5yytL4xKa",  name: "コーンスープ",         price: 220 },
+  miniSalad:     { id: "e6kjLsFg4tqVDluV0XrE",  name: "ミニサラダ",           price: 165 },
+  caesarSalad:   { id: "fm1oR7ZTtfYjfF2CKsna",  name: "シーザーサラダ",       price: 580 },
+  iceCream:      { id: "jMtXqBeAmal9I2xzAatX",  name: "バニラアイス",         price: 380 },
+  cola:          { id: "f2Ayn4ItsEuS8dFWrI5r",  name: "コーラ",               price: 280 },
+  oolong:        { id: "8AJnF0LNLTS7KDaQs5KS",  name: "アイスティー",         price: 280 },
+  oj:            { id: "0xdO4mZ7lXLyT4dVoVQN",  name: "オレンジジュース",     price: 280 },
+  iceCoffee:     { id: "ZhsoWOOoBde8BJ0vbfZm",  name: "アイスコーヒー",       price: 320 },
+  hotCoffee:     { id: "mE2iYIuQgDHmapOWRR3v",  name: "ホットコーヒー",       price: 320 },
 };
 
 function item(menu, qty, toppings = [], note = "", checked = false) {
@@ -72,10 +66,9 @@ const scenarios = [
       {
         status: "paid", offset: -88,
         items: [
-          item(MENUS.ramen, 1, [topping(MENUS.chashu)]),
-          item(MENUS.ramen, 1, [topping(MENUS.ajitama), topping(MENUS.nori)]),
-          item(MENUS.halfRice, 2),
-          item(MENUS.beer, 1),
+          item(MENUS.hamburg, 1, [topping(MENUS.fries)]),
+          item(MENUS.carbonara, 1),
+          item(MENUS.cola, 2),
         ],
       },
     ],
@@ -87,20 +80,19 @@ const scenarios = [
       {
         status: "paid", offset: -55,
         items: [
-          item(MENUS.chashuRamen, 2),
-          item(MENUS.ajitamaRamen, 1, [topping(MENUS.nori)]),
-          item(MENUS.ramen, 1),
-          item(MENUS.gyoza, 1),
-          item(MENUS.beer, 2),
+          item(MENUS.cheeseHamburg, 2, [topping(MENUS.riceAdd)]),
+          item(MENUS.margherita, 1),
+          item(MENUS.carbonara, 1),
+          item(MENUS.caesarSalad, 1),
           item(MENUS.cola, 2),
+          item(MENUS.oj, 2),
         ],
       },
       {
         status: "paid", offset: -30, // 追加注文 12:30
         items: [
-          item(MENUS.beer, 2),
-          item(MENUS.karaage, 1),
-          item(MENUS.chahan, 1),
+          item(MENUS.iceCream, 2),
+          item(MENUS.hotCoffee, 2),
         ],
       },
     ],
@@ -112,8 +104,7 @@ const scenarios = [
       {
         status: "pending", offset: -12,
         items: [
-          item(MENUS.ninniku, 1, [topping(MENUS.moyashi), topping(MENUS.chashu)], "脂多めで"),
-          item(MENUS.halfRice, 1),
+          item(MENUS.demiHamburg, 1, [topping(MENUS.riceAdd)]),
           item(MENUS.oolong, 1),
         ],
       },
@@ -126,12 +117,12 @@ const scenarios = [
       {
         status: "completed", offset: -39,
         items: [
-          item(MENUS.gekikara, 1, [], "", true),
-          item(MENUS.yasuiRamen, 1, [topping(MENUS.ajitama)], "", true),
-          item(MENUS.chashuRamen, 1, [], "", true),
-          item(MENUS.chahan, 1, [], "", true),
+          item(MENUS.hamburg, 1, [], "", true),
+          item(MENUS.bolognese, 1, [], "", true),
+          item(MENUS.cheesePizza, 1, [], "", true),
+          item(MENUS.miniSalad, 2, [], "", true),
           item(MENUS.cola, 2, [], "", true),
-          item(MENUS.calpis, 1, [], "", true),
+          item(MENUS.iceCoffee, 1, [], "", true),
         ],
       },
     ],
@@ -143,10 +134,11 @@ const scenarios = [
       {
         status: "paid", offset: -65,
         items: [
-          item(MENUS.toriPaiTan, 1, [topping(MENUS.nori)]),
-          item(MENUS.karamiso, 1),
-          item(MENUS.miniChashuDon, 1),
-          item(MENUS.lemonSour, 2),
+          item(MENUS.margherita, 1),
+          item(MENUS.carbonara, 1),
+          item(MENUS.caesarSalad, 1),
+          item(MENUS.cola, 1),
+          item(MENUS.oj, 1),
         ],
       },
     ],
@@ -158,9 +150,8 @@ const scenarios = [
       {
         status: "pending", offset: -2,
         items: [
-          item(MENUS.noukouTori, 1, [topping(MENUS.ajitama), topping(MENUS.chashu)]),
-          item(MENUS.toriShio, 1, [topping(MENUS.nori)]),
-          item(MENUS.agegyoza, 1),
+          item(MENUS.cheeseHamburg, 1, [topping(MENUS.fries)]),
+          item(MENUS.pepperoni, 1),
           item(MENUS.cola, 1),
           item(MENUS.oj, 1),
         ],
