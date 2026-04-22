@@ -210,8 +210,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const moveToTable = useCallback((newTableNumber: string) => {
     setItems((currentItems) => {
       if (typeof window !== "undefined") {
+        const oldTable = currentTableRef.current;
         localStorage.setItem(cartKey(newTableNumber), JSON.stringify(currentItems));
         localStorage.setItem(TABLE_KEY, JSON.stringify(newTableNumber));
+        if (oldTable && oldTable !== newTableNumber) {
+          localStorage.removeItem(cartKey(oldTable));
+        }
       }
       return currentItems;
     });
