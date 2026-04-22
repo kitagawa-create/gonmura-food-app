@@ -847,32 +847,18 @@ function HistoryView({ onError }: { onError: (msg: string | null) => void }) {
           <span className="text-xs text-[color:var(--color-text-muted)]">
             {filteredOrders.length}件{tableFilter !== null && ` / 全${orders.length}件`} / ¥{totalAmount.toLocaleString()}
           </span>
+          <button
+            type="button"
+            disabled={selectedIds.size === 0}
+            onClick={() => setShowBulkRevert(true)}
+            className="ml-auto rounded-lg bg-[color:var(--color-accent-char)] px-3 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            新規に戻す
+          </button>
         </div>
       </StickyFilterBar>
 
       <div className="flex-1 overflow-y-auto pt-3">
-        {selectedIds.size > 0 && (
-          <div className="flex items-center justify-between gap-3 mb-3 rounded-lg border border-[color:var(--color-accent-char)]/40 bg-[color:var(--color-accent-char)]/5 px-3 py-2">
-            <span className="text-sm font-medium text-[color:var(--color-accent-char)]">{selectedIds.size}件選択中</span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedIds(new Set())}
-                className="rounded-lg border border-[color:var(--color-border)] px-3 py-1.5 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
-              >
-                解除
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowBulkRevert(true)}
-                className="rounded-lg bg-[color:var(--color-accent-char)] px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
-              >
-                新規に戻す
-              </button>
-            </div>
-          </div>
-        )}
-
         {loading ? (
           <PageLoader />
         ) : filteredOrders.length === 0 ? (
