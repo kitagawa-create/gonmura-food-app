@@ -520,24 +520,16 @@ export default function AdminMenusPage() {
                               : "border-[color:var(--color-border)]"
                       } ${isDragging ? "opacity-40" : ""}`}
                     >
-                      {/* チェックボックス（左上） */}
-                      <div className="absolute left-3 top-3 z-10 pointer-events-none">
-                        <div className={`h-5 w-5 rounded border-2 flex items-center justify-center ${
-                          isSelected
-                            ? "border-[color:var(--color-accent-char)] bg-[color:var(--color-accent-char)]"
-                            : "border-[color:var(--color-border)] bg-[color:var(--color-bg-card)]"
-                        }`}>
-                          {isSelected && (
-                            <svg className="h-3 w-3 text-white" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="2,6 5,9 10,3" />
-                            </svg>
-                          )}
-                        </div>
+                      {/* 表示番号（左上） */}
+                      <div className="absolute left-2 top-2 z-10 pointer-events-none">
+                        <span className="text-xs font-bold text-[color:var(--color-text-muted)]">
+                          {menuIdx + 1}
+                        </span>
                       </div>
 
-                      {/* ドラッグハンドル（チェックボックスの真下・同サイズ） */}
+                      {/* ドラッグハンドル */}
                       {role === "owner" && (
-                        <div className="absolute left-3 top-8 z-10 pointer-events-none h-5 w-5 flex items-center justify-center">
+                        <div className="absolute left-2 top-7 z-10 pointer-events-none h-5 w-5 flex items-center justify-center">
                           <svg className="w-5 h-5 text-[color:var(--color-text-muted)]/50" viewBox="0 0 16 16" fill="currentColor">
                             <circle cx="5" cy="4" r="1.5"/><circle cx="11" cy="4" r="1.5"/>
                             <circle cx="5" cy="8" r="1.5"/><circle cx="11" cy="8" r="1.5"/>
@@ -566,7 +558,7 @@ export default function AdminMenusPage() {
                         </button>
                       )}
 
-                      <div className="flex gap-3 pl-7">
+                      <div className="flex gap-3 pl-6">
                         {m.imageUrl && (
                           <FadeImage
                             src={m.imageUrl}

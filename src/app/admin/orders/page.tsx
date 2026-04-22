@@ -503,7 +503,7 @@ function ActiveOrderCard({
       <div className="mb-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center justify-center min-w-[56px] h-12 px-3 rounded-lg bg-[color:var(--color-accent-char)] text-white text-2xl font-black leading-none">
+            <span className="text-2xl font-bold text-[color:var(--color-text-primary)]">
               {tableNumber ?? "?"}
             </span>
             <span
@@ -855,6 +855,14 @@ function HistoryView({ onError }: { onError: (msg: string | null) => void }) {
         </div>
       </StickyFilterBar>
 
+      <div className="shrink-0 flex items-center gap-5 sm:gap-7 px-4 py-2 border-b border-[color:var(--color-border)] bg-[color:var(--color-bg-subtle)] text-xs font-semibold text-[color:var(--color-text-muted)]">
+        <div className="w-4 shrink-0" />
+        <div className="w-14 shrink-0 text-center">テーブル</div>
+        <div className="w-16 shrink-0">注文</div>
+        <div className="w-16 shrink-0">提供</div>
+        <div className="flex-1 min-w-0">商品名</div>
+        <div className="shrink-0 pl-1">合計</div>
+      </div>
       <div className="flex-1 overflow-y-auto pt-3">
         {loading ? (
           <PageLoader />
@@ -925,7 +933,7 @@ function HistoryOrderCard({
         />
       </div>
       <div className="shrink-0 flex flex-col items-center gap-1 w-14">
-        <span className="inline-flex items-center justify-center w-full h-8 px-1 rounded-md bg-[color:var(--color-accent-soy)] text-white text-sm font-bold leading-none">
+        <span className="text-2xl font-bold text-[color:var(--color-text-primary)]">
           {tableNumber}
         </span>
         <span className="rounded-full px-2 py-0.5 text-[10px] font-bold whitespace-nowrap bg-[color:var(--color-bg-subtle)] text-[color:var(--color-text-muted)]">
@@ -933,11 +941,9 @@ function HistoryOrderCard({
         </span>
       </div>
       <div className="shrink-0 text-xs w-16">
-        <p className="text-[color:var(--color-text-muted)] leading-none mb-1">注文</p>
         <p className="font-medium text-[color:var(--color-text-primary)] tabular-nums">{created ? TIME_FORMATTER.format(created) : "−"}</p>
       </div>
       <div className="shrink-0 text-xs w-16">
-        <p className="text-[color:var(--color-text-muted)] leading-none mb-1">提供</p>
         <p className="font-medium text-[color:var(--color-text-primary)] tabular-nums">{updated ? TIME_FORMATTER.format(updated) : "−"}</p>
       </div>
       <div className="flex-1 min-w-0">
