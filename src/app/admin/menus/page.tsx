@@ -371,14 +371,10 @@ export default function AdminMenusPage() {
 
   const actionLabel = pendingAction === "soldout" ? "売り切れ" : "解除";
 
-  const selectedStatusCounts = useMemo(() => {
-    const selected = visibleMenus.filter((m) => selectedIds.has(m.menuId));
-    return {
-      active: selected.filter((m) => m.status === "active").length,
-      soldout: selected.filter((m) => m.status === "soldout").length,
-      hidden: selected.filter((m) => m.status === "hidden").length,
-    };
-  }, [selectedIds, visibleMenus]);
+  const selectedSoldoutCount = useMemo(
+    () => visibleMenus.filter((m) => selectedIds.has(m.menuId) && m.status === "soldout").length,
+    [selectedIds, visibleMenus]
+  );
 
   const effectiveTab = activeTab || categories[0]?.categoryId || "";
 
@@ -666,13 +662,6 @@ export default function AdminMenusPage() {
           <div className="flex items-center gap-3 px-4 py-3 overflow-x-auto">
             <div className="shrink-0 text-sm font-medium text-[color:var(--color-text-primary)]">
               {selectedIds.size}件選択中
-              <span className="ml-2 text-xs font-normal text-[color:var(--color-text-muted)]">
-                （{[
-                  selectedStatusCounts.active > 0 && `公開${selectedStatusCounts.active}`,
-                  selectedStatusCounts.soldout > 0 && `売り切れ${selectedStatusCounts.soldout}`,
-                  selectedStatusCounts.hidden > 0 && `非公開${selectedStatusCounts.hidden}`,
-                ].filter(Boolean).join(" / ")}）
-              </span>
             </div>
             <div className="flex items-center gap-2 ml-auto shrink-0">
               <button
@@ -683,7 +672,7 @@ export default function AdminMenusPage() {
               </button>
               <button
                 onClick={() => { setPendingAction("active"); setBulkConfirmOpen(true); }}
-                disabled={selectedStatusCounts.soldout < selectedIds.size}
+                disabled={selectedSoldoutCount < selectedIds.size}
                 className="rounded-lg border border-[color:var(--color-accent-warn)]/40 px-3 py-2 text-sm text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 解除
