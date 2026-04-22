@@ -196,8 +196,9 @@ export default function MenuPage() {
     if (!ordersLoaded) return;
     if (guestCount !== null) return;
     if (hasUnpaidOrders) return;
+    if (showGuestCountDialog) return;
     setShowTableSelectDialog(true);
-  }, [tableNumber, guestCount, ordersLoaded, hasUnpaidOrders]);
+  }, [tableNumber, guestCount, ordersLoaded, hasUnpaidOrders, showGuestCountDialog]);
 
   // テーブル選択ダイアログが開いている間だけリアルタイム購読
   useEffect(() => {

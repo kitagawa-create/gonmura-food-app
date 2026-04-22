@@ -88,6 +88,12 @@ export default function AdminMenusPage() {
   const [savingMenuOrder, setSavingMenuOrder] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
+  const [activeTab, setActiveTab] = useState<string>("");
+  const handleTabChange = useCallback((tabId: string) => {
+    setActiveTab(tabId);
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pendingAction, setPendingAction] = useState<"hidden" | "soldout" | "deleted" | "active" | null>(null);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
@@ -374,6 +380,21 @@ export default function AdminMenusPage() {
     };
   }, [selectedIds, visibleMenus]);
 
+  const effectiveTab = activeTab || categories[0]?.categoryId || "";
+
+  const currentSection = useMemo(() => {
+    if (!effectiveTab) return null;
+    const cat = categories.find((c) => c.categoryId === effectiveTab) ?? null;
+    const items = sortByCategory(
+      visibleMenus.filter((m) => m.categoryIds.includes(effectiveTab)),
+      effectiveTab
+    );
+    const fieldName: "sortOrder" | "sortOrderFeatured" =
+      cat?.categoryId === osusumeId ? "sortOrderFeatured" : "sortOrder";
+    return { category: cat, items, fieldName };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveTab, categories, visibleMenus, osusumeId]);
+
   return (
     <div className="w-full h-full flex flex-col -m-3 md:-m-6">
       {/* 固定ヘッダー */}
@@ -393,6 +414,29 @@ export default function AdminMenusPage() {
           }
         />
 
+        {/* カテゴリタブ */}
+        {!loading && categories.length > 0 && (
+          <div className="flex gap-1 overflow-x-auto no-scrollbar">
+            {categories.map((cat) => {
+              const isActive = effectiveTab === cat.categoryId;
+              const count = visibleMenus.filter((m) => m.categoryIds.includes(cat.categoryId)).length;
+              return (
+                <button
+                  key={cat.categoryId}
+                  onClick={() => handleTabChange(cat.categoryId)}
+                  className={`shrink-0 border-b-2 px-4 py-2 text-sm transition-colors ${
+                    isActive
+                      ? "border-[color:var(--color-accent-char)] font-semibold text-[color:var(--color-accent-char)]"
+                      : "border-transparent text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-primary)]"
+                  }`}
+                >
+                  {cat.name}
+                  <span className="ml-1 text-xs">({count})</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* スクロール領域 */}
@@ -408,23 +452,14 @@ export default function AdminMenusPage() {
         <PageLoader />
       ) : visibleMenus.length === 0 ? (
         <p className="text-sm text-[color:var(--color-text-muted)]">メニューがまだありません。</p>
+      ) : !currentSection || currentSection.items.length === 0 ? (
+        <p className="text-sm text-[color:var(--color-text-muted)]">このカテゴリにメニューがありません。</p>
       ) : (
-        <div className="space-y-6">
-          {groupedMenus.map(({ category, items }) => {
-            const fieldName: "sortOrder" | "sortOrderFeatured" =
-              category?.categoryId === osusumeId ? "sortOrderFeatured" : "sortOrder";
-            const movingInThisSection = movingMenuId !== null && items.some((item) => item.menuId === movingMenuId) && movingMenuSectionCatId === (category?.categoryId ?? null);
-            return (
-            <section key={category?.categoryId ?? "__uncategorized__"}>
-              <div className="mb-2 flex items-baseline gap-2 border-b border-[color:var(--color-border)] pb-1">
-                <h2 className="text-lg font-bold text-[color:var(--color-text-primary)]">
-                  {category?.name ?? "未分類"}
-                </h2>
-                <span className="text-xs text-[color:var(--color-text-muted)]">
-                  {items.length}件
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+        (() => {
+          const { category, items, fieldName } = currentSection;
+          const movingInThisSection = movingMenuId !== null && items.some((item) => item.menuId === movingMenuId) && movingMenuSectionCatId === (category?.categoryId ?? null);
+          return (
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
                 {items.map((m, menuIdx) => {
                   const isDragging = draggingMenuId === m.menuId;
                   const isMovingThis = movingMenuId === m.menuId;
@@ -578,11 +613,9 @@ export default function AdminMenusPage() {
                     </div>
                   );
                 })}
-              </div>
-            </section>
-            );
-          })}
-        </div>
+            </div>
+          );
+        })()
       )}
 
       {showForm && (

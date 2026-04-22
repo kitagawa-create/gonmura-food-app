@@ -83,10 +83,10 @@ export default function SetupPage() {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      setCustomerId(customerRef.id);
       localStorage.setItem(TABLE_ID_KEY, selectedTable.tableId);
       setTableNumber(selectedTable.tableNumber);
       setGuestCount(guestCountInput);
+      setCustomerId(customerRef.id);
       router.replace("/menu");
     } catch {
       setSubmitting(false);
