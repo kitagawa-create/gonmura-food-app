@@ -190,7 +190,7 @@ export default function BillPage() {
                       <td className="py-1 text-[color:var(--color-text-primary)]">{item.name}</td>
                       <td className="py-1 text-center text-[color:var(--color-text-muted)]">{item.quantity}</td>
                       <td className="py-1 text-right text-[color:var(--color-text-primary)] tabular-nums">
-                        ¥{taxIncluded(comboLineTotal(item)).toLocaleString()}
+                        ¥{taxIncluded(comboLineTotal(item)).toLocaleString()}<span className="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">（税抜¥{comboLineTotal(item).toLocaleString()}）</span>
                       </td>
                     </tr>
                     {item.toppings.map((t) => (

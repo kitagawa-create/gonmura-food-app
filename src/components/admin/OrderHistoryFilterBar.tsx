@@ -10,6 +10,7 @@ type Props = {
   filteredCount: number;
   totalCount: number;
   totalAmount: number;
+  totalAmountExTax?: number;
 };
 
 export function OrderHistoryFilterBar({
@@ -22,6 +23,7 @@ export function OrderHistoryFilterBar({
   filteredCount,
   totalCount,
   totalAmount,
+  totalAmountExTax,
 }: Props) {
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -54,7 +56,7 @@ export function OrderHistoryFilterBar({
       <span className="text-xs text-[color:var(--color-text-muted)]">
         {filteredCount}件
         {tableFilter !== null && ` / 全${totalCount}件`}
-        {" "}/ ¥{totalAmount.toLocaleString()}
+        {" "}/ ¥{totalAmount.toLocaleString()}{totalAmountExTax !== undefined && `（税抜¥${totalAmountExTax.toLocaleString()}）`}
       </span>
     </div>
   );

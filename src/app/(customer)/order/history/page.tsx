@@ -7,7 +7,7 @@ import { useCart } from "@/lib/cart-context";
 import type { OrderWithItems } from "@/types";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import { CustomerPageHeader } from "@/components/customer/CustomerPageHeader";
-import { comboLineTotal, normalizeOrder, normalizeOrderItem } from "@/lib/order-utils";
+import { comboLineTotal, normalizeOrder, normalizeOrderItem, taxIncluded } from "@/lib/order-utils";
 
 function timeStr(d: Date) {
   return d.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
@@ -98,7 +98,7 @@ function OrderCard({ order }: { order: OrderWithItems }) {
       {/* 金額 */}
       <div className="shrink-0 pl-1">
         <p className="text-sm font-bold text-[color:var(--color-text-primary)] tabular-nums whitespace-nowrap">
-          ¥{total.toLocaleString()}
+          ¥{taxIncluded(total).toLocaleString()}<span className="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">（税抜¥{total.toLocaleString()}）</span>
         </p>
       </div>
     </div>
@@ -182,7 +182,7 @@ export default function OrderHistoryPage() {
         <div className="fixed bottom-0 inset-x-0 bg-[color:var(--color-bg-card)] border-t border-[color:var(--color-border)] px-4 py-3 flex items-center justify-between">
           <p className="text-sm text-[color:var(--color-text-muted)]">{orders.length}件の注文</p>
           <p className="text-lg font-bold text-[color:var(--color-accent-char)] tabular-nums">
-            合計 ¥{grandTotal.toLocaleString()}
+            合計 ¥{taxIncluded(grandTotal).toLocaleString()}<span className="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">（税抜¥{grandTotal.toLocaleString()}）</span>
           </p>
         </div>
       )}

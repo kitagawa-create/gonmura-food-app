@@ -187,6 +187,7 @@ export default function AdminRegisterPage() {
           filteredCount={filteredBills.length}
           totalCount={paidBills.length}
           totalAmount={filteredBills.reduce((s, b) => s + taxIncluded(b.totalAmount), 0)}
+          totalAmountExTax={filteredBills.reduce((s, b) => s + b.totalAmount, 0)}
         />
       </StickyFilterBar>
       <div className="flex-1 overflow-y-auto pt-4">
@@ -221,10 +222,10 @@ export default function AdminRegisterPage() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xl font-bold text-[color:var(--color-accent-char)]">¥{totalIncluded.toLocaleString()}</p>
+                      <p className="text-xl font-bold text-[color:var(--color-accent-char)]">¥{totalIncluded.toLocaleString()}<span className="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">（税抜¥{subtotal.toLocaleString()}）</span></p>
                       {table.guestCount > 0 && (
                         <p className="text-xs text-[color:var(--color-text-muted)]">
-                          {table.guestCount}名 · 客単価 ¥{Math.floor(totalIncluded / table.guestCount).toLocaleString()}
+                          {table.guestCount}名 · 客単価 ¥{Math.floor(totalIncluded / table.guestCount).toLocaleString()}（税抜¥{Math.floor(subtotal / table.guestCount).toLocaleString()}）
                         </p>
                       )}
                     </div>
@@ -233,7 +234,7 @@ export default function AdminRegisterPage() {
                     {allItems.map((item, i) => (
                       <li key={i} className="flex justify-between">
                         <span className="text-[color:var(--color-text-primary)]">{item.name} ×{item.quantity}</span>
-                        <span className="text-[color:var(--color-text-muted)]">¥{taxIncluded(item.price * item.quantity).toLocaleString()}</span>
+                        <span className="text-[color:var(--color-text-muted)]">¥{taxIncluded(item.price * item.quantity).toLocaleString()}<span className="ml-1 text-xs">（税抜¥{(item.price * item.quantity).toLocaleString()}）</span></span>
                       </li>
                     ))}
                   </ul>

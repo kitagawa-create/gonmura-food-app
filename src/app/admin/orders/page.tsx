@@ -21,7 +21,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Order, OrderItem, OrderWithItems } from "@/types";
-import { normalizeOrder, normalizeOrderItem, comboLineTotal } from "@/lib/order-utils";
+import { normalizeOrder, normalizeOrderItem, comboLineTotal, taxIncluded } from "@/lib/order-utils";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { DatePicker } from "@/components/admin/DatePicker";
 import { StickyFilterBar } from "@/components/admin/StickyFilterBar";
@@ -667,7 +667,7 @@ function ActiveOrderCard({
       <ConfirmDialog
         open={showCancel}
         title={`テーブル ${tableNumber ?? "?"} の注文を削除`}
-        message={`${order.items.map((i) => i.name).join("、")}（¥${total.toLocaleString()}）を削除しますか？この操作は取り消せません。`}
+        message={`${order.items.map((i) => i.name).join("、")}（¥${taxIncluded(total).toLocaleString()}・税抜¥${total.toLocaleString()}）を削除しますか？この操作は取り消せません。`}
         confirmLabel="削除する"
         confirmColor="red"
         onConfirm={() => {
@@ -682,7 +682,7 @@ function ActiveOrderCard({
         title="商品をキャンセル"
         message={
           cancelTarget
-            ? `${cancelTarget.name} ×${cancelTarget.quantity}（¥${comboLineTotal(cancelTarget).toLocaleString()}）をキャンセルしますか？${isLastItem ? "これが最後の商品のため注文自体が削除されます。" : ""}`
+            ? `${cancelTarget.name} ×${cancelTarget.quantity}（¥${taxIncluded(comboLineTotal(cancelTarget)).toLocaleString()}・税抜¥${comboLineTotal(cancelTarget).toLocaleString()}）をキャンセルしますか？${isLastItem ? "これが最後の商品のため注文自体が削除されます。" : ""}`
             : ""
         }
         confirmLabel={isLastItem ? "注文を削除" : "キャンセルする"}
@@ -970,7 +970,7 @@ function HistoryOrderCard({
         )}
       </div>
       <div className="shrink-0 pl-1">
-        <p className="text-sm font-bold text-[color:var(--color-text-primary)] tabular-nums whitespace-nowrap">¥{total.toLocaleString()}</p>
+        <p className="text-sm font-bold text-[color:var(--color-text-primary)] tabular-nums whitespace-nowrap">¥{taxIncluded(total).toLocaleString()}<span className="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">（税抜¥{total.toLocaleString()}）</span></p>
       </div>
     </div>
   );
