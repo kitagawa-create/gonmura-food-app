@@ -701,11 +701,13 @@ function MenuFormModal({
   categories,
   onClose,
   onSave,
+  onDelete,
 }: {
   menu: Menu | null;
   categories: Category[];
   onClose: () => void;
   onSave: (data: MenuFormData, imageBlob: Blob | null, id?: string) => Promise<void>;
+  onDelete?: () => void;
 }) {
   const osusumeCategory = useMemo(
     () => categories.find((c) => c.name === "おすすめ"),
@@ -780,18 +782,32 @@ function MenuFormModal({
         onSubmit={handleSubmit}
         className="relative flex max-h-[90dvh] w-full max-w-lg flex-col rounded-2xl bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] shadow-xl"
       >
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="閉じる"
-          className="absolute top-4 right-4 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
-        >
-          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+          {onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              aria-label="削除"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--color-accent-warn)]/40 bg-[color:var(--color-bg-card)] text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="閉じる"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
 
-        <div className="shrink-0 border-b border-[color:var(--color-border)] px-6 py-4 pr-16">
+        <div className="shrink-0 border-b border-[color:var(--color-border)] px-6 py-4 pr-24">
           <h2 className="text-lg font-bold text-[color:var(--color-text-primary)]">
             {menu ? "メニュー編集" : "メニュー追加"}
           </h2>
