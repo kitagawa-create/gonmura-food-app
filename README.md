@@ -124,7 +124,7 @@ firestore-root
 ### 3. 注文送信（`/menu` サイドカート内で完結）
 ```
 客がサイドカート（CartPanel）で「注文を確定する」
-  → 在庫検証: コンボ本体+全トッピングの menuId を documentId() in chunks(max30) で取得
+  → 在庫検証: コンボ本体+全サイドの menuId を documentId() in chunks(max30) で取得
      いずれかが isAvailable=false または isSoldOut=true →
        該当コンボを removeItem(lineId)、品切れ通知ダイアログ表示
   → setDoc(orders/{自動ID}, {
