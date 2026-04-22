@@ -912,7 +912,7 @@ function HistoryOrderCard({
   const hiddenCount = order.items.length - PREVIEW;
 
   return (
-    <div className={`flex items-start gap-3 sm:gap-5 rounded-xl border bg-[color:var(--color-bg-card)] p-3 shadow-sm transition-colors ${
+    <div className={`flex items-start gap-5 sm:gap-7 rounded-xl border bg-[color:var(--color-bg-card)] p-4 shadow-sm transition-colors ${
       selected ? "border-[color:var(--color-accent-char)] ring-2 ring-[color:var(--color-accent-char)]/20" : "border-[color:var(--color-border)]"
     }`}>
       <div className="shrink-0 pt-1">
@@ -933,15 +933,15 @@ function HistoryOrderCard({
         </span>
       </div>
       <div className="shrink-0 text-xs w-16">
-        <p className="text-[color:var(--color-text-muted)] leading-none mb-0.5">注文</p>
+        <p className="text-[color:var(--color-text-muted)] leading-none mb-1">注文</p>
         <p className="font-medium text-[color:var(--color-text-primary)] tabular-nums">{created ? TIME_FORMATTER.format(created) : "−"}</p>
       </div>
       <div className="shrink-0 text-xs w-16">
-        <p className="text-[color:var(--color-text-muted)] leading-none mb-0.5">提供</p>
+        <p className="text-[color:var(--color-text-muted)] leading-none mb-1">提供</p>
         <p className="font-medium text-[color:var(--color-text-primary)] tabular-nums">{updated ? TIME_FORMATTER.format(updated) : "−"}</p>
       </div>
       <div className="flex-1 min-w-0">
-        <ul className="text-sm space-y-0.5">
+        <ul className="text-sm space-y-2">
           {visibleItems.map((item) => (
             <li key={item.itemId}>
               <div className="flex items-baseline gap-2">

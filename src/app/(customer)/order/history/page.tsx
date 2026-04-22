@@ -40,7 +40,7 @@ function OrderCard({ order }: { order: OrderWithItems }) {
   const statusInfo = STATUS_LABEL[order.status] ?? STATUS_LABEL.pending;
 
   return (
-    <div className="flex items-start gap-3 sm:gap-5 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-3 shadow-sm">
+    <div className="flex items-start gap-5 sm:gap-7 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-4 shadow-sm">
       {/* ステータス */}
       <div className="shrink-0 w-14 pt-0.5">
         <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold whitespace-nowrap ${statusInfo.className}`}>
@@ -50,14 +50,14 @@ function OrderCard({ order }: { order: OrderWithItems }) {
 
       {/* 注文時間 */}
       <div className="shrink-0 text-xs w-16">
-        <p className="text-[color:var(--color-text-muted)] leading-none mb-0.5">注文</p>
+        <p className="text-[color:var(--color-text-muted)] leading-none mb-1">注文</p>
         <p className="font-medium text-[color:var(--color-text-primary)] tabular-nums">
           {created ? timeStr(created) : "−"}
         </p>
       </div>
       {/* 提供時間 */}
       <div className="shrink-0 text-xs w-16">
-        <p className="text-[color:var(--color-text-muted)] leading-none mb-0.5">提供</p>
+        <p className="text-[color:var(--color-text-muted)] leading-none mb-1">提供</p>
         <p className="font-medium text-[color:var(--color-text-primary)] tabular-nums">
           {(order.status === "completed" || order.status === "paid") && updated ? timeStr(updated) : "−"}
         </p>
@@ -65,7 +65,7 @@ function OrderCard({ order }: { order: OrderWithItems }) {
 
       {/* 注文メニュー */}
       <div className="flex-1 min-w-0">
-        <ul className="text-sm space-y-0.5">
+        <ul className="text-sm space-y-2">
           {visibleItems.map((item) => (
             <li key={item.itemId}>
               <div className="flex items-baseline gap-2">
