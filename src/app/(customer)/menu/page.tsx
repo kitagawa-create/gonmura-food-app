@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, collectionGroup, query, where, orderBy, onSnapshot, doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, collectionGroup, query, where, orderBy, onSnapshot, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Menu, Category, CartItemTopping, CartItem } from "@/types";
 import { normalizeMenu } from "@/lib/order-utils";
@@ -11,7 +11,6 @@ import { FadeImage } from "@/components/ui/FadeImage";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import { CartPanel } from "@/components/customer/CartPanel";
 import Link from "next/link";
-import { PinDialog } from "@/components/customer/PinDialog";
 
 const TABLE_KEY = "gonmura-table";
 const TABLE_ID_KEY = "gonmura-table-id";
@@ -45,9 +44,7 @@ export default function MenuPage() {
   const [dialogTables, setDialogTables] = useState<{ tableId: string; tableNumber: string }[]>([]);
   const [dialogTablesLoading, setDialogTablesLoading] = useState(false);
   const [selectedDialogTableId, setSelectedDialogTableId] = useState<string>("");
-  const [showTableChangePinDialog, setShowTableChangePinDialog] = useState(false);
-  const [isTableChanging, setIsTableChanging] = useState(false);
-  const { addItem, updateItem, totalItems, tableNumber, setTableNumber, moveToTable, clearCart, resetSession, guestCount, setGuestCount, customerId } =
+  const { addItem, updateItem, totalItems, tableNumber, setTableNumber, clearCart, resetSession, guestCount, setGuestCount, customerId } =
     useCart();
   const router = useRouter();
   const prevHasUnpaidRef = useRef<boolean | undefined>(undefined);
@@ -355,16 +352,7 @@ export default function MenuPage() {
             <h1 className="text-lg font-bold text-[color:var(--color-text-primary)] tracking-wide">
               Gonmura Food
             </h1>
-            <div className="flex items-center gap-2">
-              <p className="text-xs text-[color:var(--color-text-muted)]">テーブル {tableNumber}</p>
-              <button
-                type="button"
-                onClick={() => setShowTableChangePinDialog(true)}
-                className="text-[10px] text-[color:var(--color-text-muted)] underline hover:text-[color:var(--color-text-primary)] transition-colors"
-              >
-                変更
-              </button>
-            </div>
+            <p className="text-xs text-[color:var(--color-text-muted)]">テーブル {tableNumber}</p>
           </div>
           <div className="flex items-center gap-3">
             <Link
@@ -743,28 +731,14 @@ export default function MenuPage() {
                 <button
                   type="button"
                   disabled={!selectedDialogTableId}
-                  onClick={async () => {
+                  onClick={() => {
                     const t = dialogTables.find((t) => t.tableId === selectedDialogTableId);
                     if (!t) return;
                     localStorage.setItem(TABLE_ID_KEY, t.tableId);
-                    if (isTableChanging) {
-                      moveToTable(t.tableNumber);
-                      if (customerId) {
-                        try {
-                          await updateDoc(doc(db, "customers", customerId), {
-                            tableId: t.tableId,
-                            updatedAt: serverTimestamp(),
-                          });
-                        } catch {}
-                      }
-                      setIsTableChanging(false);
-                      setShowTableSelectDialog(false);
-                    } else {
-                      setTableNumber(t.tableNumber);
-                      setShowTableSelectDialog(false);
-                      setGuestCountInput(1);
-                      setShowGuestCountDialog(true);
-                    }
+                    setTableNumber(t.tableNumber);
+                    setShowTableSelectDialog(false);
+                    setGuestCountInput(1);
+                    setShowGuestCountDialog(true);
                   }}
                   className="w-full bg-[color:var(--color-accent-char)] text-white py-4 rounded-xl text-lg font-bold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
                 >
@@ -775,16 +749,6 @@ export default function MenuPage() {
           </div>
         </div>
       )}
-
-      <PinDialog
-        open={showTableChangePinDialog}
-        onSuccess={() => {
-          setShowTableChangePinDialog(false);
-          setIsTableChanging(true);
-          setShowTableSelectDialog(true);
-        }}
-        onCancel={() => setShowTableChangePinDialog(false)}
-      />
 
       {/* 人数選択ダイアログ（精算後の新規セッション開始時） */}
       {showGuestCountDialog && (

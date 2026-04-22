@@ -30,7 +30,6 @@ type CartContextType = {
   updateItem: (lineId: string, updates: Partial<Pick<CartItem, "quantity" | "toppings" | "note">>) => void;
   clearCart: () => void;
   resetSession: () => void;
-  moveToTable: (newTableNumber: string) => void;
   totalAmount: number;
   totalItems: number;
   tableNumber: string | null;
@@ -206,23 +205,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const clearCart = useCallback(() => setItems([]), []);
 
-  // テーブル移動専用: customerId・guestCount を保持したままテーブル番号だけ切り替える
-  const moveToTable = useCallback((newTableNumber: string) => {
-    setItems((currentItems) => {
-      if (typeof window !== "undefined") {
-        const oldTable = currentTableRef.current;
-        localStorage.setItem(cartKey(newTableNumber), JSON.stringify(currentItems));
-        localStorage.setItem(TABLE_KEY, JSON.stringify(newTableNumber));
-        if (oldTable && oldTable !== newTableNumber) {
-          localStorage.removeItem(cartKey(oldTable));
-        }
-      }
-      return currentItems;
-    });
-    setTableNumberState(newTableNumber);
-    currentTableRef.current = newTableNumber;
-  }, []);
-
   // 精算完了後の新セッション開始用: guestCount・customerId をリセットしてカートもクリア
   const resetSession = useCallback(() => {
     setGuestCountState(null);
@@ -256,7 +238,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         updateItem,
         clearCart,
         resetSession,
-        moveToTable,
         totalAmount,
         totalItems,
         tableNumber,
