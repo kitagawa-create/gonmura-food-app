@@ -226,6 +226,8 @@ export default function BillPage() {
           </div>
 
           <div className="px-6 py-5 border-t border-dashed border-[color:var(--color-border)] text-center space-y-3">
+              <p className="text-base font-bold text-[color:var(--color-text-primary)]">この端末をレジにお持ちください</p>
+              <p className="text-xs text-[color:var(--color-accent-warn)]">※ 支払い完了ボタンは店員が操作します。お客様は押さないでください。</p>
               <button
                 onClick={() => setShowConfirm(true)}
                 disabled={paying}
