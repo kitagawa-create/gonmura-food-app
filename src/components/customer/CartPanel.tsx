@@ -9,7 +9,6 @@ import {
   getDocs,
   query,
   serverTimestamp,
-  setDoc,
   where,
   writeBatch,
 } from "firebase/firestore";
@@ -36,9 +35,7 @@ export function CartPanel({
     totalItems,
     clearCart,
     tableNumber,
-    guestCount,
     customerId,
-    setCustomerId,
   } = useCart();
   const [deleteTarget, setDeleteTarget] = useState<{ lineId: string; name: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -125,21 +122,8 @@ export function CartPanel({
 
       const tableId = localStorage.getItem("gonmura-table-id") ?? "";
 
-      let cid: string;
-      if (customerId) {
-        cid = customerId;
-      } else {
-        const customerRef = doc(collection(db, "customers"));
-        await setDoc(customerRef, {
-          customerId: customerRef.id,
-          tableId,
-          guestCount: guestCount ?? 1,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-        cid = customerRef.id;
-        setCustomerId(cid);
-      }
+      if (!customerId) throw new Error("customerId is not set");
+      const cid = customerId;
 
       const orderRef = doc(collection(db, "customers", cid, "orders"));
       const batch = writeBatch(db);

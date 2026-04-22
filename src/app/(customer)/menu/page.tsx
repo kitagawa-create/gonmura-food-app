@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, collectionGroup, query, where, orderBy, onSnapshot, doc } from "firebase/firestore";
+import { collection, collectionGroup, query, where, orderBy, onSnapshot, doc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Menu, Category, CartItemTopping, CartItem } from "@/types";
 import { normalizeMenu } from "@/lib/order-utils";
@@ -14,6 +14,15 @@ import Link from "next/link";
 
 const TABLE_KEY = "gonmura-table";
 const TABLE_ID_KEY = "gonmura-table-id";
+
+function getDeviceId(): string {
+  const KEY = "gonmura-device-id";
+  const existing = localStorage.getItem(KEY);
+  if (existing) return existing;
+  const id = crypto.randomUUID();
+  localStorage.setItem(KEY, id);
+  return id;
+}
 
 type SelectionLine = { menu: Menu; quantity: number };
 
@@ -41,10 +50,10 @@ export default function MenuPage() {
   const [showGuestCountDialog, setShowGuestCountDialog] = useState(false);
   const [guestCountInput, setGuestCountInput] = useState<number>(1);
   const [showTableSelectDialog, setShowTableSelectDialog] = useState(false);
-  const [dialogTables, setDialogTables] = useState<{ tableId: string; tableNumber: string }[]>([]);
+  const [dialogTables, setDialogTables] = useState<{ tableId: string; tableNumber: string; deviceId: string }[]>([]);
   const [dialogTablesLoading, setDialogTablesLoading] = useState(false);
   const [selectedDialogTableId, setSelectedDialogTableId] = useState<string>("");
-  const { addItem, updateItem, totalItems, tableNumber, setTableNumber, clearCart, resetSession, guestCount, setGuestCount, customerId } =
+  const { addItem, updateItem, totalItems, tableNumber, setTableNumber, clearCart, resetSession, guestCount, setGuestCount, customerId, setCustomerId } =
     useCart();
   const router = useRouter();
   const prevHasUnpaidRef = useRef<boolean | undefined>(undefined);
@@ -200,7 +209,7 @@ export default function MenuPage() {
     return onSnapshot(
       query(collection(db, "tables"), orderBy("tableNumber")),
       (snap) => {
-        setDialogTables(snap.docs.map((d) => ({ tableId: d.id, tableNumber: d.data().tableNumber as string })));
+        setDialogTables(snap.docs.map((d) => ({ tableId: d.id, tableNumber: d.data().tableNumber as string, deviceId: (d.data().deviceId as string) ?? "" })));
         setDialogTablesLoading(false);
       },
       () => setDialogTablesLoading(false)
@@ -223,10 +232,12 @@ export default function MenuPage() {
 
   const activeCategoryName = categories.find((c) => c.categoryId === activeCategory)?.name;
 
-  const categoriesWithMenus = useMemo(
-    () => categories.filter((cat) => menus.some((m) => m.categoryIds.includes(cat.categoryId))),
-    [categories, menus]
-  );
+  const categoriesWithMenus = useMemo(() => {
+    const filtered = categories.filter((cat) => menus.some((m) => m.categoryIds.includes(cat.categoryId)));
+    const osusume = filtered.find((c) => c.name === "おすすめ");
+    const rest = filtered.filter((c) => c.name !== "おすすめ");
+    return osusume ? [osusume, ...rest] : rest;
+  }, [categories, menus]);
 
   useEffect(() => {
     if (categoriesWithMenus.length === 0) return;
@@ -724,16 +735,22 @@ export default function MenuPage() {
                   className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-xl px-4 py-3 text-base text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
                 >
                   <option value="">テーブルを選択してください</option>
-                  {dialogTables.map((t) => (
-                    <option key={t.tableId} value={t.tableId}>{t.tableNumber}番</option>
-                  ))}
+                  {dialogTables
+                    .filter((t) => t.deviceId === "")
+                    .map((t) => (
+                      <option key={t.tableId} value={t.tableId}>{t.tableNumber}番</option>
+                    ))}
                 </select>
                 <button
                   type="button"
                   disabled={!selectedDialogTableId}
-                  onClick={() => {
+                  onClick={async () => {
                     const t = dialogTables.find((t) => t.tableId === selectedDialogTableId);
                     if (!t) return;
+                    const deviceId = getDeviceId();
+                    try {
+                      await updateDoc(doc(db, "tables", t.tableId), { deviceId, updatedAt: serverTimestamp() });
+                    } catch {}
                     localStorage.setItem(TABLE_ID_KEY, t.tableId);
                     setTableNumber(t.tableNumber);
                     setShowTableSelectDialog(false);
@@ -787,6 +804,18 @@ export default function MenuPage() {
               type="button"
               onClick={() => {
                 setGuestCount(guestCountInput);
+                if (!customerId) {
+                  const tableId = localStorage.getItem(TABLE_ID_KEY) ?? "";
+                  const customerRef = doc(collection(db, "customers"));
+                  setDoc(customerRef, {
+                    customerId: customerRef.id,
+                    tableId,
+                    guestCount: guestCountInput,
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp(),
+                  });
+                  setCustomerId(customerRef.id);
+                }
                 setShowGuestCountDialog(false);
                 const osusume = categoriesWithMenus.find((c) => c.name === "おすすめ") ?? categoriesWithMenus[0];
                 if (osusume) setActiveCategory(osusume.categoryId);

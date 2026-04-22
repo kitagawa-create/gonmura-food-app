@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collectionGroup, doc, getDocs, onSnapshot, query, serverTimestamp, where, writeBatch } from "firebase/firestore";
+import { collectionGroup, doc, getDocs, onSnapshot, query, serverTimestamp, updateDoc, where, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
 import type { OrderWithItems } from "@/types";
@@ -74,6 +74,12 @@ export default function BillPage() {
         });
       }
       await batch.commit();
+      const tableId = localStorage.getItem(TABLE_ID_KEY);
+      if (tableId) {
+        try {
+          await updateDoc(doc(db, "tables", tableId), { deviceId: "", updatedAt: serverTimestamp() });
+        } catch {}
+      }
       resetSession();
       localStorage.removeItem(TABLE_ID_KEY);
       localStorage.removeItem(TABLE_KEY);
@@ -85,10 +91,15 @@ export default function BillPage() {
 
   if (payDone) {
     return (
-      <div className="min-h-screen bg-[color:var(--color-bg-base)] flex flex-col items-center justify-center px-4 gap-3">
+      <button
+        type="button"
+        onClick={() => router.replace("/setup")}
+        className="min-h-screen w-full bg-[color:var(--color-bg-base)] flex flex-col items-center justify-center px-4 gap-3"
+      >
         <p className="text-lg font-bold text-[color:var(--color-accent-negi)]">お支払いが完了しました</p>
         <p className="text-sm text-[color:var(--color-text-muted)]">ご利用ありがとうございました</p>
-      </div>
+        <p className="text-xs text-[color:var(--color-text-muted)] mt-4">画面をタップすると戻ります</p>
+      </button>
     );
   }
 

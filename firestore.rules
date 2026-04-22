@@ -98,7 +98,8 @@ service cloud.firestore {
     match /tables/{tableId} {
       allow create: if isStaff() && validTableNumber(request.resource.data.tableNumber);
       allow read: if true;
-      allow update: if isStaff();
+      allow update: if isStaff()
+        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(["deviceId", "updatedAt"]);
       allow delete: if isOwner();
     }
 

@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "rm -rf .next && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed:500": "node scripts/seed_500.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

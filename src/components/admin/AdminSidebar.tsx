@@ -23,7 +23,7 @@ export function AdminSidebar() {
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const nav =
     role === "staff"
-      ? NAV.filter((i) => i.href !== "/admin/sales" && i.href !== "/admin/categories" && i.href !== "/admin/tables")
+      ? NAV.filter((i) => i.href !== "/admin/sales" && i.href !== "/admin/categories")
       : NAV;
 
   return (

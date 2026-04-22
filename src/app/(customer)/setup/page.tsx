@@ -4,13 +4,13 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   collection,
-  collectionGroup,
   doc,
-  getDoc,
   onSnapshot,
   orderBy,
   query,
-  where,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useCart } from "@/lib/cart-context";
@@ -18,15 +18,26 @@ import { useCart } from "@/lib/cart-context";
 const TABLE_ID_KEY = "gonmura-table-id";
 const TABLE_KEY = "gonmura-table";
 
+function getDeviceId(): string {
+  const KEY = "gonmura-device-id";
+  const existing = localStorage.getItem(KEY);
+  if (existing) return existing;
+  const id = crypto.randomUUID();
+  localStorage.setItem(KEY, id);
+  return id;
+}
+
 export default function SetupPage() {
   const [step, setStep] = useState<"table" | "guests">("table");
-  const [tables, setTables] = useState<Array<{ tableId: string; tableNumber: string }>>([]);
-  const [occupiedTableIds, setOccupiedTableIds] = useState<Set<string>>(new Set());
+  const [tables, setTables] = useState<Array<{ tableId: string; tableNumber: string; deviceId: string }>>([]);
   const [loadingTables, setLoadingTables] = useState(true);
   const [selectedTable, setSelectedTable] = useState<{ tableId: string; tableNumber: string } | null>(null);
   const [guestCountInput, setGuestCountInput] = useState(1);
-  const { setTableNumber, setGuestCount } = useCart();
+  const { setTableNumber, setGuestCount, setCustomerId } = useCart();
+  const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
+
+  const occupiedTableIds = new Set(tables.filter((t) => t.deviceId !== "").map((t) => t.tableId));
 
   useEffect(() => {
     const tableId = typeof window !== "undefined" ? localStorage.getItem(TABLE_ID_KEY) : null;
@@ -41,55 +52,45 @@ export default function SetupPage() {
       return;
     }
 
-    const unsub1 = onSnapshot(
+    return onSnapshot(
       query(collection(db, "tables"), orderBy("tableNumber")),
       (snap) => {
         setTables(snap.docs.map((d) => ({
           tableId: d.id,
           tableNumber: d.data().tableNumber as string,
+          deviceId: (d.data().deviceId as string) ?? "",
         })));
         setLoadingTables(false);
       },
       () => setLoadingTables(false)
     );
-
-    const unsub2 = onSnapshot(
-      query(collectionGroup(db, "orders"), where("status", "in", ["pending", "completed"])),
-      async (snap) => {
-        const customerIds = [...new Set(
-          snap.docs
-            .filter((d) => d.ref.parent.parent !== null)
-            .map((d) => d.ref.parent.parent!.id)
-        )];
-        const occupied = new Set<string>();
-        if (customerIds.length > 0) {
-          const snaps = await Promise.all(customerIds.map((id) => getDoc(doc(db, "customers", id))));
-          for (const csnap of snaps) {
-            if (csnap.exists()) {
-              const tid = csnap.data().tableId;
-              if (tid) occupied.add(tid);
-            }
-          }
-        }
-        setOccupiedTableIds(occupied);
-      }
-    );
-
-    return () => { unsub1(); unsub2(); };
   }, [router]);
 
-  function handleSelectTable(t: { tableId: string; tableNumber: string }) {
-    setSelectedTable(t);
-    setGuestCountInput(1);
-    setStep("guests");
-  }
-
-  function handleConfirm() {
-    if (!selectedTable) return;
-    localStorage.setItem(TABLE_ID_KEY, selectedTable.tableId);
-    setTableNumber(selectedTable.tableNumber);
-    setGuestCount(guestCountInput);
-    router.replace("/menu");
+  async function handleConfirm() {
+    if (!selectedTable || submitting) return;
+    setSubmitting(true);
+    try {
+      const deviceId = getDeviceId();
+      await updateDoc(doc(db, "tables", selectedTable.tableId), {
+        deviceId,
+        updatedAt: serverTimestamp(),
+      });
+      const customerRef = doc(collection(db, "customers"));
+      await setDoc(customerRef, {
+        customerId: customerRef.id,
+        tableId: selectedTable.tableId,
+        guestCount: guestCountInput,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      setCustomerId(customerRef.id);
+      localStorage.setItem(TABLE_ID_KEY, selectedTable.tableId);
+      setTableNumber(selectedTable.tableNumber);
+      setGuestCount(guestCountInput);
+      router.replace("/menu");
+    } catch {
+      setSubmitting(false);
+    }
   }
 
   if (loadingTables) {
@@ -147,9 +148,10 @@ export default function SetupPage() {
             <button
               type="button"
               onClick={handleConfirm}
-              className="w-full bg-[color:var(--color-accent-char)] text-white py-4 rounded-xl text-lg font-bold hover:opacity-90 transition-opacity"
+              disabled={submitting}
+              className="w-full bg-[color:var(--color-accent-char)] text-white py-4 rounded-xl text-lg font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
             >
-              注文を開始する
+              {submitting ? "処理中..." : "注文を開始する"}
             </button>
           </div>
         </div>
