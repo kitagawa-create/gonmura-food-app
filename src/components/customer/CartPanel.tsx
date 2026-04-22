@@ -258,7 +258,7 @@ export function CartPanel({
                         </svg>
                       </button>
                     </div>
-                    {/* トッピング (ネスト表示) */}
+                    {/* サイドメニュー (ネスト表示) */}
                     {item.toppings.length > 0 && (
                       <ul className="mt-1 ml-14 space-y-0.5">
                         {item.toppings.map((t) => (

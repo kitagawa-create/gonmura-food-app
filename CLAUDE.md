@@ -74,7 +74,7 @@ MenuStatus        "active" | "soldout" | "hidden" | "deleted"
 Category          { id, name, sortOrder: number, createdAt, updatedAt }
 Menu              { id, name, description, price: number, categoryIds: string[], imageUrl: string, status: MenuStatus, sortOrder: number, sortOrderFeatured: number, createdAt, updatedAt }
 OrderItemTopping  { menuId, name, price: number, quantity: number }  ← quantity は「1コンボあたり」
-OrderItem         { id, menuId, name, price: number, quantity: number, toppings: OrderItemTopping[], note: string, checked: boolean }  ← 注文時スナップショット。price は単品価格（トッピング分は含まない）
+OrderItem         { id, menuId, name, price: number, quantity: number, toppings: OrderItemTopping[], note: string, checked: boolean }  ← 注文時スナップショット。price は単品価格（サイドメニュー分は含まない）
 OrderStatus       "pending" | "completed" | "paid"
 AdminRole         "owner" | "staff"
 Order             { id, status: OrderStatus, customerId: string, createdAt, updatedAt }  ← items はサブコレクション
