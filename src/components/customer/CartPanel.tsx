@@ -50,7 +50,7 @@ export function CartPanel({
     return () => clearTimeout(timer);
   }, [showComplete]);
 
-  // カート内商品の画像URLを取得。ラーメンの画像のみ表示 (トッピングはテキスト表示で十分)
+  // カート内商品の画像URLを取得。メインディッシュの画像のみ表示 (サイドはテキスト表示で十分)
   useEffect(() => {
     const ids = items.map((i) => i.menuId);
     if (ids.length === 0) return;
@@ -82,7 +82,7 @@ export function CartPanel({
     if (submitting || !tableNumber || items.length === 0) return;
     setSubmitting(true);
     try {
-      // コンボ本体 + 全トッピングの menuId を重複なく収集して一括で在庫確認
+      // コンボ本体 + 全サイドの menuId を重複なく収集して一括で在庫確認
       const idSet = new Set<string>();
       for (const i of items) {
         idSet.add(i.menuId);
@@ -105,7 +105,7 @@ export function CartPanel({
         const data = d.data() as { status?: string };
         orderable.set(d.id, data.status === "active");
       });
-      // コンボ本体 または いずれかのトッピングが注文不可ならコンボ全体を落とす
+      // コンボ本体 または いずれかのサイドが注文不可ならコンボ全体を落とす
       const unavailable = items.filter((i) => {
         if (orderable.get(i.menuId) !== true) return true;
         for (const t of i.toppings) {

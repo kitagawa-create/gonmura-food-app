@@ -216,12 +216,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // コンボ価格 = (ラーメン単価 + Σトッピング単価×個数) × 杯数
+  // コンボ価格 = (メインディッシュ単価 + Σサイド単価×個数) × 数量
   const totalAmount = useMemo(() => items.reduce((sum, i) => {
     const topPerBowl = i.toppings.reduce((s, t) => s + t.price * t.quantity, 0);
     return sum + (i.price + topPerBowl) * i.quantity;
   }, 0), [items]);
-  // 総点数 = 各コンボの (杯数 + Σトッピング個数×杯数)。トッピングも個数分カウント。
+  // 総点数 = 各コンボの (数量 + Σサイド個数×数量)。サイドも個数分カウント。
   const totalItems = useMemo(() => items.reduce((sum, i) => {
     const topPerBowl = i.toppings.reduce((a, t) => a + t.quantity, 0);
     return sum + i.quantity + topPerBowl * i.quantity;

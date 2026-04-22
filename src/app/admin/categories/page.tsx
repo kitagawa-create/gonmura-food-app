@@ -333,7 +333,7 @@ function CategoryAddDialog({
             maxLength={20}
             value={name}
             onChange={(e) => { setName(e.target.value); if (nameError) setNameError(null); }}
-            placeholder="例: 丼もの"
+            placeholder="例: ドリンク, デザート, セット"
           />
           <p className={`mt-1 text-right text-xs ${name.length >= 18 ? "text-[color:var(--color-accent-warn)]" : "text-[color:var(--color-text-muted)]"}`}>
             {name.length}/20

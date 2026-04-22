@@ -44,7 +44,7 @@ export default function MenuPage() {
   const [selectedMenu, setSelectedMenu] = useState<Menu | null>(null);
   const [selectedQuantity, setSelectedQuantity] = useState(1);
   const [selectedNote, setSelectedNote] = useState("");
-  // ラーメンモーダルのトッピング/サイド選択 (menuId → quantity)
+  // メインディッシュモーダルのサイド選択 (menuId → quantity)
   const [extraQty, setExtraQty] = useState<Record<string, number>>({});
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
   const [showGuestCountDialog, setShowGuestCountDialog] = useState(false);

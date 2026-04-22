@@ -1,8 +1,8 @@
 import type { CartItem, Menu, MenuStatus, Order, OrderItem, OrderItemTopping } from "@/types";
 
 // 以下 OrderItem / CartItem 双方で使える汎用ヘルパー。
-// - price フィールドは単品価格 (トッピング除く) として扱う。
-// - toppings.quantity は 1 コンボあたり。実消費 = コンボ quantity × topping.quantity。
+// - price フィールドは単品価格 (サイドメニュー除く) として扱う。
+// - toppings.quantity は 1 コンボあたり。実消費 = コンボ quantity × side.quantity。
 
 type ItemLike = {
   price: number;
@@ -15,12 +15,12 @@ export function taxIncluded(price: number): number {
   return Math.round(price * 1.1);
 }
 
-/** コンボ 1 杯あたり (ラーメン単価 + 全トッピング単価×個数) の合計。 */
+/** コンボ 1 個あたり (メインディッシュ単価 + 全サイド単価×個数) の合計。 */
 export function comboUnitPrice(item: ItemLike): number {
   return item.price + item.toppings.reduce((s, x) => s + x.price * x.quantity, 0);
 }
 
-/** コンボ全体の小計 (杯数 × 1杯あたり単価)。 */
+/** コンボ全体の小計 (数量 × 1個あたり単価)。 */
 export function comboLineTotal(item: ItemLike): number {
   return comboUnitPrice(item) * item.quantity;
 }

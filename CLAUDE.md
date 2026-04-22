@@ -3,7 +3,7 @@
 # Gonmura Food - モバイルオーダーシステム
 
 ## プロジェクト概要
-家系ラーメン店「権村家」のテーブル据え置きタブレット向けモバイルオーダー＆管理画面。
+ファミリーレストラン「Gonmura Food」のテーブル据え置きタブレット向けモバイルオーダー＆管理画面。
 iPad横画面メイン、スマホ・PCまでレスポンシブ対応。
 
 ## 技術スタック
@@ -21,7 +21,7 @@ src/
 │   ├── (customer)/              # お客様側（テーブルタブレット）
 │   │   ├── layout.tsx           # CartProvider + AnalyticsProvider + force-dynamic
 │   │   ├── setup/page.tsx       # テーブル選択（プルダウン）→ 人数入力 → /menu へ。localStorage に table-id/table を保存。空席/使用中ラベル表示
-│   │   ├── menu/page.tsx        # メニュー一覧（メニューが1件以上あるカテゴリのみタブ表示）。カテゴリタブ+スワイプ切替、商品モーダル、ラーメン→トッピング追加、売り切れオーバーレイ、PIN認証テーブル変更（プルダウン選択）+ サイドカートで注文確定。カートアイテムタップで商品詳細モーダルを初期値入り編集モードで開く（editingLineId で判定）
+│   │   ├── menu/page.tsx        # メニュー一覧（メニューが1件以上あるカテゴリのみタブ表示）。カテゴリタブ+スワイプ切替、商品モーダル、メインディッシュ→サイド追加、売り切れオーバーレイ、PIN認証テーブル変更（プルダウン選択）+ サイドカートで注文確定。カートアイテムタップで商品詳細モーダルを初期値入り編集モードで開く（editingLineId で判定）
 │   │   ├── order/page.tsx       # /menu へのリダイレクトのみ（注文確定はCartPanelに移行済み）
 │   │   ├── order/history/       # テーブル注文履歴（sticky ヘッダー）
 │   │   └── bill/page.tsx        # お会計伝票（未精算注文をまとめ表示）。支払い完了ボタン（PinDialog認証→writeBatchでpaid更新→resetSession+localStorage削除→5秒後/setupリダイレクト）
@@ -160,7 +160,7 @@ paid への変更はお客様の支払い完了ボタン（PinDialog認証後）
 - 数値フィールドは整数で管理（Math.trunc で正規化）
 - 複合クエリ（status + createdAt等）にはインデックスが必要（firestore.indexes.json）
 - cartKeyはテーブル番号ごとに分離（gonmura-cart-{N}）
-- ラーメン/トッピングの判定はカテゴリ名ベース（「ラーメン」「トッピング」カテゴリ）
+- メインディッシュ/サイドの判定はカテゴリ名ベース（MAIN_DISH_CATEGORIES 配列と「サイド」カテゴリ名）
 - 同一商品でも備考(note)が異なれば別カートライン扱い（comboLineHashにnoteを含むため）
 - カートアイテムをタップすると商品詳細モーダルが編集モードで開く（editingLineIdがnon-nullのとき「変更を保存」ボタンになりupdateItemを呼ぶ）
 - 管理画面のサイドバーは h-[100dvh] + overflow-y-auto で固定
