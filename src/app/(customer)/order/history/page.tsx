@@ -48,16 +48,12 @@ function OrderCard({ order }: { order: OrderWithItems }) {
         </span>
       </div>
 
-      {/* 注文時間 */}
       <div className="shrink-0 text-xs w-16">
-        <p className="text-[color:var(--color-text-muted)] leading-none mb-1">注文</p>
         <p className="font-medium text-[color:var(--color-text-primary)] tabular-nums">
           {created ? timeStr(created) : "−"}
         </p>
       </div>
-      {/* 提供時間 */}
       <div className="shrink-0 text-xs w-16">
-        <p className="text-[color:var(--color-text-muted)] leading-none mb-1">提供</p>
         <p className="font-medium text-[color:var(--color-text-primary)] tabular-nums">
           {(order.status === "completed" || order.status === "paid") && updated ? timeStr(updated) : "−"}
         </p>
@@ -159,6 +155,15 @@ export default function OrderHistoryPage() {
     <div className="h-[100dvh] flex flex-col bg-[color:var(--color-bg-base)]">
       <CustomerPageHeader title="注文履歴" />
 
+      {customerId && orders.length > 0 && (
+        <div className="shrink-0 flex items-center gap-5 sm:gap-7 px-8 sm:px-10 py-2 border-b border-[color:var(--color-border)] bg-[color:var(--color-bg-base)] text-xs font-semibold text-[color:var(--color-text-muted)]">
+          <div className="w-14 shrink-0" />
+          <div className="w-16 shrink-0">注文</div>
+          <div className="w-16 shrink-0">提供</div>
+          <div className="flex-1 min-w-0">商品名</div>
+          <div className="shrink-0 pl-1">合計</div>
+        </div>
+      )}
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 pb-24">
         {!customerId || orders.length === 0 ? (
           <p className="text-[color:var(--color-text-muted)] text-center py-12">
