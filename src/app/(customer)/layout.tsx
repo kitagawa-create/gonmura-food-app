@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Gonmura Food",
-  description: "本格家系ラーメン 権村家のモバイルオーダー",
+  description: "Gonmura Food のモバイルオーダー",
 };
 
 export default function CustomerLayout({

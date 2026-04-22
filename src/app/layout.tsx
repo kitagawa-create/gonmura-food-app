@@ -23,14 +23,14 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: "Gonmura Food",
-  description: "本格家系ラーメン 権村家のモバイルオーダーシステム",
+  description: "Gonmura Food のモバイルオーダーシステム",
   applicationName: "Gonmura Food",
   robots: { index: false, follow: false },
   appleWebApp: { capable: true, title: "Gonmura Food", statusBarStyle: "default" },
   formatDetection: { telephone: false, address: false, email: false },
   openGraph: {
     title: "Gonmura Food",
-    description: "本格家系ラーメン 権村家のモバイルオーダーシステム",
+    description: "Gonmura Food のモバイルオーダーシステム",
     siteName: "Gonmura Food",
     url: BASE_URL,
     type: "website",
@@ -47,7 +47,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Gonmura Food",
-    description: "本格家系ラーメン 権村家のモバイルオーダーシステム",
+    description: "Gonmura Food のモバイルオーダーシステム",
     images: [`${BASE_URL}/opengraph-image`],
   },
 };

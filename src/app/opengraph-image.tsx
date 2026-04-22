@@ -19,7 +19,7 @@ export default function Image() {
           background: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 60%, #0f3460 100%)",
         }}
       >
-        <div style={{ fontSize: 160, lineHeight: 1, marginBottom: 32 }}>🍜</div>
+        <div style={{ fontSize: 160, lineHeight: 1, marginBottom: 32 }}>🍽️</div>
         <div
           style={{
             fontSize: 80,
@@ -32,7 +32,7 @@ export default function Image() {
           Gonmura Food
         </div>
         <div style={{ fontSize: 36, color: "#93c5fd" }}>
-          本格家系ラーメン モバイルオーダー
+          ファミリーレストラン モバイルオーダー
         </div>
       </div>
     ),
