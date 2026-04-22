@@ -18,7 +18,7 @@ import {
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import type { Category, Menu, MenuStatus } from "@/types";
-import { normalizeMenu, taxIncluded } from "@/lib/order-utils";
+import { normalizeMenu } from "@/lib/order-utils";
 import { useAdminRole } from "@/components/admin/AdminContext";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { useToast } from "@/components/ui/Snackbar";
@@ -433,7 +433,7 @@ export default function AdminMenusPage() {
         <p className="text-sm text-[color:var(--color-text-muted)]">このカテゴリにメニューがありません。</p>
       ) : (
         (() => {
-          const { items, fieldName } = currentSection;
+          const { items } = currentSection;
           return (
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={items.map((m) => m.menuId)} strategy={rectSortingStrategy}>
@@ -603,7 +603,10 @@ function SortableMenuCard({
         )}
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-semibold text-[color:var(--color-text-primary)] pr-8">{menu.name}</h3>
-          <p className="text-sm text-[color:var(--color-accent-char)]">¥{taxIncluded(menu.price).toLocaleString()}</p>
+          <p className="text-sm text-[color:var(--color-accent-char)]">
+            ¥{menu.price.toLocaleString()}
+            <span className="ml-1 text-xs text-[color:var(--color-text-muted)]">税抜</span>
+          </p>
           <p className="mt-1 text-xs text-[color:var(--color-text-muted)]">
             {menu.categoryIds
               .map((id) => categoryMap.get(id)?.name ?? "(不明)")
