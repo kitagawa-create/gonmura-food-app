@@ -844,9 +844,6 @@ function HistoryView({ onError }: { onError: (msg: string | null) => void }) {
               {availableTables.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           )}
-          <span className="text-xs text-[color:var(--color-text-muted)]">
-            {filteredOrders.length}件{tableFilter !== null && ` / 全${orders.length}件`} / ¥{totalAmount.toLocaleString()}
-          </span>
           <button
             type="button"
             disabled={selectedIds.size === 0}
@@ -915,7 +912,7 @@ function HistoryOrderCard({
   const hiddenCount = order.items.length - PREVIEW;
 
   return (
-    <div className={`flex items-start gap-2 sm:gap-3 rounded-xl border bg-[color:var(--color-bg-card)] p-3 shadow-sm transition-colors ${
+    <div className={`flex items-start gap-3 sm:gap-5 rounded-xl border bg-[color:var(--color-bg-card)] p-3 shadow-sm transition-colors ${
       selected ? "border-[color:var(--color-accent-char)] ring-2 ring-[color:var(--color-accent-char)]/20" : "border-[color:var(--color-border)]"
     }`}>
       <div className="shrink-0 pt-1">
@@ -935,15 +932,13 @@ function HistoryOrderCard({
           提供済
         </span>
       </div>
-      <div className="shrink-0 text-xs space-y-1.5 w-[68px]">
-        <div>
-          <p className="text-[color:var(--color-text-muted)] leading-none mb-0.5">注文</p>
-          <p className="font-medium text-[color:var(--color-text-primary)] tabular-nums">{created ? TIME_FORMATTER.format(created) : "−"}</p>
-        </div>
-        <div>
-          <p className="text-[color:var(--color-text-muted)] leading-none mb-0.5">提供</p>
-          <p className="font-medium text-[color:var(--color-text-primary)] tabular-nums">{updated ? TIME_FORMATTER.format(updated) : "−"}</p>
-        </div>
+      <div className="shrink-0 text-xs w-16">
+        <p className="text-[color:var(--color-text-muted)] leading-none mb-0.5">注文</p>
+        <p className="font-medium text-[color:var(--color-text-primary)] tabular-nums">{created ? TIME_FORMATTER.format(created) : "−"}</p>
+      </div>
+      <div className="shrink-0 text-xs w-16">
+        <p className="text-[color:var(--color-text-muted)] leading-none mb-0.5">提供</p>
+        <p className="font-medium text-[color:var(--color-text-primary)] tabular-nums">{updated ? TIME_FORMATTER.format(updated) : "−"}</p>
       </div>
       <div className="flex-1 min-w-0">
         <ul className="text-sm space-y-0.5">
