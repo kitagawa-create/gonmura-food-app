@@ -468,12 +468,12 @@ export default function MenuPage() {
                   )}
                   {/* テキスト領域: 各行を固定高 + 固定余白で、全カードの縦位置を揃える */}
                   <div
-                    className={`flex flex-col p-4 gap-2 ${sold ? "opacity-60" : ""}`}
+                    className={`flex flex-col p-4 gap-3 ${sold ? "opacity-60" : ""}`}
                   >
-                    <h3 className="h-12 text-base font-bold leading-6 line-clamp-2 text-[color:var(--color-text-primary)]">
+                    <h3 className="text-base font-bold leading-6 line-clamp-2 text-[color:var(--color-text-primary)]">
                       {menu.name}
                     </h3>
-                    <p className="h-10 text-sm leading-5 line-clamp-2 text-[color:var(--color-text-muted)]">
+                    <p className="text-sm leading-5 line-clamp-2 text-[color:var(--color-text-muted)]">
                       {menu.description || " "}
                     </p>
                     <p className="text-lg font-bold leading-7 text-[color:var(--color-accent-char)]">
