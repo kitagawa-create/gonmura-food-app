@@ -340,8 +340,8 @@ export default function AdminSalesPage() {
         <KpiCard
           label="月間売上"
           value={yen(taxIncluded(kpi.revenue))}
-          sub={`1日平均 ${yen(taxIncluded(kpi.dailyAvgRevenue))}`}
-          sub2={`税抜 ${yen(kpi.revenue)}`}
+          sub={`税抜 ${yen(kpi.revenue)}`}
+          sub2={`1日平均 ${yen(taxIncluded(kpi.dailyAvgRevenue))}`}
         />
         <KpiCard
           label="注文数"
@@ -350,8 +350,8 @@ export default function AdminSalesPage() {
         <KpiCard
           label="客単価"
           value={kpi.guestUnitPrice !== null ? yen(taxIncluded(kpi.guestUnitPrice)) : "−"}
-          sub={kpi.totalGuests > 0 ? `来客数 ${kpi.totalGuests}名` : undefined}
-          sub2={kpi.guestUnitPrice !== null ? `税抜 ${yen(kpi.guestUnitPrice)}` : undefined}
+          sub={kpi.guestUnitPrice !== null ? `税抜 ${yen(kpi.guestUnitPrice)}` : undefined}
+          sub2={kpi.totalGuests > 0 ? `来客数 ${kpi.totalGuests}名` : undefined}
         />
       </div>
 
