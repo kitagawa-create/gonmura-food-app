@@ -10,6 +10,11 @@ type ItemLike = {
   toppings: { price: number; quantity: number }[];
 };
 
+/** 税抜価格から税込価格を計算（10%）。 */
+export function taxIncluded(price: number): number {
+  return Math.round(price * 1.1);
+}
+
 /** コンボ 1 杯あたり (ラーメン単価 + 全トッピング単価×個数) の合計。 */
 export function comboUnitPrice(item: ItemLike): number {
   return item.price + item.toppings.reduce((s, x) => s + x.price * x.quantity, 0);

@@ -18,7 +18,7 @@ import {
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import type { Category, Menu, MenuStatus } from "@/types";
-import { normalizeMenu } from "@/lib/order-utils";
+import { normalizeMenu, taxIncluded } from "@/lib/order-utils";
 import { useAdminRole } from "@/components/admin/AdminContext";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { useToast } from "@/components/ui/Snackbar";
@@ -576,7 +576,7 @@ export default function AdminMenusPage() {
                         )}
                         <div className="min-w-0 flex-1">
                           <h3 className="truncate font-semibold text-[color:var(--color-text-primary)] pr-8">{m.name}</h3>
-                          <p className="text-sm text-[color:var(--color-accent-char)]">¥{m.price}</p>
+                          <p className="text-sm text-[color:var(--color-accent-char)]">¥{taxIncluded(m.price).toLocaleString()}</p>
                           <p className="mt-1 text-xs text-[color:var(--color-text-muted)]">
                             {m.categoryIds
                               .map((id) => categoryMap.get(id)?.name ?? "(不明)")
@@ -831,7 +831,7 @@ function MenuFormModal({
               {form.description.length}/200
             </p>
           </Field>
-          <Field label="価格(税込・円)" required>
+          <Field label="価格(税抜・円)" required>
             <input
               type="text"
               inputMode="numeric"

@@ -26,7 +26,7 @@ export type Menu = {
   menuId: string;
   name: string;
   description: string;
-  /** 税込価格。整数（円） */
+  /** 税抜価格。整数（円） */
   price: number;
   categoryIds: string[];
   imageUrl: string;

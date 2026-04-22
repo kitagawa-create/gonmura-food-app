@@ -8,7 +8,7 @@ import { useCart } from "@/lib/cart-context";
 import type { OrderWithItems } from "@/types";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import { CustomerPageHeader } from "@/components/customer/CustomerPageHeader";
-import { normalizeOrder, normalizeOrderItem, comboLineHash, comboLineTotal } from "@/lib/order-utils";
+import { normalizeOrder, normalizeOrderItem, comboLineHash, comboLineTotal, taxIncluded } from "@/lib/order-utils";
 import Link from "next/link";
 
 const TABLE_ID_KEY = "gonmura-table-id";
@@ -150,9 +150,9 @@ export default function BillPage() {
     }
   }
 
-  const totalAmount = allCombos.reduce((sum, item) => sum + comboLineTotal(item), 0);
-  const tax = Math.floor((totalAmount * 10) / 110);
-  const subtotal = totalAmount - tax;
+  const subtotal = allCombos.reduce((sum, item) => sum + comboLineTotal(item), 0);
+  const tax = Math.round(subtotal * 0.1);
+  const totalAmount = subtotal + tax;
 
   return (
     <div className="h-[100dvh] flex flex-col bg-[color:var(--color-bg-base)]">
@@ -190,7 +190,7 @@ export default function BillPage() {
                       <td className="py-1 text-[color:var(--color-text-primary)]">{item.name}</td>
                       <td className="py-1 text-center text-[color:var(--color-text-muted)]">{item.quantity}</td>
                       <td className="py-1 text-right text-[color:var(--color-text-primary)] tabular-nums">
-                        ¥{comboLineTotal(item).toLocaleString()}
+                        ¥{taxIncluded(comboLineTotal(item)).toLocaleString()}
                       </td>
                     </tr>
                     {item.toppings.map((t) => (

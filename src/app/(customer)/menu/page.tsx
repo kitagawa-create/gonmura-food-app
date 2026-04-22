@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { collection, collectionGroup, query, where, orderBy, onSnapshot, doc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Menu, Category, CartItemTopping, CartItem } from "@/types";
-import { normalizeMenu } from "@/lib/order-utils";
+import { normalizeMenu, taxIncluded } from "@/lib/order-utils";
 import { useCart } from "@/lib/cart-context";
 import { FadeImage } from "@/components/ui/FadeImage";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
@@ -276,8 +276,8 @@ export default function MenuPage() {
 
   // ラーメンコンボは 1 杯 = 1 コンボ固定。非ラーメンのみ selectedQuantity を使う。
   const effectiveQty = isRamenFlow ? 1 : selectedQuantity;
-  const baseSubtotal = selectedMenu ? selectedMenu.price * effectiveQty : 0;
-  const extrasSubtotal = extraLines.reduce((s, l) => s + l.menu.price * l.quantity, 0);
+  const baseSubtotal = selectedMenu ? taxIncluded(selectedMenu.price) * effectiveQty : 0;
+  const extrasSubtotal = extraLines.reduce((s, l) => s + taxIncluded(l.menu.price) * l.quantity, 0);
   const modalTotal = baseSubtotal + extrasSubtotal;
 
   function closeModal() {
@@ -476,7 +476,7 @@ export default function MenuPage() {
                       {menu.description || " "}
                     </p>
                     <p className="h-7 text-lg font-bold leading-7 text-[color:var(--color-accent-char)]">
-                      {menu.price.toLocaleString()}円
+                      {taxIncluded(menu.price).toLocaleString()}円
                     </p>
                   </div>
                   {sold && (
@@ -536,7 +536,7 @@ export default function MenuPage() {
                     </p>
                   )}
                   <p className="text-2xl font-bold text-[color:var(--color-accent-char)] mt-3">
-                    {selectedMenu.price.toLocaleString()}円
+                    {taxIncluded(selectedMenu.price).toLocaleString()}円
                   </p>
                 </div>
 
@@ -594,7 +594,7 @@ export default function MenuPage() {
                                 {t.name}
                               </p>
                               <p className="text-xs text-[color:var(--color-accent-char)] font-bold">
-                                +{t.price.toLocaleString()}円
+                                +{taxIncluded(t.price).toLocaleString()}円
                               </p>
                             </div>
                             <div className="flex items-center gap-2">

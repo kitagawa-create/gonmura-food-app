@@ -15,7 +15,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { OrderWithItems } from "@/types";
-import { normalizeOrder, normalizeOrderItem, comboLineTotal } from "@/lib/order-utils";
+import { normalizeOrder, normalizeOrderItem, comboLineTotal, taxIncluded } from "@/lib/order-utils";
 import { useAdminRole } from "@/components/admin/AdminContext";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
@@ -120,7 +120,7 @@ function BarChart({
                 strokeDasharray={p === 0 ? "" : "3 3"}
               />
               <text x={padL - 6} y={y + 4} textAnchor="end" fontSize={9} fill="#94a3b8">
-                {v === 0 ? "¥0" : `¥${Math.round(v).toLocaleString()}`}
+                {v === 0 ? "¥0" : `¥${taxIncluded(Math.round(v)).toLocaleString()}`}
               </text>
             </g>
           );
@@ -183,7 +183,7 @@ function BarChart({
         <div className="pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)]/95 px-5 py-2.5 shadow-xl backdrop-blur-sm text-center whitespace-nowrap">
           <p className="text-xs text-[color:var(--color-text-muted)] mb-0.5">{focusBucket.day}日</p>
           <p className="text-lg font-bold text-[color:var(--color-text-primary)] tabular-nums">
-            ¥{focusBucket.revenue.toLocaleString()}
+            ¥{taxIncluded(focusBucket.revenue).toLocaleString()}
           </p>
           <p className="text-xs text-[color:var(--color-text-muted)]">{focusBucket.count}件</p>
         </div>
@@ -336,8 +336,8 @@ export default function AdminSalesPage() {
       <div className="grid grid-cols-3 gap-3">
         <KpiCard
           label="月間売上"
-          value={yen(kpi.revenue)}
-          sub={`1日平均 ${yen(kpi.dailyAvgRevenue)}`}
+          value={yen(taxIncluded(kpi.revenue))}
+          sub={`1日平均 ${yen(taxIncluded(kpi.dailyAvgRevenue))}`}
         />
         <KpiCard
           label="注文数"
@@ -345,7 +345,7 @@ export default function AdminSalesPage() {
         />
         <KpiCard
           label="客単価"
-          value={kpi.guestUnitPrice !== null ? yen(kpi.guestUnitPrice) : "−"}
+          value={kpi.guestUnitPrice !== null ? yen(taxIncluded(kpi.guestUnitPrice)) : "−"}
           sub={kpi.totalGuests > 0 ? `来客数 ${kpi.totalGuests}名` : undefined}
         />
       </div>

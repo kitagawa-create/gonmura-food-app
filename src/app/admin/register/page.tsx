@@ -19,7 +19,7 @@ import { StickyFilterBar } from "@/components/admin/StickyFilterBar";
 import { OrderHistoryFilterBar } from "@/components/admin/OrderHistoryFilterBar";
 import { PageLoader } from "@/components/ui/PageLoader";
 import type { OrderWithItems } from "@/types";
-import { comboLineTotal, flattenForReceipt, normalizeOrder, normalizeOrderItem } from "@/lib/order-utils";
+import { comboLineTotal, flattenForReceipt, normalizeOrder, normalizeOrderItem, taxIncluded } from "@/lib/order-utils";
 
 type CustomerInfo = { tableId: string; guestCount: number };
 
@@ -186,7 +186,7 @@ export default function AdminRegisterPage() {
           availableTables={availableTables}
           filteredCount={filteredBills.length}
           totalCount={paidBills.length}
-          totalAmount={filteredBills.reduce((s, b) => s + b.totalAmount, 0)}
+          totalAmount={filteredBills.reduce((s, b) => s + taxIncluded(b.totalAmount), 0)}
         />
       </StickyFilterBar>
       <div className="flex-1 overflow-y-auto pt-4">
@@ -199,8 +199,9 @@ export default function AdminRegisterPage() {
           <div className="space-y-4">
             {filteredBills.map((table) => {
               const allItems = mergeItems(table.orders);
-              const tax = Math.floor((table.totalAmount * 10) / 110);
-              const subtotal = table.totalAmount - tax;
+              const subtotal = table.totalAmount;
+              const tax = Math.round(subtotal * 0.1);
+              const totalIncluded = subtotal + tax;
               return (
                 <div key={table.customerId} className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-subtle)] p-4">
                   <div className="flex items-center justify-between mb-3">
@@ -220,10 +221,10 @@ export default function AdminRegisterPage() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xl font-bold text-[color:var(--color-accent-char)]">¥{table.totalAmount.toLocaleString()}</p>
+                      <p className="text-xl font-bold text-[color:var(--color-accent-char)]">¥{totalIncluded.toLocaleString()}</p>
                       {table.guestCount > 0 && (
                         <p className="text-xs text-[color:var(--color-text-muted)]">
-                          {table.guestCount}名 · 客単価 ¥{Math.floor(table.totalAmount / table.guestCount).toLocaleString()}
+                          {table.guestCount}名 · 客単価 ¥{Math.floor(totalIncluded / table.guestCount).toLocaleString()}
                         </p>
                       )}
                     </div>
@@ -232,7 +233,7 @@ export default function AdminRegisterPage() {
                     {allItems.map((item, i) => (
                       <li key={i} className="flex justify-between">
                         <span className="text-[color:var(--color-text-primary)]">{item.name} ×{item.quantity}</span>
-                        <span className="text-[color:var(--color-text-muted)]">¥{(item.price * item.quantity).toLocaleString()}</span>
+                        <span className="text-[color:var(--color-text-muted)]">¥{taxIncluded(item.price * item.quantity).toLocaleString()}</span>
                       </li>
                     ))}
                   </ul>

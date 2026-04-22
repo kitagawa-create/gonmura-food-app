@@ -17,7 +17,7 @@ import { useCart } from "@/lib/cart-context";
 import { trackEvent } from "@/lib/analytics";
 import type { CartItem } from "@/types";
 import { FadeImage } from "@/components/ui/FadeImage";
-import { comboUnitPrice } from "@/lib/order-utils";
+import { comboUnitPrice, taxIncluded } from "@/lib/order-utils";
 
 export function CartPanel({
   hasOrders,
@@ -217,7 +217,7 @@ export function CartPanel({
                             {item.name}
                           </h3>
                           <p className="text-xs font-bold text-[color:var(--color-accent-char)] tabular-nums">
-                            ¥{unitPrice.toLocaleString()}
+                            ¥{taxIncluded(unitPrice).toLocaleString()}
                           </p>
                         </div>
                         {onEditItem && (
@@ -301,7 +301,7 @@ export function CartPanel({
           <div className="flex items-center justify-between">
             <span className="text-sm font-bold text-[color:var(--color-text-primary)]">合計</span>
             <span className="text-lg font-bold text-[color:var(--color-accent-char)] tabular-nums">
-              {totalAmount.toLocaleString()}円
+              {taxIncluded(totalAmount).toLocaleString()}円
             </span>
           </div>
           <button
