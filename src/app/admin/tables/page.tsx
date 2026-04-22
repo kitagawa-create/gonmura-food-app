@@ -21,11 +21,26 @@ import { PageLoader } from "@/components/ui/PageLoader";
 import { useToast } from "@/components/ui/Snackbar";
 import { useAdminRole } from "@/components/admin/AdminContext";
 
+function formatElapsed(start: Date, now: Date): string {
+  const mins = Math.floor((now.getTime() - start.getTime()) / 60_000);
+  if (mins < 1) return "1分未満";
+  if (mins < 60) return `${mins}分`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m === 0 ? `${h}時間` : `${h}時間${m}分`;
+}
+
 export default function AdminTablesPage() {
   const role = useAdminRole();
   const { show: toast } = useToast();
   const [tables, setTables] = useState<Table[]>([]);
   const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editTarget, setEditTarget] = useState<Table | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Table | null>(null);
@@ -136,6 +151,11 @@ export default function AdminTablesPage() {
                   }`}>
                     {isOccupied ? "使用中" : "空き"}
                   </span>
+                  {isOccupied && (
+                    <span className="text-xs text-[color:var(--color-text-muted)]">
+                      {formatElapsed(table.updatedAt.toDate(), now)}
+                    </span>
+                  )}
                 </div>
                 {role === "owner" && (
                   <div className="flex w-full gap-2">
