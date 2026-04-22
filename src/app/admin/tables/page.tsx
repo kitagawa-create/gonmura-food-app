@@ -20,21 +20,15 @@ import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { useToast } from "@/components/ui/Snackbar";
 import { useAdminRole } from "@/components/admin/AdminContext";
-import { useRouter } from "next/navigation";
 
 export default function AdminTablesPage() {
   const role = useAdminRole();
-  const router = useRouter();
   const { show: toast } = useToast();
   const [tables, setTables] = useState<Table[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Table | null>(null);
   const [deleting, setDeleting] = useState(false);
-
-  useEffect(() => {
-    if (role !== "owner") router.replace("/admin/orders");
-  }, [role, router]);
 
   useEffect(() => {
     return onSnapshot(
@@ -74,7 +68,6 @@ export default function AdminTablesPage() {
     }
   }, [deleteTarget, toast]);
 
-  if (role !== "owner") return null;
   if (loading) return <PageLoader />;
 
   return (
@@ -82,12 +75,14 @@ export default function AdminTablesPage() {
       <AdminPageHeader
         title="テーブル管理"
         rightSlot={
-          <button
-            onClick={() => setShowAddDialog(true)}
-            className="rounded-lg bg-[color:var(--color-accent-char)] px-4 py-2 text-sm text-white font-bold hover:opacity-90 transition-opacity"
-          >
-            ＋ テーブル追加
-          </button>
+          role === "owner" ? (
+            <button
+              onClick={() => setShowAddDialog(true)}
+              className="rounded-lg bg-[color:var(--color-accent-char)] px-4 py-2 text-sm text-white font-bold hover:opacity-90 transition-opacity"
+            >
+              ＋ テーブル追加
+            </button>
+          ) : undefined
         }
       />
 
@@ -121,12 +116,14 @@ export default function AdminTablesPage() {
                     {isOccupied ? "使用中" : "空き"}
                   </span>
                 </div>
-                <button
-                  onClick={() => setDeleteTarget(table)}
-                  className="w-full rounded-lg border border-[color:var(--color-border)] py-1.5 text-xs text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors"
-                >
-                  削除
-                </button>
+                {role === "owner" && (
+                  <button
+                    onClick={() => setDeleteTarget(table)}
+                    className="w-full rounded-lg border border-[color:var(--color-border)] py-1.5 text-xs text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors"
+                  >
+                    削除
+                  </button>
+                )}
               </div>
             );
           })}
