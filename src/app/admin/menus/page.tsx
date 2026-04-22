@@ -22,6 +22,22 @@ import { normalizeMenu, taxIncluded } from "@/lib/order-utils";
 import { useAdminRole } from "@/components/admin/AdminContext";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { useToast } from "@/components/ui/Snackbar";
+import {
+  DndContext,
+  closestCenter,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  rectSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 type MenuFormData = {
   name: string;
@@ -80,11 +96,6 @@ export default function AdminMenusPage() {
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Menu | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [movingMenuId, setMovingMenuId] = useState<string | null>(null);
-  const [movingMenuSectionCatId, setMovingMenuSectionCatId] = useState<string | null>(null);
-  const [draggingMenuId, setDraggingMenuId] = useState<string | null>(null);
-  const [draggingMenuSectionCatId, setDraggingMenuSectionCatId] = useState<string | null>(null);
-  const [dragOverMenuId, setDragOverMenuId] = useState<string | null>(null);
   const [savingMenuOrder, setSavingMenuOrder] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -98,6 +109,11 @@ export default function AdminMenusPage() {
   const [pendingAction, setPendingAction] = useState<"soldout" | "active" | null>(null);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [applyingBulk, setApplyingBulk] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  );
 
   useEffect(() => {
     const unsubMenus = onSnapshot(
@@ -275,51 +291,6 @@ export default function AdminMenusPage() {
     []
   );
 
-  const handleMenuDrop = useCallback(
-    (sectionItems: Menu[], targetId: string, fieldName: "sortOrder" | "sortOrderFeatured", sectionCatId: string | null) => {
-      const dragId = draggingMenuId;
-      const sourceCatId = draggingMenuSectionCatId;
-      setDraggingMenuId(null);
-      setDraggingMenuSectionCatId(null);
-      setDragOverMenuId(null);
-      if (!dragId || dragId === targetId) return;
-      if (sourceCatId !== sectionCatId) return;
-      const fromIdx = sectionItems.findIndex((m) => m.menuId === dragId);
-      const toIdx = sectionItems.findIndex((m) => m.menuId === targetId);
-      if (fromIdx < 0 || toIdx < 0) return;
-      const next = [...sectionItems];
-      const [moved] = next.splice(fromIdx, 1);
-      next.splice(toIdx, 0, moved);
-      persistMenuOrder(next, fieldName);
-    },
-    [draggingMenuId, draggingMenuSectionCatId, persistMenuOrder]
-  );
-
-  const handleTapMoveMenu = useCallback(
-    (sectionItems: Menu[], targetId: string, fieldName: "sortOrder" | "sortOrderFeatured", sectionCatId: string | null) => {
-      if (!movingMenuId || movingMenuId === targetId) {
-        setMovingMenuId(null);
-        setMovingMenuSectionCatId(null);
-        return;
-      }
-      if (movingMenuSectionCatId !== sectionCatId) {
-        setMovingMenuId(null);
-        setMovingMenuSectionCatId(null);
-        return;
-      }
-      const fromIdx = sectionItems.findIndex((m) => m.menuId === movingMenuId);
-      const toIdx = sectionItems.findIndex((m) => m.menuId === targetId);
-      if (fromIdx < 0 || toIdx < 0) return;
-      const next = [...sectionItems];
-      const [moved] = next.splice(fromIdx, 1);
-      next.splice(toIdx, 0, moved);
-      setMovingMenuId(null);
-      setMovingMenuSectionCatId(null);
-      persistMenuOrder(next, fieldName);
-    },
-    [movingMenuId, movingMenuSectionCatId, persistMenuOrder]
-  );
-
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -391,6 +362,16 @@ export default function AdminMenusPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveTab, categories, visibleMenus, osusumeId]);
 
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !currentSection) return;
+    const { items, fieldName } = currentSection;
+    const oldIdx = items.findIndex((m) => m.menuId === String(active.id));
+    const newIdx = items.findIndex((m) => m.menuId === String(over.id));
+    if (oldIdx < 0 || newIdx < 0) return;
+    persistMenuOrder(arrayMove(items, oldIdx, newIdx), fieldName);
+  }
+
   return (
     <div className="w-full h-full flex flex-col -m-3 md:-m-6">
       {/* 固定ヘッダー */}
@@ -452,153 +433,26 @@ export default function AdminMenusPage() {
         <p className="text-sm text-[color:var(--color-text-muted)]">このカテゴリにメニューがありません。</p>
       ) : (
         (() => {
-          const { category, items, fieldName } = currentSection;
-          const movingInThisSection = movingMenuId !== null && items.some((item) => item.menuId === movingMenuId) && movingMenuSectionCatId === (category?.categoryId ?? null);
+          const { items, fieldName } = currentSection;
           return (
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-                {items.map((m, menuIdx) => {
-                  const isDragging = draggingMenuId === m.menuId;
-                  const isMovingThis = movingMenuId === m.menuId;
-                  const isMoveTarget = role === "owner" && movingInThisSection && movingMenuId !== m.menuId;
-                  const isSelected = selectedIds.has(m.menuId);
-                  const longPressRef = { current: null as ReturnType<typeof setTimeout> | null };
-                  return (
-                    <div
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={items.map((m) => m.menuId)} strategy={rectSortingStrategy}>
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+                  {items.map((m, menuIdx) => (
+                    <SortableMenuCard
                       key={m.menuId}
-                      draggable={role === "owner"}
-                      onDragStart={(e) => {
-                        e.dataTransfer.effectAllowed = "move";
-                        setDraggingMenuId(m.menuId);
-                        setDraggingMenuSectionCatId(category?.categoryId ?? null);
-                      }}
-                      onDragEnter={() => setDragOverMenuId(m.menuId)}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        handleMenuDrop(items, m.menuId, fieldName, category?.categoryId ?? null);
-                      }}
-                      onDragEnd={() => {
-                        setDraggingMenuId(null);
-                        setDraggingMenuSectionCatId(null);
-                        setDragOverMenuId(null);
-                      }}
-                      onTouchStart={() => {
-                        if (role !== "owner") return;
-                        longPressRef.current = setTimeout(() => {
-                          setMovingMenuId(m.menuId);
-                          setMovingMenuSectionCatId(category?.categoryId ?? null);
-                          longPressRef.current = null;
-                        }, 400);
-                      }}
-                      onTouchEnd={() => {
-                        if (longPressRef.current) {
-                          clearTimeout(longPressRef.current);
-                          longPressRef.current = null;
-                          if (isMoveTarget) handleTapMoveMenu(items, m.menuId, fieldName, category?.categoryId ?? null);
-                        }
-                      }}
-                      onTouchMove={() => {
-                        if (longPressRef.current) {
-                          clearTimeout(longPressRef.current);
-                          longPressRef.current = null;
-                        }
-                      }}
-                      onClick={() => {
-                        if (movingMenuId !== null && !movingInThisSection) { setMovingMenuId(null); setMovingMenuSectionCatId(null); return; }
-                        if (isMoveTarget) { handleTapMoveMenu(items, m.menuId, fieldName, category?.categoryId ?? null); return; }
-                        toggleSelect(m.menuId);
-                      }}
-                      className={`relative rounded-xl border bg-[color:var(--color-bg-card)] p-4 shadow-sm select-none cursor-pointer ${
-                        m.status === "hidden" ? "bg-[color:var(--color-bg-subtle)] opacity-60 border-dashed" : ""
-                      } ${
-                        isSelected
-                          ? "border-[color:var(--color-accent-char)] ring-2 ring-[color:var(--color-accent-char)]/30"
-                          : isMovingThis
-                            ? "border-[color:var(--color-accent-char)] ring-2 ring-[color:var(--color-accent-char)]/30 bg-[color:var(--color-accent-char)]/5"
-                            : m.status === "soldout"
-                              ? "border-[color:var(--color-accent-warn)]"
-                              : "border-[color:var(--color-border)]"
-                      } ${isDragging ? "opacity-40" : ""}`}
-                    >
-                      {/* 表示番号（左上） */}
-                      <div className="absolute left-2 top-2 z-10 pointer-events-none">
-                        <span className="text-xs font-bold text-[color:var(--color-text-muted)]">
-                          {menuIdx + 1}
-                        </span>
-                      </div>
-
-                      {/* ドラッグハンドル */}
-                      {role === "owner" && (
-                        <div className="absolute left-2 top-7 z-10 pointer-events-none h-5 w-5 flex items-center justify-center">
-                          <svg className="w-5 h-5 text-[color:var(--color-text-muted)]/50" viewBox="0 0 16 16" fill="currentColor">
-                            <circle cx="5" cy="4" r="1.5"/><circle cx="11" cy="4" r="1.5"/>
-                            <circle cx="5" cy="8" r="1.5"/><circle cx="11" cy="8" r="1.5"/>
-                            <circle cx="5" cy="12" r="1.5"/><circle cx="11" cy="12" r="1.5"/>
-                          </svg>
-                        </div>
-                      )}
-
-
-
-                      {/* 鉛筆アイコン編集ボタン（右上） */}
-                      {role === "owner" && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditing(m);
-                            setShowForm(true);
-                          }}
-                          className="absolute right-2 top-2 rounded-lg border border-[color:var(--color-border)] p-1.5 text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
-                          aria-label="編集"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                          </svg>
-                        </button>
-                      )}
-
-                      <div className="flex gap-3 pl-6">
-                        {m.imageUrl && (
-                          <FadeImage
-                            src={m.imageUrl}
-                            alt={m.name}
-                            className="h-20 w-20 shrink-0 rounded"
-                          />
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <h3 className="truncate font-semibold text-[color:var(--color-text-primary)] pr-8">{m.name}</h3>
-                          <p className="text-sm text-[color:var(--color-accent-char)]">¥{taxIncluded(m.price).toLocaleString()}</p>
-                          <p className="mt-1 text-xs text-[color:var(--color-text-muted)]">
-                            {m.categoryIds
-                              .map((id) => categoryMap.get(id)?.name ?? "(不明)")
-                              .join(", ") || "(カテゴリ未設定)"}
-                          </p>
-                          {m.description && (
-                            <p className="mt-1 line-clamp-2 text-xs text-[color:var(--color-text-muted)]">
-                              {m.description}
-                            </p>
-                          )}
-                          {(m.status === "hidden" || m.status === "soldout") && (
-                            <div className="mt-1.5 flex flex-wrap gap-1">
-                              {m.status === "hidden" && (
-                                <span className="rounded-full bg-[color:var(--color-text-muted)] px-2 py-0.5 text-[10px] font-bold text-white">
-                                  非公開中
-                                </span>
-                              )}
-                              {m.status === "soldout" && (
-                                <span className="rounded-full bg-[color:var(--color-accent-warn)] px-2 py-0.5 text-[10px] font-bold text-white">
-                                  売り切れ中
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
+                      menu={m}
+                      index={menuIdx}
+                      isOwner={role === "owner"}
+                      categoryMap={categoryMap}
+                      isSelected={selectedIds.has(m.menuId)}
+                      onSelect={() => toggleSelect(m.menuId)}
+                      onEdit={() => { setEditing(m); setShowForm(true); }}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           );
         })()
       )}
@@ -673,6 +527,113 @@ export default function AdminMenusPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function SortableMenuCard({
+  menu,
+  index,
+  isOwner,
+  categoryMap,
+  isSelected,
+  onSelect,
+  onEdit,
+}: {
+  menu: Menu;
+  index: number;
+  isOwner: boolean;
+  categoryMap: Map<string, Category>;
+  isSelected: boolean;
+  onSelect: () => void;
+  onEdit: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: menu.menuId });
+  const style = { transform: CSS.Transform.toString(transform), transition };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      onClick={onSelect}
+      className={`relative rounded-xl border bg-[color:var(--color-bg-card)] p-4 shadow-sm select-none cursor-pointer ${
+        menu.status === "hidden" ? "bg-[color:var(--color-bg-subtle)] opacity-60 border-dashed" : ""
+      } ${
+        isSelected
+          ? "border-[color:var(--color-accent-char)] ring-2 ring-[color:var(--color-accent-char)]/30"
+          : menu.status === "soldout"
+            ? "border-[color:var(--color-accent-warn)]"
+            : "border-[color:var(--color-border)]"
+      } ${isDragging ? "opacity-40" : ""}`}
+    >
+      {isOwner && (
+        <div
+          {...attributes}
+          {...listeners}
+          className="absolute left-2 top-2 z-10 h-5 w-5 flex items-center justify-center cursor-grab touch-none active:cursor-grabbing"
+        >
+          <svg className="w-5 h-5 text-[color:var(--color-text-muted)]/50" viewBox="0 0 16 16" fill="currentColor">
+            <circle cx="5" cy="4" r="1.5"/><circle cx="11" cy="4" r="1.5"/>
+            <circle cx="5" cy="8" r="1.5"/><circle cx="11" cy="8" r="1.5"/>
+            <circle cx="5" cy="12" r="1.5"/><circle cx="11" cy="12" r="1.5"/>
+          </svg>
+        </div>
+      )}
+
+      {isOwner && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onEdit(); }}
+          className="absolute right-2 top-2 rounded-lg border border-[color:var(--color-border)] p-1.5 text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+          aria-label="編集"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+        </button>
+      )}
+
+      <div className="flex gap-3 pl-6">
+        {menu.imageUrl && (
+          <FadeImage
+            src={menu.imageUrl}
+            alt={menu.name}
+            className="h-20 w-20 shrink-0 rounded"
+          />
+        )}
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate font-semibold text-[color:var(--color-text-primary)] pr-8">{menu.name}</h3>
+          <p className="text-sm text-[color:var(--color-accent-char)]">¥{taxIncluded(menu.price).toLocaleString()}</p>
+          <p className="mt-1 text-xs text-[color:var(--color-text-muted)]">
+            {menu.categoryIds
+              .map((id) => categoryMap.get(id)?.name ?? "(不明)")
+              .join(", ") || "(カテゴリ未設定)"}
+          </p>
+          {menu.description && (
+            <p className="mt-1 line-clamp-2 text-xs text-[color:var(--color-text-muted)]">
+              {menu.description}
+            </p>
+          )}
+          {(menu.status === "hidden" || menu.status === "soldout") && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {menu.status === "hidden" && (
+                <span className="rounded-full bg-[color:var(--color-text-muted)] px-2 py-0.5 text-[10px] font-bold text-white">
+                  非公開中
+                </span>
+              )}
+              {menu.status === "soldout" && (
+                <span className="rounded-full bg-[color:var(--color-accent-warn)] px-2 py-0.5 text-[10px] font-bold text-white">
+                  売り切れ中
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="absolute left-2 bottom-2 pointer-events-none">
+        <span className="text-[10px] text-[color:var(--color-text-muted)]/60">表示順{index + 1}</span>
+      </div>
     </div>
   );
 }
