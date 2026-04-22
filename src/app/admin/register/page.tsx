@@ -78,7 +78,7 @@ function groupByCustomer(
         }, null),
       };
     })
-    .sort((a, b) => a.tableNumber.localeCompare(b.tableNumber, "ja"));
+    .sort((a, b) => (b.firstOrderAt?.getTime() ?? 0) - (a.firstOrderAt?.getTime() ?? 0));
 }
 
 function mergeItems(orders: OrderWithItems[]) {

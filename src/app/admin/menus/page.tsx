@@ -688,7 +688,7 @@ export default function AdminMenusPage() {
               </button>
               <button
                 onClick={() => { setPendingAction("active"); setBulkConfirmOpen(true); }}
-                className="rounded-lg border border-[color:var(--color-accent-char)]/40 px-3 py-2 text-sm text-[color:var(--color-accent-char)] hover:bg-[color:var(--color-accent-char)]/10 transition-colors"
+                className="rounded-lg border border-[color:var(--color-accent-warn)]/40 px-3 py-2 text-sm text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors"
               >
                 解除
               </button>
