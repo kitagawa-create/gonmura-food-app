@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   collection,
-  deleteDoc,
   doc,
   getDocs,
   onSnapshot,
@@ -11,6 +10,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  updateDoc,
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -27,6 +27,7 @@ export default function AdminTablesPage() {
   const [tables, setTables] = useState<Table[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editTarget, setEditTarget] = useState<Table | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Table | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -34,7 +35,11 @@ export default function AdminTablesPage() {
     return onSnapshot(
       query(collection(db, "tables"), orderBy("tableNumber", "asc")),
       (snap) => {
-        setTables(snap.docs.map((d) => ({ tableId: d.id, ...(d.data() as Omit<Table, "tableId">) })));
+        setTables(
+          snap.docs
+            .filter((d) => !d.data().deleted)
+            .map((d) => ({ tableId: d.id, ...(d.data() as Omit<Table, "tableId">) }))
+        );
         setLoading(false);
       }
     );
@@ -42,23 +47,39 @@ export default function AdminTablesPage() {
 
   async function handleAddTable(tableNumber: string) {
     const dup = await getDocs(query(collection(db, "tables"), where("tableNumber", "==", tableNumber)));
-    if (!dup.empty) throw new Error("このテーブル番号はすでに登録されています");
+    const conflict = dup.docs.find((d) => !d.data().deleted);
+    if (conflict) throw new Error("このテーブル番号はすでに登録されています");
     const tableRef = doc(collection(db, "tables"));
     await setDoc(tableRef, {
       tableId: tableRef.id,
       tableNumber,
       deviceId: "",
+      deleted: false,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
     toast("テーブルを追加しました");
   }
 
+  async function handleEditTable(tableId: string, tableNumber: string) {
+    const dup = await getDocs(query(collection(db, "tables"), where("tableNumber", "==", tableNumber)));
+    const conflict = dup.docs.find((d) => d.id !== tableId && !d.data().deleted);
+    if (conflict) throw new Error("このテーブル番号はすでに登録されています");
+    await updateDoc(doc(db, "tables", tableId), {
+      tableNumber,
+      updatedAt: serverTimestamp(),
+    });
+    toast("テーブル名を更新しました");
+  }
+
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await deleteDoc(doc(db, "tables", deleteTarget.tableId));
+      await updateDoc(doc(db, "tables", deleteTarget.tableId), {
+        deleted: true,
+        updatedAt: serverTimestamp(),
+      });
       toast("テーブルを削除しました");
       setDeleteTarget(null);
     } catch {
@@ -117,12 +138,22 @@ export default function AdminTablesPage() {
                   </span>
                 </div>
                 {role === "owner" && (
-                  <button
-                    onClick={() => setDeleteTarget(table)}
-                    className="w-full rounded-lg border border-[color:var(--color-border)] py-1.5 text-xs text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors"
-                  >
-                    削除
-                  </button>
+                  <div className="flex w-full gap-2">
+                    <button
+                      onClick={() => setEditTarget(table)}
+                      className="flex-1 rounded-lg border border-[color:var(--color-border)] py-1.5 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+                    >
+                      編集
+                    </button>
+                    {!isOccupied && (
+                      <button
+                        onClick={() => setDeleteTarget(table)}
+                        className="flex-1 rounded-lg border border-[color:var(--color-border)] py-1.5 text-xs text-[color:var(--color-accent-warn)] hover:bg-[color:var(--color-accent-warn)]/10 transition-colors"
+                      >
+                        削除
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             );
@@ -135,10 +166,15 @@ export default function AdminTablesPage() {
         onClose={() => setShowAddDialog(false)}
         onAdd={handleAddTable}
       />
+      <TableEditDialog
+        table={editTarget}
+        onClose={() => setEditTarget(null)}
+        onEdit={handleEditTable}
+      />
       <ConfirmDialog
         open={deleteTarget !== null}
         title={`テーブル ${deleteTarget?.tableNumber} を削除`}
-        message="このテーブルを削除します。現在使用中の場合、お客様のセッションに影響する可能性があります。"
+        message="このテーブルを削除します。削除後も注文データは保持されます。"
         confirmLabel="削除する"
         confirmColor="red"
         onConfirm={confirmDelete}
@@ -244,6 +280,109 @@ function TableAddDialog({
             className="rounded-xl bg-[color:var(--color-accent-char)] px-4 py-2 text-sm text-white font-bold hover:bg-[color:var(--color-accent-char-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? "追加中..." : "追加"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function TableEditDialog({
+  table,
+  onClose,
+  onEdit,
+}: {
+  table: Table | null;
+  onClose: () => void;
+  onEdit: (tableId: string, tableNumber: string) => Promise<void>;
+}) {
+  const [tableNumber, setTableNumber] = useState("");
+  const [tableError, setTableError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (table) {
+      setTableNumber(table.tableNumber);
+      setTableError(null);
+    }
+  }, [table]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!table) return;
+    const trimmed = tableNumber.trim();
+    if (!trimmed) return;
+    setTableError(null);
+    setSaving(true);
+    try {
+      await onEdit(table.tableId, trimmed);
+      onClose();
+    } catch (e) {
+      setTableError(e instanceof Error ? e.message : "更新に失敗しました");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!table) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <form
+        onSubmit={handleSubmit}
+        className="relative flex w-full max-w-sm flex-col rounded-2xl bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] shadow-xl"
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="閉じる"
+          className="absolute top-4 right-4 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+        >
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        <div className="shrink-0 border-b border-[color:var(--color-border)] px-6 py-4 pr-16">
+          <h2 className="text-lg font-bold text-[color:var(--color-text-primary)]">テーブル編集</h2>
+        </div>
+
+        <div className="px-6 py-4">
+          <div className="mb-1 flex items-center gap-1.5">
+            <label className="block text-xs text-[color:var(--color-text-muted)]">テーブル番号</label>
+            <span className="text-[10px] font-medium text-white bg-[color:var(--color-accent-warn)] rounded px-1 py-0.5 leading-none">必須</span>
+          </div>
+          <input
+            autoFocus
+            type="text"
+            maxLength={10}
+            value={tableNumber}
+            onChange={(e) => { setTableNumber(e.target.value); if (tableError) setTableError(null); }}
+            placeholder="例：1, A-1, 101"
+            className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
+          />
+          <p className={`mt-1 text-right text-xs ${tableNumber.length >= 8 ? "text-[color:var(--color-accent-warn)]" : "text-[color:var(--color-text-muted)]"}`}>
+            {tableNumber.length}/10
+          </p>
+          {tableError && (
+            <p className="mt-1 text-xs text-[color:var(--color-accent-warn)]">{tableError}</p>
+          )}
+        </div>
+
+        <div className="shrink-0 flex justify-end gap-2 border-t border-[color:var(--color-border)] px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-[color:var(--color-border)] px-4 py-2 text-sm text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+          >
+            キャンセル
+          </button>
+          <button
+            type="submit"
+            disabled={!tableNumber.trim() || tableNumber.trim() === table.tableNumber || saving}
+            className="rounded-xl bg-[color:var(--color-accent-char)] px-4 py-2 text-sm text-white font-bold hover:bg-[color:var(--color-accent-char-hover)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? "更新中..." : "更新"}
           </button>
         </div>
       </form>

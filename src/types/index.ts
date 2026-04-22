@@ -93,6 +93,7 @@ export type Table = {
   tableId: string;
   tableNumber: string;
   deviceId: string;
+  deleted: boolean;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };

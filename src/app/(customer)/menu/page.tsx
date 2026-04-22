@@ -210,7 +210,11 @@ export default function MenuPage() {
     return onSnapshot(
       query(collection(db, "tables"), orderBy("tableNumber")),
       (snap) => {
-        setDialogTables(snap.docs.map((d) => ({ tableId: d.id, tableNumber: d.data().tableNumber as string, deviceId: (d.data().deviceId as string) ?? "" })));
+        setDialogTables(
+          snap.docs
+            .filter((d) => !d.data().deleted)
+            .map((d) => ({ tableId: d.id, tableNumber: d.data().tableNumber as string, deviceId: (d.data().deviceId as string) ?? "" }))
+        );
         setDialogTablesLoading(false);
       },
       () => setDialogTablesLoading(false)

@@ -55,11 +55,15 @@ export default function SetupPage() {
     return onSnapshot(
       query(collection(db, "tables"), orderBy("tableNumber")),
       (snap) => {
-        setTables(snap.docs.map((d) => ({
-          tableId: d.id,
-          tableNumber: d.data().tableNumber as string,
-          deviceId: (d.data().deviceId as string) ?? "",
-        })));
+        setTables(
+          snap.docs
+            .filter((d) => !d.data().deleted)
+            .map((d) => ({
+              tableId: d.id,
+              tableNumber: d.data().tableNumber as string,
+              deviceId: (d.data().deviceId as string) ?? "",
+            }))
+        );
         setLoadingTables(false);
       },
       () => setLoadingTables(false)
