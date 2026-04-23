@@ -47,6 +47,8 @@ function asDate(v) {
 }
 
 async function main() {
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
   const customersSnap = await db.collection("customers").get();
   const customerUpdates = [];
   for (const doc of customersSnap.docs) {
@@ -73,7 +75,7 @@ async function main() {
     }
 
     const updates = {};
-    const nextIsPaid = hasCompleted;
+    const nextIsPaid = hasCompleted || (ordersSnap.size > 0 && latestPaidAt !== null && latestPaidAt < startOfToday);
     if (data.isPaid !== nextIsPaid) updates.isPaid = nextIsPaid;
     if (data.tableId === undefined || typeof data.tableId !== "string") updates.tableId = typeof data.tableId === "string" ? data.tableId : "";
     if (typeof data.guestCount !== "number" || !Number.isFinite(data.guestCount) || data.guestCount <= 0) updates.guestCount = 1;
