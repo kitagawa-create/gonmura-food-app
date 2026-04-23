@@ -39,12 +39,12 @@ export type Menu = {
   updatedAt: Timestamp;
 };
 
-/** 注文アイテムに付随するサイドメニュー。price は注文時スナップショット。 */
+/** 旧データ互換用。新規 OrderItem では toppings は空配列。 */
 export type OrderItemTopping = {
   menuId: string;
   name: string;
   price: number;
-  /** 「1アイテムあたり」の個数。数量 N 個なら実数 = N * quantity */
+  /** 「1アイテムあたり」の個数 */
   quantity: number;
 };
 
@@ -52,11 +52,18 @@ export type OrderItem = {
   itemId: string;
   menuId: string;
   name: string;
-  /** 注文時点のスナップショット。整数（円）。単品価格 (サイドメニュー分は含まない) */
+  /** 注文時点のスナップショット。整数（円）。単品価格 */
   price: number;
   /** 整数 */
   quantity: number;
-  /** メインディッシュのみ。付くサイドメニュー一覧 (quantity は1個あたり)。それ以外は空配列 */
+  /**
+   * セット識別子。同一セットのメイン・サイドが同じ値を持つ。
+   * 旧データ（toppings 埋め込み形式）では空文字。
+   */
+  setId: string;
+  /** セットのメイン商品または単品なら true、サイドなら false。旧データでは true。 */
+  isMain: boolean;
+  /** 旧データ互換用。新規アイテムでは空配列。 */
   toppings: OrderItemTopping[];
   /** 注文時スナップショット。備考なしは空文字 */
   note: string;
@@ -80,15 +87,6 @@ export type Order = {
 /** orders/{orderId}/items サブコレクションを結合したランタイム型 */
 export type OrderWithItems = Order & { items: OrderItem[] };
 
-export type CartItemTopping = {
-  menuId: string;
-  name: string;
-  /** 整数（円） */
-  price: number;
-  /** 1アイテムあたりの個数 */
-  quantity: number;
-};
-
 export type Table = {
   tableId: string;
   tableNumber: string;
@@ -99,16 +97,21 @@ export type Table = {
 };
 
 export type CartItem = {
-  /** ライン識別子 (同一 menuId でも異なる構成なら別 lineId)  */
+  /** ライン識別子 */
   lineId: string;
+  /**
+   * セット識別子。メインと対応するサイドが同じ値を持つ。
+   * 単品の場合は lineId と同じ値。
+   */
+  setId: string;
+  /** セットのメイン商品または単品なら true、サイドなら false */
+  isMain: boolean;
   menuId: string;
-  /** 整数（円）。単品価格 (サイドメニュー分は含まない) */
+  /** 整数（円）。単品価格 */
   price: number;
   /** 整数 */
   quantity: number;
   name: string;
-  /** メインディッシュのみ。それ以外は空配列 */
-  toppings: CartItemTopping[];
-  /** 商品ごとの備考（アレルギー等）。備考なしは空文字 */
+  /** メイン・単品のみ使用。空文字は備考なし。 */
   note: string;
 };

@@ -1,8 +1,4 @@
-import type { CartItem, Menu, MenuStatus, Order, OrderItem, OrderItemTopping } from "@/types";
-
-// 以下 OrderItem / CartItem 双方で使える汎用ヘルパー。
-// - price フィールドは単品価格 (サイドメニュー除く) として扱う。
-// - toppings.quantity は 1 アイテムあたり。実消費 = quantity × side.quantity。
+import type { Menu, MenuStatus, Order, OrderItem, OrderItemTopping } from "@/types";
 
 type ItemLike = {
   price: number;
@@ -15,12 +11,12 @@ export function taxIncluded(price: number): number {
   return Math.round(price * 1.1);
 }
 
-/** 1 アイテムあたり (単価 + 全サイド単価×個数) の合計。 */
+/** 1 アイテムあたり (単価 + 全サイド単価×個数) の合計。旧データ互換用。 */
 export function comboUnitPrice(item: ItemLike): number {
   return item.price + item.toppings.reduce((s, x) => s + x.price * x.quantity, 0);
 }
 
-/** アイテム全体の小計 (数量 × 1個あたり単価)。 */
+/** アイテム全体の小計 (数量 × 1個あたり単価)。旧データ互換用。 */
 export function comboLineTotal(item: ItemLike): number {
   return comboUnitPrice(item) * item.quantity;
 }
@@ -30,26 +26,21 @@ export function orderGrandTotal(items: ItemLike[]): number {
   return items.reduce((s, i) => s + comboLineTotal(i), 0);
 }
 
-/** レシート/売上集計用: アイテムを分解してフラットな {menuId,name,price,quantity} に展開。 */
+/** レシート/売上集計用: アイテムを分解してフラットな {menuId,name,price,quantity} に展開。旧データ互換。 */
 export function flattenForReceipt(
-  items: (CartItem | OrderItem)[]
+  items: { menuId: string; name: string; price: number; quantity: number; toppings?: { menuId: string; name: string; price: number; quantity: number }[] }[]
 ): { menuId: string; name: string; price: number; quantity: number }[] {
   const out: { menuId: string; name: string; price: number; quantity: number }[] = [];
   for (const it of items) {
     out.push({ menuId: it.menuId, name: it.name, price: it.price, quantity: it.quantity });
-    for (const t of it.toppings) {
-      out.push({
-        menuId: t.menuId,
-        name: t.name,
-        price: t.price,
-        quantity: t.quantity * it.quantity,
-      });
+    for (const t of it.toppings ?? []) {
+      out.push({ menuId: t.menuId, name: t.name, price: t.price, quantity: t.quantity * it.quantity });
     }
   }
   return out;
 }
 
-/** 注文ライン識別ハッシュ: menuId + ソート済 toppings + note で決定論的に。merge 判定に使う。 */
+/** 注文ライン識別ハッシュ。単品カートの重複マージ判定に使う。 */
 export function comboLineHash(
   menuId: string,
   toppings: { menuId: string; quantity: number }[] = [],
@@ -63,7 +54,7 @@ export function comboLineHash(
   return `${menuId}#${t}@${note}`;
 }
 
-/** Firestore から取得した生データを Menu 型に正規化。旧 isAvailable/isSoldOut/isDeleted フィールドにも後方互換で対応。 */
+/** Firestore から取得した生データを Menu 型に正規化。 */
 export function normalizeMenu(id: string, data: Record<string, unknown>): Menu {
   const VALID_STATUSES: MenuStatus[] = ["active", "soldout", "hidden", "deleted"];
   const status: MenuStatus = (typeof data.status === "string" && (VALID_STATUSES as string[]).includes(data.status))
@@ -84,18 +75,25 @@ export function normalizeMenu(id: string, data: Record<string, unknown>): Menu {
   };
 }
 
-/** Firestore から取得した生データを OrderItem 型に正規化。フィールド欠損のある既存ドキュメントを安全に扱う。 */
+/** Firestore から取得した生データを OrderItem 型に正規化。旧フォーマット（toppings埋め込み）に後方互換。 */
 export function normalizeOrderItem(id: string, data: Record<string, unknown>): OrderItem {
+  const toppings: OrderItemTopping[] = Array.isArray(data.toppings) ? (data.toppings as OrderItemTopping[]) : [];
+  const hasSetId = typeof data.setId === "string" && data.setId !== "";
   return {
-    ...(data as Omit<OrderItem, "itemId" | "toppings" | "note" | "checked">),
     itemId: id,
-    toppings: Array.isArray(data.toppings) ? (data.toppings as OrderItemTopping[]) : [],
+    menuId: typeof data.menuId === "string" ? data.menuId : "",
+    name: typeof data.name === "string" ? data.name : "",
+    price: typeof data.price === "number" ? Math.trunc(data.price) : 0,
+    quantity: typeof data.quantity === "number" ? Math.trunc(data.quantity) : 1,
+    setId: hasSetId ? (data.setId as string) : "",
+    isMain: hasSetId ? data.isMain === true : true,
+    toppings,
     note: typeof data.note === "string" ? data.note : "",
     checked: data.checked === true,
   };
 }
 
-/** Firestore から取得した生データを Order 型に正規化。data.customerId を優先し、なければ fallback を使う。 */
+/** Firestore から取得した生データを Order 型に正規化。 */
 export function normalizeOrder(id: string, data: Record<string, unknown>, customerId: string): Order {
   return {
     orderId: id,
@@ -106,7 +104,7 @@ export function normalizeOrder(id: string, data: Record<string, unknown>, custom
   };
 }
 
-/** 新規 lineId を採番。crypto.randomUUID が使える環境なら優先、fallback は時間+乱数。 */
+/** 新規 lineId / setId を採番。 */
 export function newLineId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();

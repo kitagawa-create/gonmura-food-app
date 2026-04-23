@@ -542,104 +542,94 @@ function ActiveOrderCard({
 
       {/* 商品チェックリスト */}
       <ul className="mb-3 space-y-1">
-        {order.items.map((item) => {
-          const done = item.checked;
-          const hasNestedToppings = item.toppings.length > 0;
-          return (
-            <li key={item.itemId} className="flex items-stretch gap-1">
-              <button
-                type="button"
-                onClick={() => onToggle(order, item.itemId)}
-                className={`flex-1 rounded-lg px-3 py-2.5 text-left transition-colors ${
-                  done
-                    ? "bg-[color:var(--color-accent-negi)]/10"
-                    : "bg-[color:var(--color-bg-subtle)] hover:bg-[color:var(--color-bg-subtle)]/80"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <span
-                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-2 transition-colors ${
+        {(() => {
+          // setId でグループ化し、メイン→サイドの順で並べる（新フォーマット対応）
+          const rendered: React.ReactNode[] = [];
+          const added = new Set<string>();
+          const sortedItems = [
+            ...order.items.filter((i) => !i.setId || i.isMain),
+            ...order.items.filter((i) => i.setId && !i.isMain),
+          ];
+          for (const item of sortedItems) {
+            if (added.has(item.itemId)) continue;
+            added.add(item.itemId);
+            // 新フォーマットのサイドはメインの直後に挿入済みなのでここでは skip
+            if (item.setId && !item.isMain) continue;
+
+            const sides = item.setId
+              ? order.items.filter((s) => !s.isMain && s.setId === item.setId)
+              : [];
+            sides.forEach((s) => added.add(s.itemId));
+
+            const renderRow = (rowItem: typeof item, isSide: boolean) => {
+              const done = rowItem.checked;
+              return (
+                <li key={rowItem.itemId} className={`flex items-stretch gap-1 ${isSide ? "ml-4" : ""}`}>
+                  <button
+                    type="button"
+                    onClick={() => onToggle(order, rowItem.itemId)}
+                    className={`flex-1 rounded-lg px-3 py-2.5 text-left transition-colors ${
                       done
-                        ? "border-[color:var(--color-accent-negi)] bg-[color:var(--color-accent-negi)]"
-                        : "border-[color:var(--color-border-strong)]"
+                        ? "bg-[color:var(--color-accent-negi)]/10"
+                        : "bg-[color:var(--color-bg-subtle)] hover:bg-[color:var(--color-bg-subtle)]/80"
                     }`}
                   >
-                    {done && (
-                      <svg
-                        className="h-4 w-4 text-white"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={3}
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                    )}
-                  </span>
-                  <span
-                    className={`flex-1 text-lg leading-tight ${
-                      done
-                        ? "line-through text-[color:var(--color-text-muted)]"
-                        : "text-[color:var(--color-text-primary)]"
-                    }`}
-                  >
-                    {item.name}
-                  </span>
-                  <span
-                    className={`whitespace-nowrap text-xl font-bold ${
-                      done
-                        ? "text-[color:var(--color-text-muted)]"
-                        : "text-[color:var(--color-accent-char)]"
-                    }`}
-                  >
-                    ×{item.quantity}
-                  </span>
-                </div>
-                {hasNestedToppings && (
-                  <ul className="mt-1 ml-10 space-y-0.5">
-                    {item.toppings!.map((t) => (
-                      <li
-                        key={t.menuId}
-                        className={`flex items-baseline justify-between text-base ${
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-2 transition-colors ${
                           done
-                            ? "text-[color:var(--color-text-muted)] line-through"
-                            : "text-[color:var(--color-text-primary)]"
+                            ? "border-[color:var(--color-accent-negi)] bg-[color:var(--color-accent-negi)]"
+                            : "border-[color:var(--color-border-strong)]"
                         }`}
                       >
-                        <span>
-                          <span className="mr-1 text-[color:var(--color-text-muted)]">＋</span>
-                          {t.name}
-                        </span>
-                        <span className="tabular-nums font-semibold">
-                          ×{t.quantity * item.quantity}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {item.note && (
-                  <p className="mt-1 ml-10 text-xs text-[color:var(--color-accent-warn)]">
-                    ※ {item.note}
-                  </p>
-                )}
-              </button>
-              {editMode && (
-                <button
-                  type="button"
-                  onClick={() => setCancelItemId(item.itemId)}
-                  aria-label={`${item.name} をキャンセル`}
-                  className="shrink-0 w-9 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] text-lg text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-accent-warn)]/10 hover:text-[color:var(--color-accent-warn)] transition-colors"
-                >
-                  ×
-                </button>
-              )}
-            </li>
-          );
-        })}
+                        {done && (
+                          <svg className="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </span>
+                      <span className={`flex-1 text-lg leading-tight ${done ? "line-through text-[color:var(--color-text-muted)]" : "text-[color:var(--color-text-primary)]"}`}>
+                        {isSide && <span className="mr-1 text-sm text-[color:var(--color-text-muted)]">＋</span>}
+                        {rowItem.name}
+                      </span>
+                      <span className={`whitespace-nowrap text-xl font-bold ${done ? "text-[color:var(--color-text-muted)]" : "text-[color:var(--color-accent-char)]"}`}>
+                        ×{rowItem.quantity}
+                      </span>
+                    </div>
+                    {/* 旧フォーマット: toppings 埋め込みをテキスト表示 */}
+                    {rowItem.toppings.length > 0 && (
+                      <ul className="mt-1 ml-10 space-y-0.5">
+                        {rowItem.toppings.map((t) => (
+                          <li key={t.menuId} className={`flex items-baseline justify-between text-base ${done ? "text-[color:var(--color-text-muted)] line-through" : "text-[color:var(--color-text-primary)]"}`}>
+                            <span><span className="mr-1 text-[color:var(--color-text-muted)]">＋</span>{t.name}</span>
+                            <span className="tabular-nums font-semibold">×{t.quantity * rowItem.quantity}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {rowItem.note && (
+                      <p className="mt-1 ml-10 text-xs text-[color:var(--color-accent-warn)]">※ {rowItem.note}</p>
+                    )}
+                  </button>
+                  {editMode && (
+                    <button
+                      type="button"
+                      onClick={() => setCancelItemId(rowItem.itemId)}
+                      aria-label={`${rowItem.name} をキャンセル`}
+                      className="shrink-0 w-9 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] text-lg text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-accent-warn)]/10 hover:text-[color:var(--color-accent-warn)] transition-colors"
+                    >
+                      ×
+                    </button>
+                  )}
+                </li>
+              );
+            };
+
+            rendered.push(renderRow(item, false));
+            sides.forEach((s) => rendered.push(renderRow(s, true)));
+          }
+          return rendered;
+        })()}
       </ul>
 
       {/* 完了ボタン (全チェック時) or 取消 + 合計 */}

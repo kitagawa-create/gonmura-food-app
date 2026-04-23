@@ -4,9 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { collection, collectionGroup, query, where, orderBy, onSnapshot, doc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import type { Menu, Category, CartItemTopping, CartItem } from "@/types";
+import type { Menu, Category, CartItem } from "@/types";
 import { normalizeMenu, taxIncluded } from "@/lib/order-utils";
-import { useCart } from "@/lib/cart-context";
+import { useCart, type SideInput } from "@/lib/cart-context";
 import { FadeImage } from "@/components/ui/FadeImage";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import { CartPanel } from "@/components/customer/CartPanel";
@@ -53,7 +53,7 @@ export default function MenuPage() {
   const [dialogTables, setDialogTables] = useState<{ tableId: string; tableNumber: string; deviceId: string }[]>([]);
   const [dialogTablesLoading, setDialogTablesLoading] = useState(false);
   const [selectedDialogTableId, setSelectedDialogTableId] = useState<string>("");
-  const { addItem, updateItem, totalItems, tableNumber, setTableNumber, clearCart, resetSession, guestCount, setGuestCount, customerId, setCustomerId } =
+  const { addItem, addSet, updateItem, updateSet, items: cartItems, totalItems, tableNumber, setTableNumber, clearCart, resetSession, guestCount, setGuestCount, customerId, setCustomerId } =
     useCart();
   const router = useRouter();
   const prevHasUnpaidRef = useRef<boolean | undefined>(undefined);
@@ -295,8 +295,10 @@ export default function MenuPage() {
     setSelectedMenu(menu);
     setSelectedQuantity(item.quantity);
     setSelectedNote(item.note);
+    // setId に紐づくサイドを extraQty に復元
+    const sides = cartItems.filter((s) => !s.isMain && s.setId === item.setId);
     const qty: Record<string, number> = {};
-    for (const t of item.toppings) qty[t.menuId] = t.quantity;
+    for (const s of sides) qty[s.menuId] = s.quantity;
     setExtraQty(qty);
   }
 
@@ -668,29 +670,28 @@ export default function MenuPage() {
                   onClick={() => {
                     if (!selectedMenu) return;
                     if (isMainDishFlow) {
-                      const toppings: CartItemTopping[] = extraLines.map((l) => ({
+                      const sides: SideInput[] = extraLines.map((l) => ({
                         menuId: l.menu.menuId,
                         name: l.menu.name,
                         price: l.menu.price,
                         quantity: l.quantity,
                       }));
                       if (editingLineId) {
-                        updateItem(editingLineId, { quantity: 1, toppings, note: selectedNote.trim() });
+                        updateSet(editingLineId, { sides, note: selectedNote.trim() });
                       } else {
-                        addItem(
+                        addSet(
                           {
                             menuId: selectedMenu.menuId,
                             name: selectedMenu.name,
                             price: selectedMenu.price,
-                            toppings,
-                            ...(selectedNote.trim() ? { note: selectedNote.trim() } : {}),
                           },
-                          1
+                          sides,
+                          selectedNote.trim()
                         );
                       }
                     } else {
                       if (editingLineId) {
-                        updateItem(editingLineId, { quantity: selectedQuantity, toppings: [], note: selectedNote.trim() });
+                        updateItem(editingLineId, { quantity: selectedQuantity, note: selectedNote.trim() });
                       } else {
                         addItem(
                           {

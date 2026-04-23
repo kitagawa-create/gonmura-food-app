@@ -8,7 +8,7 @@ import { useCart } from "@/lib/cart-context";
 import type { OrderWithItems } from "@/types";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import { CustomerPageHeader } from "@/components/customer/CustomerPageHeader";
-import { normalizeOrder, normalizeOrderItem, comboLineHash, comboLineTotal, taxIncluded } from "@/lib/order-utils";
+import { normalizeOrder, normalizeOrderItem, comboLineHash } from "@/lib/order-utils";
 import Link from "next/link";
 
 const TABLE_ID_KEY = "gonmura-table-id";
@@ -136,21 +136,55 @@ export default function BillPage() {
     );
   }
 
-  type ComboLine = { menuId: string; name: string; price: number; quantity: number; toppings: { menuId: string; name: string; price: number; quantity: number }[] };
-  const allCombos: ComboLine[] = [];
+  // 新フォーマット（setId あり）はセット単位で集計、旧フォーマット（toppings埋め込み）は従来通り
+  type BillLine = { key: string; name: string; price: number; quantity: number; sides: { name: string; price: number; quantity: number }[] };
+  const billLines: BillLine[] = [];
+
   for (const order of orders) {
-    for (const item of order.items) {
-      const hash = comboLineHash(item.menuId, item.toppings, "");
-      const existing = allCombos.find((c) => comboLineHash(c.menuId, c.toppings, "") === hash);
+    // 新フォーマット: setId でグループ化
+    const newItems = order.items.filter((i) => i.setId);
+    const setIds = [...new Set(newItems.filter((i) => i.isMain).map((i) => i.setId))];
+    for (const setId of setIds) {
+      const main = newItems.find((i) => i.setId === setId && i.isMain);
+      if (!main) continue;
+      const sides = newItems.filter((i) => i.setId === setId && !i.isMain);
+      const key = `${main.menuId}|${sides.map((s) => `${s.menuId}:${s.quantity}`).sort().join(",")}`;
+      const existing = billLines.find((l) => l.key === key);
+      if (existing) {
+        existing.quantity += 1;
+      } else {
+        billLines.push({
+          key,
+          name: main.name,
+          price: main.price,
+          quantity: 1,
+          sides: sides.map((s) => ({ name: s.name, price: s.price, quantity: s.quantity })),
+        });
+      }
+    }
+
+    // 旧フォーマット: setId なし・toppings 埋め込み
+    for (const item of order.items.filter((i) => !i.setId)) {
+      const key = comboLineHash(item.menuId, item.toppings, "");
+      const existing = billLines.find((l) => l.key === key);
       if (existing) {
         existing.quantity += item.quantity;
       } else {
-        allCombos.push({ menuId: item.menuId, name: item.name, price: item.price, quantity: item.quantity, toppings: item.toppings.map((t) => ({ ...t })) });
+        billLines.push({
+          key,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          sides: item.toppings.map((t) => ({ name: t.name, price: t.price, quantity: t.quantity })),
+        });
       }
     }
   }
 
-  const subtotal = allCombos.reduce((sum, item) => sum + comboLineTotal(item), 0);
+  const subtotal = billLines.reduce((sum, l) => {
+    const sideTotal = l.sides.reduce((s, sd) => s + sd.price * sd.quantity, 0);
+    return sum + (l.price + sideTotal) * l.quantity;
+  }, 0);
   const tax = Math.round(subtotal * 0.1);
   const totalAmount = subtotal + tax;
 
@@ -184,25 +218,29 @@ export default function BillPage() {
                 </tr>
               </thead>
               <tbody>
-                {allCombos.map((item, i) => (
-                  <Fragment key={i}>
-                    <tr>
-                      <td className="py-1 text-[color:var(--color-text-primary)]">{item.name}</td>
-                      <td className="py-1 text-center text-[color:var(--color-text-muted)]">{item.quantity}</td>
-                      <td className="py-1 text-right text-[color:var(--color-text-primary)] tabular-nums">
-                        ¥{comboLineTotal(item).toLocaleString()}
-                      </td>
-                    </tr>
-                    {item.toppings.map((t) => (
-                      <tr key={t.menuId}>
-                        <td className="pb-0.5 pl-3 text-xs text-[color:var(--color-text-muted)]">
-                          ＋ {t.name} ×{t.quantity * item.quantity}
+                {billLines.map((line, i) => {
+                  const sideTotal = line.sides.reduce((s, sd) => s + sd.price * sd.quantity, 0);
+                  const lineTotal = (line.price + sideTotal) * line.quantity;
+                  return (
+                    <Fragment key={i}>
+                      <tr>
+                        <td className="py-1 text-[color:var(--color-text-primary)]">{line.name}</td>
+                        <td className="py-1 text-center text-[color:var(--color-text-muted)]">{line.quantity}</td>
+                        <td className="py-1 text-right text-[color:var(--color-text-primary)] tabular-nums">
+                          ¥{lineTotal.toLocaleString()}
                         </td>
-                        <td /><td />
                       </tr>
-                    ))}
-                  </Fragment>
-                ))}
+                      {line.sides.map((s, si) => (
+                        <tr key={si}>
+                          <td className="pb-0.5 pl-3 text-xs text-[color:var(--color-text-muted)]">
+                            ＋ {s.name} ×{s.quantity * line.quantity}
+                          </td>
+                          <td /><td />
+                        </tr>
+                      ))}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
