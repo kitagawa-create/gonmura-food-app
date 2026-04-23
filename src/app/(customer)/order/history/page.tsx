@@ -40,7 +40,7 @@ function OrderCard({ order }: { order: OrderWithItems }) {
   const statusInfo = STATUS_LABEL[order.status] ?? STATUS_LABEL.pending;
 
   return (
-    <div className="flex items-start gap-5 sm:gap-7 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-4 shadow-sm">
+    <div className="flex items-start gap-8 sm:gap-10 rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] p-4 shadow-sm">
       {/* ステータス */}
       <div className="shrink-0 w-14 pt-0.5">
         <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold whitespace-nowrap ${statusInfo.className}`}>
@@ -156,7 +156,7 @@ export default function OrderHistoryPage() {
       <CustomerPageHeader title="注文履歴" />
 
       {customerId && orders.length > 0 && (
-        <div className="shrink-0 flex items-center gap-5 sm:gap-7 px-8 sm:px-10 py-2 border-b border-[color:var(--color-border)] bg-[color:var(--color-bg-base)] text-xs font-semibold text-[color:var(--color-text-muted)]">
+        <div className="shrink-0 flex items-center gap-8 sm:gap-10 px-8 sm:px-10 py-2 border-b border-[color:var(--color-border)] bg-[color:var(--color-bg-base)] text-xs font-semibold text-[color:var(--color-text-muted)]">
           <div className="w-14 shrink-0" />
           <div className="w-16 shrink-0">注文</div>
           <div className="w-16 shrink-0">提供</div>

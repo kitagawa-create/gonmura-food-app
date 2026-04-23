@@ -842,7 +842,7 @@ function HistoryView({ onError }: { onError: (msg: string | null) => void }) {
         </div>
       </StickyFilterBar>
 
-      <div className="shrink-0 flex items-center gap-5 sm:gap-7 px-4 py-2 border-b border-[color:var(--color-border)] bg-[color:var(--color-bg-subtle)] text-xs font-semibold text-[color:var(--color-text-muted)]">
+      <div className="shrink-0 flex items-center gap-8 sm:gap-10 px-4 py-2 border-b border-[color:var(--color-border)] bg-[color:var(--color-bg-subtle)] text-xs font-semibold text-[color:var(--color-text-muted)]">
         <div className="w-14 shrink-0 text-center">テーブル</div>
         <div className="w-16 shrink-0">注文</div>
         <div className="w-16 shrink-0">提供</div>
@@ -908,7 +908,7 @@ function HistoryOrderCard({
   return (
     <div
       onClick={() => onSelect(order.orderId)}
-      className={`flex items-start gap-5 sm:gap-7 rounded-xl border bg-[color:var(--color-bg-card)] p-4 shadow-sm transition-colors cursor-pointer ${
+      className={`flex items-start gap-8 sm:gap-10 rounded-xl border bg-[color:var(--color-bg-card)] p-4 shadow-sm transition-colors cursor-pointer ${
         selected ? "border-[color:var(--color-accent-char)] ring-2 ring-[color:var(--color-accent-char)]/20" : "border-[color:var(--color-border)]"
       }`}
     >
