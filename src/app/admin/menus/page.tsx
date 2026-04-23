@@ -557,7 +557,8 @@ function SortableMenuCard({
     <div
       ref={setNodeRef}
       style={style}
-      className={`relative flex w-full flex-col rounded-xl overflow-hidden bg-[color:var(--color-bg-card)] border transition-shadow ${
+      onClick={onSelect}
+      className={`relative flex w-full flex-col rounded-xl overflow-hidden bg-[color:var(--color-bg-card)] border transition-shadow cursor-pointer ${
         isDragging ? "opacity-50 shadow-xl z-50" : ""
       } ${
         isSelected
@@ -645,15 +646,6 @@ function SortableMenuCard({
         </button>
       )}
 
-      {/* 選択チェックボックス（左下） */}
-      <div className="absolute left-2 bottom-2 z-10">
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={onSelect}
-          className="h-4 w-4 accent-[color:var(--color-accent-char)] cursor-pointer"
-        />
-      </div>
     </div>
   );
 }
