@@ -45,8 +45,23 @@ async function main() {
   const customerUpdates = [];
   for (const doc of customersSnap.docs) {
     const data = doc.data();
+    const ordersSnap = await doc.ref.collection("orders").get();
+    let hasCompleted = false;
+    let latestPaidAt = null;
+    for (const orderDoc of ordersSnap.docs) {
+      const order = orderDoc.data();
+      const normalized = normalizeStatus(order.status);
+      if (normalized === "completed" || order.status === "paid") {
+        hasCompleted = true;
+        const updatedAt = order.updatedAt?.toDate?.() ?? order.createdAt?.toDate?.() ?? null;
+        if (updatedAt && (!latestPaidAt || updatedAt > latestPaidAt)) latestPaidAt = updatedAt;
+      }
+    }
+
     const updates = {};
-    if (typeof data.isPaid !== "boolean") updates.isPaid = false;
+    const nextIsPaid = hasCompleted;
+    if (data.isPaid !== nextIsPaid) updates.isPaid = nextIsPaid;
+    if (latestPaidAt) updates.updatedAt = Timestamp.fromDate(latestPaidAt);
     if (Object.keys(updates).length > 0) customerUpdates.push({ ref: doc.ref, updates });
   }
 

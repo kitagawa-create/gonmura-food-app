@@ -234,47 +234,44 @@ export default function AdminSalesPage() {
         const [year, month] = selectedYearMonth.split("-").map(Number);
         const start = Timestamp.fromDate(new Date(year, month - 1, 1, 0, 0, 0));
         const end = Timestamp.fromDate(new Date(year, month, 0, 23, 59, 59, 999));
-        const customersSnap = await getDocs(query(
+        const customerSnapQuery = query(
           collection(db, "customers"),
           where("isPaid", "==", true),
-          orderBy("updatedAt"),
-        ));
-        const customerIds = customersSnap.docs.map((d) => d.id);
-        const withItems = (
-          await Promise.all(customerIds.map(async (customerId) => {
-            const ordersSnap = await getDocs(query(
-              collectionGroup(db, "orders"),
-              where("customerId", "==", customerId),
-              where("createdAt", ">=", start),
-              where("createdAt", "<=", end),
-              orderBy("createdAt"),
-            ));
-            const orderDocs = ordersSnap.docs
-              .filter((d) => d.ref.parent.parent !== null)
-              .map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
-            return Promise.all(orderDocs.map(async (order) => {
-              const itemsSnap = await getDocs(
-                query(collectionGroup(db, "items"), where("orderId", "==", order.orderId))
-              );
-              return {
-                ...order,
-                items: itemsSnap.docs.map((d) =>
-                  normalizeOrderItem(d.id, d.data() as Record<string, unknown>)
-                ),
-              };
-            }));
-          }))
-        ).flat();
-        if (cancelled) return;
-        const uniqueIds = [...new Set(withItems.map((o) => o.customerId))];
-        const customerSnaps = await Promise.all(uniqueIds.map((id) => getDoc(doc(db, "customers", id))));
+          where("updatedAt", ">=", start),
+          where("updatedAt", "<=", end),
+          orderBy("updatedAt", "desc")
+        );
+        const customerSnaps = await getDocs(customerSnapQuery);
         const guestMap = new Map<string, number>();
-        for (const snap of customerSnaps) {
-          if (snap.exists()) {
-            const gc = snap.data().guestCount;
-            guestMap.set(snap.id, typeof gc === "number" && gc > 0 ? Math.trunc(gc) : 1);
-          }
-        }
+        const customerIds = customerSnaps.docs.map((snap) => {
+          const data = snap.data();
+          const gc = data.guestCount;
+          guestMap.set(snap.id, typeof gc === "number" && gc > 0 ? Math.trunc(gc) : 1);
+          return snap.id;
+        });
+        if (cancelled) return;
+        const orderDocs = await Promise.all(customerIds.map(async (customerId) => {
+          const ordersSnap = await getDocs(
+            query(
+              collectionGroup(db, "orders"),
+              where("customerId", "==", customerId)
+            )
+          );
+          return ordersSnap.docs
+            .filter((d) => d.ref.parent.parent !== null)
+            .map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
+        }));
+        const withItems = await Promise.all(orderDocs.flat().map(async (order) => {
+          const itemsSnap = await getDocs(
+            query(collectionGroup(db, "items"), where("orderId", "==", order.orderId))
+          );
+          return {
+            ...order,
+            items: itemsSnap.docs.map((d) =>
+              normalizeOrderItem(d.id, d.data() as Record<string, unknown>)
+            ),
+          };
+        }));
         if (cancelled) return;
         setCustomerGuestMap(guestMap);
         setOrders(withItems);
