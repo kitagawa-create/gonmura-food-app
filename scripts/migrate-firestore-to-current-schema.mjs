@@ -40,6 +40,12 @@ function normalizeSetId(itemId, setId, toppings) {
   return itemId;
 }
 
+function asDate(v) {
+  if (v && typeof v.toDate === "function") return v.toDate();
+  if (v instanceof Date) return v;
+  return null;
+}
+
 async function main() {
   const customersSnap = await db.collection("customers").get();
   const customerUpdates = [];
@@ -53,15 +59,28 @@ async function main() {
       const normalized = normalizeStatus(order.status);
       if (normalized === "completed" || order.status === "paid") {
         hasCompleted = true;
-        const updatedAt = order.updatedAt?.toDate?.() ?? order.createdAt?.toDate?.() ?? null;
-        if (updatedAt && (!latestPaidAt || updatedAt > latestPaidAt)) latestPaidAt = updatedAt;
+      }
+      const candidates = [
+        asDate(order.updatedAt),
+        asDate(order.createdAt),
+        ...((Array.isArray(order.items) ? order.items : [])
+          .flatMap((it) => [asDate(it.updatedAt), asDate(it.createdAt)])
+          .filter(Boolean)),
+      ].filter(Boolean);
+      for (const candidate of candidates) {
+        if (!latestPaidAt || candidate > latestPaidAt) latestPaidAt = candidate;
       }
     }
 
     const updates = {};
     const nextIsPaid = hasCompleted;
     if (data.isPaid !== nextIsPaid) updates.isPaid = nextIsPaid;
+    if (data.tableId === undefined || typeof data.tableId !== "string") updates.tableId = typeof data.tableId === "string" ? data.tableId : "";
+    if (typeof data.guestCount !== "number" || !Number.isFinite(data.guestCount) || data.guestCount <= 0) updates.guestCount = 1;
     if (latestPaidAt) updates.updatedAt = Timestamp.fromDate(latestPaidAt);
+    if (typeof data.createdAt !== "object" || !isTimestampLike(data.createdAt)) {
+      updates.createdAt = latestPaidAt ? Timestamp.fromDate(latestPaidAt) : Timestamp.now();
+    }
     if (Object.keys(updates).length > 0) customerUpdates.push({ ref: doc.ref, updates });
   }
 
