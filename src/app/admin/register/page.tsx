@@ -117,9 +117,11 @@ export default function AdminRegisterPage() {
     let cancelled = false;
     let gen = 0;
     const unsub = onSnapshot(
-        query(
+      query(
         collection(db, "customers"),
         where("isPaid", "==", true),
+        where("updatedAt", ">=", Timestamp.fromDate(start)),
+        where("updatedAt", "<", Timestamp.fromDate(end)),
         orderBy("updatedAt", "desc")
       ),
       async (snap) => {
