@@ -620,8 +620,8 @@ function SortableMenuCard({
         </div>
       )}
 
-      {/* 順番バッジ（ドラッグハンドル右隣） */}
-      <div className="absolute left-10 top-2 z-10 flex h-7 min-w-[28px] items-center justify-center rounded-full bg-black/40 px-1.5 text-[11px] font-bold text-white">
+      {/* 順番バッジ（ドラッグハンドル下） */}
+      <div className="absolute left-2 top-10 z-10 flex h-7 min-w-[28px] items-center justify-center rounded-full bg-black/40 px-1.5 text-[11px] font-bold text-white">
         {index + 1}
       </div>
 
