@@ -56,9 +56,7 @@ firestore-root
 │           ├── name      : string     // menus.name 複製
 │           ├── price     : int        // menus.price 複製（単品価格）
 │           ├── quantity  : int
-│           ├── setId     : string
-│           ├── parentItemId : string
-│           ├── isMain    : boolean
+│           ├── setId     : string     // メインは自分の itemId、サイドは親メインの itemId
 │           ├── note      : string
 │           └── checked   : boolean
 │

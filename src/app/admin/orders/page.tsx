@@ -327,8 +327,8 @@ function NewOrdersView({
       if (!item) return;
 
       // 新フォーマットのメインをキャンセルする場合、同一セットのサイドも一括削除
-      const toDelete = (item.setId === "")
-        ? order.items.filter((i) => i.setId === item.itemId)
+      const toDelete = (item.setId === item.itemId)
+        ? order.items.filter((i) => i.setId === item.itemId && i.itemId !== item.itemId)
         : [item];
       const isLast = order.items.length === toDelete.length;
 
@@ -502,8 +502,8 @@ function ActiveOrderCard({
     ? order.items.find((i) => i.itemId === cancelItemId) ?? null
     : null;
   // メインは配下のサイドも含めてキャンセル対象になる
-  const cancelTargetSet = cancelTarget && cancelTarget.setId === ""
-    ? order.items.filter((i) => i.setId === cancelTarget.itemId)
+  const cancelTargetSet = cancelTarget && cancelTarget.setId === cancelTarget.itemId
+    ? order.items.filter((i) => i.setId === cancelTarget.itemId && i.itemId !== cancelTarget.itemId)
     : cancelTarget ? [cancelTarget] : [];
   const isLastItem = order.items.length === cancelTargetSet.length;
 
@@ -563,16 +563,16 @@ function ActiveOrderCard({
           const rendered: React.ReactNode[] = [];
           const added = new Set<string>();
           const sortedItems = [
-            ...order.items.filter((i) => i.setId === ""),
-            ...order.items.filter((i) => i.setId !== ""),
+            ...order.items.filter((i) => i.setId === i.itemId),
+            ...order.items.filter((i) => i.setId !== i.itemId),
           ];
           for (const item of sortedItems) {
             if (added.has(item.itemId)) continue;
             added.add(item.itemId);
             // 新フォーマットのサイドはメインの直後に挿入済みなのでここでは skip
-            if (item.setId !== "") continue;
+            if (item.setId !== item.itemId) continue;
 
-            const sides = order.items.filter((s) => s.setId === item.itemId);
+            const sides = order.items.filter((s) => s.setId === item.itemId && s.itemId !== item.itemId);
             sides.forEach((s) => added.add(s.itemId));
 
             const renderRow = (rowItem: typeof item, isSide: boolean) => {
@@ -901,10 +901,10 @@ function HistoryOrderCard({
     const added = new Set<string>();
     for (const item of order.items) {
       if (added.has(item.itemId)) continue;
-      if (item.setId !== "") continue; // サイドは後でメインの直後に追加
+      if (item.setId !== item.itemId) continue; // サイドは後でメインの直後に追加
       added.add(item.itemId);
       result.push({ item, isSide: false });
-      const sides = order.items.filter((s) => s.setId === item.itemId);
+      const sides = order.items.filter((s) => s.setId === item.itemId && s.itemId !== item.itemId);
       sides.forEach((s) => { added.add(s.itemId); result.push({ item: s, isSide: true }); });
     }
     return result;

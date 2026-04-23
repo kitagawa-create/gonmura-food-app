@@ -47,6 +47,8 @@ export type Menu = {
 
 export type OrderItem = {
   itemId: string;
+  orderId: string;
+  customerId: string;
   menuId: string;
   name: string;
   /** 注文時点のスナップショット。整数（円）。単品価格 */

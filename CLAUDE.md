@@ -16,7 +16,7 @@ iPad横画面メイン、スマホ・PCまでレスポンシブ対応。
 ## ディレクトリ構造
 ```
 src/
-├── middleware.ts                 # Cache-Control 強制上書き (CDN no-store)
+├── proxy.ts                      # Cache-Control 強制上書き (CDN no-store)
 ├── app/
 │   ├── (customer)/              # お客様側（テーブルタブレット）
 │   │   ├── layout.tsx           # CartProvider + AnalyticsProvider + force-dynamic
@@ -164,7 +164,7 @@ paid への変更はお客様の支払い完了ボタン（PinDialog認証後）
 - 同一商品でも備考(note)が異なれば別カートライン扱い（comboLineHashにnoteを含むため）
 - カートアイテムをタップすると商品詳細モーダルが編集モードで開く（editingLineIdがnon-nullのとき「変更を保存」ボタンになりupdateItemを呼ぶ）
 - 管理画面のサイドバーは h-[100dvh] + overflow-y-auto で固定
-- middleware.ts で全ページの Cache-Control を no-store に設定（CDN キャッシュ問題対策）
+- proxy.ts で全ページの Cache-Control を no-store に設定（CDN キャッシュ問題対策）
 - 顧客レイアウトに force-dynamic を設定（静的プリレンダリング防止）
 
 ## デプロイ

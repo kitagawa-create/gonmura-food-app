@@ -37,10 +37,10 @@ function OrderCard({ order }: { order: OrderWithItems }) {
     const added = new Set<string>();
     for (const item of order.items) {
       if (added.has(item.itemId)) continue;
-      if (item.setId !== "") continue;
+      if (item.setId !== item.itemId) continue;
       added.add(item.itemId);
       result.push({ item, isSide: false });
-      const sides = order.items.filter((s) => s.setId === item.itemId);
+      const sides = order.items.filter((s) => s.setId === item.itemId && s.itemId !== item.itemId);
       sides.forEach((s) => { added.add(s.itemId); result.push({ item: s, isSide: true }); });
     }
     return result;

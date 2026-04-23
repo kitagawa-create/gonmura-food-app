@@ -594,7 +594,7 @@ function SortableMenuCard({
             : hidden
               ? "border-dashed border-[color:var(--color-border)] opacity-60"
               : "border-[color:var(--color-border)]"
-      } pb-12`}
+      } pb-8`}
     >
       {/* 画像領域: お客様画面と同じ 4:3 */}
       {menu.imageUrl ? (
@@ -618,7 +618,7 @@ function SortableMenuCard({
       )}
 
       {/* テキスト領域: お客様画面と完全同一 */}
-      <div className={`flex flex-col p-4 pb-14 gap-3 ${sold ? "opacity-60" : ""}`}>
+      <div className={`flex flex-col p-4 pb-10 gap-3 ${sold ? "opacity-60" : ""}`}>
         <h3 className="text-base font-bold leading-6 line-clamp-2 text-[color:var(--color-text-primary)]">
           <span className="mr-1 text-base font-bold text-[color:var(--color-text-muted)]">{index + 1}.</span>
           {menu.name}

@@ -78,6 +78,8 @@ export function normalizeMenu(id: string, data: Record<string, unknown>): Menu {
 export function normalizeOrderItem(id: string, data: Record<string, unknown>): OrderItem {
   return {
     itemId: id,
+    orderId: typeof data.orderId === "string" ? data.orderId : "",
+    customerId: typeof data.customerId === "string" ? data.customerId : "",
     menuId: typeof data.menuId === "string" ? data.menuId : "",
     name: typeof data.name === "string" ? data.name : "",
     price: typeof data.price === "number" ? Math.trunc(data.price) : 0,

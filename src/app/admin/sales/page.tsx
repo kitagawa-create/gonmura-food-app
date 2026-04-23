@@ -237,8 +237,6 @@ export default function AdminSalesPage() {
         const customersSnap = await getDocs(query(
           collection(db, "customers"),
           where("isPaid", "==", true),
-          where("updatedAt", ">=", start),
-          where("updatedAt", "<=", end),
           orderBy("updatedAt"),
         ));
         const customerIds = customersSnap.docs.map((d) => d.id);

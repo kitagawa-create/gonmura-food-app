@@ -144,7 +144,7 @@ export default function BillPage() {
   const billLines: BillLine[] = [];
 
   for (const order of orders) {
-    const mainItems = order.items.filter((i) => i.setId === "");
+    const mainItems = order.items.filter((i) => i.setId === i.itemId);
     for (const main of mainItems) {
       const sides = order.items.filter((i) => i.setId === main.itemId);
       const key = `${main.menuId}|${sides.map((s) => `${s.menuId}:${s.quantity}`).sort().join(",")}`;
@@ -163,7 +163,7 @@ export default function BillPage() {
     }
 
     // 単品
-    for (const item of mainItems.filter((i) => !order.items.some((x) => x.setId === i.itemId))) {
+    for (const item of mainItems.filter((i) => !order.items.some((x) => x.setId === i.itemId && x.itemId !== i.itemId))) {
       const key = comboLineHash(item.menuId, [], "");
       const existing = billLines.find((l) => l.key === key);
       if (existing) {

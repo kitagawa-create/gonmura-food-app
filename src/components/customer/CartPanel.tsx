@@ -51,7 +51,7 @@ export function CartPanel({
 
   // メインアイテムの画像のみ取得
   useEffect(() => {
-    const ids = items.filter((i) => i.setId === "").map((i) => i.menuId);
+    const ids = items.filter((i) => i.setId === i.lineId).map((i) => i.menuId);
     if (ids.length === 0) return;
     const missing = ids.filter((id) => !(id in imageMap));
     if (missing.length === 0) return;
@@ -77,7 +77,7 @@ export function CartPanel({
   // メインアイテム順に親子関係でグループ化
   const orderedSets = useMemo(() => {
     return items
-      .filter((i) => i.setId === "")
+      .filter((i) => i.setId === i.lineId)
       .map((main) => ({
         main,
         sides: items.filter((s) => s.setId === main.lineId),
