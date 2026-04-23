@@ -562,7 +562,7 @@ function SortableMenuCard({
         isDragging ? "opacity-50 shadow-xl z-50" : ""
       } ${
         isSelected
-          ? "border-[color:var(--color-accent-char)] ring-2 ring-[color:var(--color-accent-char)]/30"
+          ? "border-[color:var(--color-accent-char)] ring-4 ring-[color:var(--color-accent-char)]/40"
           : sold
             ? "border-[color:var(--color-accent-warn)]"
             : hidden
