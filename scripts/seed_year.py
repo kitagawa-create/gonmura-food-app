@@ -86,25 +86,31 @@ def gen_items(guests: int, is_dinner: bool) -> list:
 
     for _ in range(guests):
         rid, rname, rprice = wc(RAMEN)
-        toppings = []
+        main_id = new_id()
         if random.random() < 0.42:
             n = random.choices([1, 2], weights=[72, 28])[0]
             chosen = random.sample(TOPPINGS, min(n, len(TOPPINGS)))
-            toppings = [mv({"menuId": sv(t[0]), "name": sv(t[1]), "price": iv(t[2]), "quantity": iv(1)}) for t in chosen]
+            for t in chosen:
+                items.append({
+                    "itemId": new_id(), "menuId": t[0], "name": t[1], "price": t[2],
+                    "quantity": 1, "setId": main_id, "note": "", "checked": False,
+                })
         items.append({
-            "menuId": rid, "name": rname, "price": rprice,
-            "quantity": 1, "toppings": toppings, "note": "", "checked": False,
+            "itemId": main_id, "menuId": rid, "name": rname, "price": rprice,
+            "quantity": 1, "setId": main_id, "note": "", "checked": False,
         })
 
     # ライス (30%)
     if random.random() < 0.30:
         sid, sname, sprice = wc(SIDES[:2])
-        items.append({"menuId": sid, "name": sname, "price": sprice, "quantity": 1, "toppings": [], "note": "", "checked": False})
+        item_id = new_id()
+        items.append({"itemId": item_id, "menuId": sid, "name": sname, "price": sprice, "quantity": 1, "setId": item_id, "note": "", "checked": False})
 
     # サイド (20%)
     if random.random() < 0.20:
         sid, sname, sprice = wc(SIDES[2:])
-        items.append({"menuId": sid, "name": sname, "price": sprice, "quantity": 1, "toppings": [], "note": "", "checked": False})
+        item_id = new_id()
+        items.append({"itemId": item_id, "menuId": sid, "name": sname, "price": sprice, "quantity": 1, "setId": item_id, "note": "", "checked": False})
 
     # ドリンク (ゲスト数 × 45%)
     for _ in range(guests):
@@ -113,7 +119,8 @@ def gen_items(guests: int, is_dinner: bool) -> list:
                 did, dname, dprice = wc(DRINKS_ALC)
             else:
                 did, dname, dprice = wc(DRINKS_SOFT)
-            items.append({"menuId": did, "name": dname, "price": dprice, "quantity": 1, "toppings": [], "note": "", "checked": False})
+            item_id = new_id()
+            items.append({"itemId": item_id, "menuId": did, "name": dname, "price": dprice, "quantity": 1, "setId": item_id, "note": "", "checked": False})
 
     return items
 
@@ -133,18 +140,21 @@ def build_writes(dt: datetime, table: str, guests: int) -> list:
     ts = tv(dt)
 
     writes = [
-        {"update": {"name": f"{BASE}/customers/{cid}", "fields": {"createdAt": ts, "updatedAt": ts}}},
+        {"update": {"name": f"{BASE}/customers/{cid}", "fields": {
+            "customerId": sv(cid), "tableId": sv(table), "guestCount": iv(guests),
+            "isPaid": bv(True), "createdAt": ts, "updatedAt": ts,
+        }}},
         {"update": {"name": f"{BASE}/customers/{cid}/orders/{oid}", "fields": {
-            "status": sv("paid"), "tableNumber": sv(table),
-            "guestCount": iv(guests), "createdAt": ts, "updatedAt": ts,
+            "orderId": sv(oid), "customerId": sv(cid), "status": sv("completed"),
+            "createdAt": ts, "updatedAt": ts,
         }}},
     ]
     for item in items:
-        iid = new_id()
-        writes.append({"update": {"name": f"{BASE}/customers/{cid}/orders/{oid}/items/{iid}", "fields": {
+        writes.append({"update": {"name": f"{BASE}/customers/{cid}/orders/{oid}/items/{item['itemId']}", "fields": {
+            "itemId": sv(item["itemId"]), "orderId": sv(oid), "customerId": sv(cid),
             "menuId": sv(item["menuId"]), "name": sv(item["name"]),
             "price": iv(item["price"]), "quantity": iv(item["quantity"]),
-            "toppings": av(item["toppings"]),
+            "setId": sv(item["setId"]),
             "note": sv(item["note"]), "checked": bv(item["checked"]),
         }}})
     return writes

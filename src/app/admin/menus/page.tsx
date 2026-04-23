@@ -152,6 +152,10 @@ export default function AdminMenusPage() {
     for (const c of categories) m.set(c.categoryId, c);
     return m;
   }, [categories]);
+  const displayCategories = useMemo(
+    () => [...categories.filter((c) => c.name !== "サイド"), FIXED_SIDE_CATEGORY as unknown as Category],
+    [categories]
+  );
 
   const visibleMenus = useMemo(() => menus.filter((m) => m.status !== "deleted"), [menus]);
 
@@ -160,6 +164,11 @@ export default function AdminMenusPage() {
     [categories]
   );
   const sideId = FIXED_SIDE_CATEGORY.categoryId;
+  const hasSideCategory = useCallback(
+    (menu: Menu) =>
+      menu.categoryIds.some((cid) => cid === sideId || categoryMap.get(cid)?.name === "サイド"),
+    [categoryMap, sideId]
+  );
 
   function sortByCategory(items: Menu[], categoryId: string | null): Menu[] {
     const isOsusume = categoryId !== null && categoryId === osusumeId;
@@ -187,14 +196,14 @@ export default function AdminMenusPage() {
         arr.push(m);
         groups.set(cid, arr);
       }
-      if (m.categoryIds.some((cid) => categoryMap.get(cid)?.name === "サイド")) {
+      if (hasSideCategory(m)) {
         const arr = groups.get(sideId) ?? [];
         arr.push(m);
         groups.set(sideId, arr);
       }
     }
     const sections: { category: Category | null; items: Menu[] }[] = [];
-    for (const c of categories) {
+    for (const c of displayCategories.filter((x) => x.categoryId !== sideId)) {
       const items = groups.get(c.categoryId);
       if (items && items.length > 0) {
         sections.push({ category: c, items: sortByCategory(items, c.categoryId) });
@@ -210,7 +219,7 @@ export default function AdminMenusPage() {
     }
     return sections;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [menus, categories, categoryMap, osusumeId, sideId]);
+  }, [menus, displayCategories, hasSideCategory, osusumeId, sideId]);
 
   function getStoragePath(url: string): string | null {
     try {
@@ -369,15 +378,17 @@ export default function AdminMenusPage() {
     [selectedIds, visibleMenus]
   );
 
-  const effectiveTab = activeTab || categories[0]?.categoryId || "";
+  const effectiveTab = activeTab || displayCategories[0]?.categoryId || "";
 
   const currentSection = useMemo(() => {
     if (!effectiveTab) return null;
-    const cat = categories.find((c) => c.categoryId === effectiveTab) ?? null;
+    const cat = effectiveTab === sideId
+      ? (FIXED_SIDE_CATEGORY as unknown as Category)
+      : displayCategories.find((c) => c.categoryId === effectiveTab) ?? null;
     const items = sortByCategory(
       visibleMenus.filter((m) =>
         effectiveTab === sideId
-          ? m.categoryIds.some((cid) => categoryMap.get(cid)?.name === "サイド")
+          ? hasSideCategory(m)
           : m.categoryIds.includes(effectiveTab)
       ),
       effectiveTab
@@ -386,7 +397,7 @@ export default function AdminMenusPage() {
       cat?.categoryId === osusumeId ? "sortOrderFeatured" : cat?.categoryId === sideId ? "sortOrderSide" : "sortOrder";
     return { category: cat, items, fieldName };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveTab, categories, visibleMenus, osusumeId, sideId]);
+  }, [effectiveTab, displayCategories, visibleMenus, osusumeId, sideId, hasSideCategory]);
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -418,11 +429,13 @@ export default function AdminMenusPage() {
         />
 
         {/* カテゴリタブ */}
-        {!loading && categories.length > 0 && (
+        {!loading && displayCategories.length > 0 && (
           <div className="flex gap-1 overflow-x-auto no-scrollbar">
-            {categories.map((cat) => {
+            {displayCategories.map((cat) => {
               const isActive = effectiveTab === cat.categoryId;
-              const count = visibleMenus.filter((m) => m.categoryIds.includes(cat.categoryId)).length;
+              const count = visibleMenus.filter((m) =>
+                cat.categoryId === sideId ? hasSideCategory(m) : m.categoryIds.includes(cat.categoryId)
+              ).length;
               return (
                 <button
                   key={cat.categoryId}
@@ -696,12 +709,19 @@ function MenuFormModal({
   );
   const sideCategory = FIXED_SIDE_CATEGORY as unknown as Category;
   const mainCategories = useMemo(
-    () => [...categories.filter((c) => c.name !== "おすすめ"), sideCategory],
+    () => [...categories.filter((c) => c.name !== "おすすめ" && c.name !== "サイド"), sideCategory],
     [categories, sideCategory]
   );
 
   const initPrimaryId = menu
-    ? (menu.categoryIds.find((id) => id !== osusumeCategory?.categoryId && id !== sideCategory.categoryId) ?? "")
+    ? (
+        menu.categoryIds.some((id) => id === sideCategory.categoryId || categories.find((c) => c.categoryId === id)?.name === "サイド")
+          ? sideCategory.categoryId
+          : menu.categoryIds.find((id) => {
+              const cat = categories.find((c) => c.categoryId === id);
+              return id !== osusumeCategory?.categoryId && cat?.name !== "サイド";
+            }) ?? ""
+      )
     : "";
   const initIsOsusume = menu
     ? (osusumeCategory ? menu.categoryIds.includes(osusumeCategory.categoryId) : false)

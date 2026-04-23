@@ -1,6 +1,5 @@
-import { initializeApp, cert } from "firebase-admin/app";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { readFileSync } from "fs";
+import { initializeApp } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 
 // Use application default credentials
 initializeApp({ projectId: "gonmura-food" });
@@ -42,11 +41,11 @@ const MENUS = {
   hotCoffee:     { id: "mE2iYIuQgDHmapOWRR3v",  name: "ホットコーヒー",       price: 320 },
 };
 
-function item(menu, qty, toppings = [], note = "", checked = false) {
-  return { menuId: menu.id, name: menu.name, price: menu.price, quantity: qty, toppings, note, checked };
+function item(menu, qty, sides = [], note = "", checked = false) {
+  return { menuId: menu.id, name: menu.name, price: menu.price, quantity: qty, sides, note, checked };
 }
 
-function topping(menu, qty = 1) {
+function side(menu, qty = 1) {
   return { menuId: menu.id, name: menu.name, price: menu.price, quantity: qty };
 }
 
@@ -60,13 +59,13 @@ function topping(menu, qty = 1) {
 
 const scenarios = [
   {
-    customer: { offset: -88 }, // 11:32
+    customer: { offset: -88, isPaid: true }, // 11:32
     table: "3", guests: 2,
     orders: [
       {
-        status: "paid", offset: -88,
+        status: "completed", offset: -88,
         items: [
-          item(MENUS.hamburg, 1, [topping(MENUS.fries)]),
+          item(MENUS.hamburg, 1, [side(MENUS.fries)]),
           item(MENUS.carbonara, 1),
           item(MENUS.cola, 2),
         ],
@@ -74,13 +73,13 @@ const scenarios = [
     ],
   },
   {
-    customer: { offset: -55 }, // 12:05
+    customer: { offset: -55, isPaid: true }, // 12:05
     table: "7", guests: 4,
     orders: [
       {
-        status: "paid", offset: -55,
+        status: "completed", offset: -55,
         items: [
-          item(MENUS.cheeseHamburg, 2, [topping(MENUS.riceAdd)]),
+          item(MENUS.cheeseHamburg, 2, [side(MENUS.riceAdd)]),
           item(MENUS.margherita, 1),
           item(MENUS.carbonara, 1),
           item(MENUS.caesarSalad, 1),
@@ -89,7 +88,7 @@ const scenarios = [
         ],
       },
       {
-        status: "paid", offset: -30, // 追加注文 12:30
+        status: "completed", offset: -30, // 追加注文 12:30
         items: [
           item(MENUS.iceCream, 2),
           item(MENUS.hotCoffee, 2),
@@ -98,20 +97,20 @@ const scenarios = [
     ],
   },
   {
-    customer: { offset: -12 }, // 12:48
+    customer: { offset: -12, isPaid: false }, // 12:48
     table: "1", guests: 1,
     orders: [
       {
         status: "pending", offset: -12,
         items: [
-          item(MENUS.demiHamburg, 1, [topping(MENUS.riceAdd)]),
+          item(MENUS.demiHamburg, 1, [side(MENUS.riceAdd)]),
           item(MENUS.oolong, 1),
         ],
       },
     ],
   },
   {
-    customer: { offset: -39 }, // 12:21
+    customer: { offset: -39, isPaid: false }, // 12:21
     table: "5", guests: 3,
     orders: [
       {
@@ -128,11 +127,11 @@ const scenarios = [
     ],
   },
   {
-    customer: { offset: -65 }, // 11:55
+    customer: { offset: -65, isPaid: true }, // 11:55
     table: "9", guests: 2,
     orders: [
       {
-        status: "paid", offset: -65,
+        status: "completed", offset: -65,
         items: [
           item(MENUS.margherita, 1),
           item(MENUS.carbonara, 1),
@@ -144,13 +143,13 @@ const scenarios = [
     ],
   },
   {
-    customer: { offset: -2 }, // 13:02 (最近入店)
+    customer: { offset: -2, isPaid: false }, // 13:02 (最近入店)
     table: "2", guests: 2,
     orders: [
       {
         status: "pending", offset: -2,
         items: [
-          item(MENUS.cheeseHamburg, 1, [topping(MENUS.fries)]),
+          item(MENUS.cheeseHamburg, 1, [side(MENUS.fries)]),
           item(MENUS.pepperoni, 1),
           item(MENUS.cola, 1),
           item(MENUS.oj, 1),
@@ -164,9 +163,14 @@ async function seed() {
   for (const s of scenarios) {
     const customerRef = db.collection("customers").doc();
     const customerCreated = fsTs(s.customer.offset);
+    const isPaid = s.customer.isPaid === true;
     await customerRef.set({
+      customerId: customerRef.id,
+      tableId: s.table,
+      guestCount: s.guests,
+      isPaid,
       createdAt: customerCreated,
-      updatedAt: customerCreated,
+      updatedAt: fsTs(Math.max(...s.orders.map((o) => o.offset))),
     });
     console.log(`Customer ${customerRef.id} (table ${s.table})`);
 
@@ -174,27 +178,47 @@ async function seed() {
       const orderRef = customerRef.collection("orders").doc();
       const orderCreated = fsTs(o.offset);
       await orderRef.set({
+        orderId: orderRef.id,
+        customerId: customerRef.id,
         status: o.status,
-        tableNumber: s.table,
-        guestCount: s.guests,
         createdAt: orderCreated,
         updatedAt: orderCreated,
       });
       console.log(`  Order ${orderRef.id} (${o.status})`);
 
       for (const it of o.items) {
-        const itemRef = orderRef.collection("items").doc();
-        await itemRef.set({
+        const mainItemRef = orderRef.collection("items").doc();
+        await mainItemRef.set({
+          itemId: mainItemRef.id,
+          orderId: orderRef.id,
+          customerId: customerRef.id,
           menuId: it.menuId,
           name: it.name,
           price: it.price,
           quantity: it.quantity,
-          toppings: it.toppings,
+          setId: mainItemRef.id,
           note: it.note,
           checked: it.checked,
           createdAt: orderCreated,
           updatedAt: orderCreated,
         });
+        for (const s of it.sides) {
+          const sideRef = orderRef.collection("items").doc();
+          await sideRef.set({
+            itemId: sideRef.id,
+            orderId: orderRef.id,
+            customerId: customerRef.id,
+            menuId: s.menuId,
+            name: s.name,
+            price: s.price,
+            quantity: s.quantity,
+            setId: mainItemRef.id,
+            note: "",
+            checked: it.checked,
+            createdAt: orderCreated,
+            updatedAt: orderCreated,
+          });
+        }
       }
       console.log(`    ${o.items.length} items`);
     }

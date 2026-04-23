@@ -21,24 +21,28 @@ iPad 横画面メインで、スマホ・PCまでレスポンシブ対応。
 firestore-root
 │
 ├── categories/{categoryId}
-│   ├── name        : string           // "ハンバーグ" "パスタ" 等
-│   ├── sortOrder   : int              // 表示順（昇順、DnDで変更）
+│   ├── name              : string
+│   ├── sortOrder         : int
+│   ├── sortOrderFeatured : int
+│   ├── sortOrderSide     : int
 │   ├── createdAt   : Timestamp
 │   └── updatedAt   : Timestamp
 │
 ├── menus/{menuId}
-│   ├── name        : string           // "チャーシューメン"
-│   ├── description : string
-│   ├── price       : int              // 税込・整数
-│   ├── categoryIds : array[string]    // 複数カテゴリに所属可能
-│   ├── imageUrl    : string           // Firebase Storage URL
-│   ├── isAvailable : boolean          // false = 非表示（物理削除しない）
-│   ├── isSoldOut?  : boolean          // true = 売り切れ（顧客側で薄表示+「売り切れ」オーバーレイ）
-│   ├── sortOrder?  : int              // 表示順（長押し→タップで変更、未設定は末尾）
+│   ├── name              : string
+│   ├── description       : string
+│   ├── price             : int        // 税抜・整数
+│   ├── categoryIds       : array[string]
+│   ├── imageUrl          : string
+│   ├── status            : string     // "active" | "soldout" | "hidden" | "deleted"
+│   ├── sortOrder         : int
+│   ├── sortOrderFeatured : int
+│   ├── sortOrderSide     : int
 │   ├── createdAt   : Timestamp
 │   └── updatedAt   : Timestamp
 │
 ├── customers/{customerId}
+│   ├── customerId  : string
 │   ├── tableId     : string
 │   ├── guestCount  : int
 │   ├── isPaid      : boolean
@@ -46,12 +50,16 @@ firestore-root
 │   ├── updatedAt   : Timestamp
 │   │
 │   └── orders/{orderId}
+│       ├── orderId     : string
 │       ├── customerId : string        // customers/{customerId} の参照
-│       ├── status     : string        // "pending" → "completed"
+│       ├── status     : string        // "pending" | "completed"
 │       ├── createdAt  : Timestamp
 │       ├── updatedAt  : Timestamp
 │       │
 │       └── items/{itemId}
+│           ├── itemId     : string
+│           ├── orderId    : string
+│           ├── customerId : string
 │           ├── menuId    : string
 │           ├── name      : string     // menus.name 複製
 │           ├── price     : int        // menus.price 複製（単品価格）
@@ -67,7 +75,7 @@ firestore-root
 │   ├── createdAt   : Timestamp
 │   └── updatedAt   : Timestamp
 │
-└── admins/{uid}                        // Firebase Auth uid がドキュメントID
+└── admins/{uid}
     ├── email      : string
     ├── role       : string            // "owner" | "staff"（未設定は staff 扱い）
     ├── createdAt  : Timestamp
@@ -76,12 +84,12 @@ firestore-root
 
 ### 設計の要点
 
-- **スナップショット複製**: `orders.items` に name と price を複製。メニュー価格変更が過去注文に影響しない
-- **物理削除しない**: メニューは `isAvailable: false` で非表示。過去注文の参照が切れない
+- **スナップショット複製**: `items` に name と price を複製。メニュー価格変更が過去注文に影響しない
+- **ソフトデリート**: メニューは `status: "deleted"` で非表示。過去注文の参照が切れない
 - **カテゴリ多対多**: `categoryIds` を配列にし、1メニューが複数カテゴリ所属可
-- **支払いは管理者のみ**: Security Rules で status を "paid" に変更できるのは管理者のみ
-- **表示順は長押し→タップ並替えで制御**: `sortOrder` フィールドを `writeBatch` で原子的に更新
-- **コンボ（メインディッシュ+サイドメニュー）モデル**: `items[i].toppings` にサイドメニューをネスト。`quantity` は「1個あたり」の個数（実消費 = コンボ quantity × side.quantity）
+- **支払い状態は customer 単位**: 精算済みかどうかは `customers.isPaid` で管理し、`orders.status` は進行状態だけ持つ
+- **表示順は用途別に分離**: 通常カテゴリは `sortOrder`、おすすめは `sortOrderFeatured`、サイドは `sortOrderSide`
+- **セット商品モデル**: `items` はフラットに保存し、`setId` でメインとサイドを関連付ける
 
 ---
 
@@ -91,7 +99,7 @@ firestore-root
 | パス | 内容 |
 |---|---|
 | `/setup` | 初期設定（テーブル番号 + テーブル変更用PIN） |
-| `/menu` | メニュー一覧（2カラム: カテゴリタブ+商品グリッド / サイドカート）。メインディッシュはサイド選択モーダル、サイドカートで**そのまま注文確定**（完了ダイアログ3秒オートクローズ） |
+| `/menu` | メニュー一覧（2カラム: カテゴリタブ+商品グリッド / サイドカート）。メインディッシュはサイド選択モーダル、サイドカートでそのまま注文確定 |
 | `/order/history` | テーブルの注文履歴（カードグリッド） |
 | `/bill` | お会計伝票（レシート風、レジに提示） |
 
@@ -99,11 +107,11 @@ firestore-root
 | パス | 内容 |
 |---|---|
 | `/admin/login` | メール/パスワードログイン |
-| `/admin/orders` | 注文管理（商品チェックリスト方式、全チェック→「提供完了」ボタンで completed へ、履歴ビュー+日付検索） |
-| `/admin/register` | レジ（未精算/精算済タブ + **本日売上ドーナツ円グラフ + 目標達成率**） |
-| `/admin/sales` | 売上分析（owner のみ。KPIカード + 売上推移/メニュー別売数/価格変更前後比較を切替、コンボ集計は flattenForReceipt で分解） |
-| `/admin/menus` | メニュー管理（owner: 全機能 / staff: 公開+売り切れトグル、長押し→タップ並替え） |
-| `/admin/categories` | カテゴリ管理（owner のみ、長押し→タップ並替え） |
+| `/admin/orders` | 注文管理（商品チェック、提供完了、取消、履歴表示） |
+| `/admin/register` | 支払い履歴（日付・テーブル絞り込み） |
+| `/admin/sales` | 売上分析（owner のみ。月次 KPI + 日別グラフ） |
+| `/admin/menus` | メニュー管理（owner: 全機能 / staff: ステータス変更、並び替え） |
+| `/admin/categories` | カテゴリ管理（owner のみ、通常カテゴリのみ表示） |
 | `/admin/tables` | テーブル番号+PIN設定（サイドバー非表示、URL直打ち用） |
 
 ---
@@ -117,35 +125,36 @@ firestore-root
   → localStorage("gonmura-table") に保存
   → /menu にリダイレクト
 
-/menu ヘッダーの「変更」ボタンで再設定可（未 paid 注文がある間は非表示）
+/menu ヘッダーの「変更」ボタンで再設定可（未精算セッションがある間は非表示）
 ```
 
 ### 2. メニュー閲覧〜カート追加
 ```
 客が /menu を開く
-  → getDocs(menus where isAvailable==true) + getDocs(categories orderBy sortOrder)
+  → getDocs(menus where status in ["active","soldout"]) + getDocs(categories orderBy sortOrder)
   → カテゴリタブ（スワイプ/ドラッグ切替）で filter
   → メニュータップで詳細モーダル
      ├── メインディッシュ: サイド選択（1個あたりの個数を ± で調整）
      └── その他（単品メニュー）: 数量ステッパー
   → 「カートに追加」
-  → CartContext.addItem → comboLineHash(menuId, toppings) で同構成コンボへ merge、
-     新規なら lineId を発行して追加、localStorage("gonmura-cart-{N}") に自動保存
+  → CartContext.addItem / addSet
+  → 単品は lineId=setId で保存、セットはメイン lineId を setId にしてサイドを紐付け
+  → localStorage("gonmura-cart-{N}") に自動保存
 ```
 
 ### 3. 注文送信（`/menu` サイドカート内で完結）
 ```
 客がサイドカート（CartPanel）で「注文を確定する」
-  → 在庫検証: コンボ本体+全サイドの menuId を documentId() in chunks(max30) で取得
-     いずれかが isAvailable=false または isSoldOut=true →
-       該当コンボを removeItem(lineId)、品切れ通知ダイアログ表示
+  → 在庫検証: 注文対象 menuId を documentId() in chunks(max30) で取得
+     いずれかが status != "active" →
+       該当セットを removeItem(lineId)、品切れ通知ダイアログ表示
   → setDoc(orders/{自動ID}, {
-       items,        // OrderItem[]（コンボ単位、toppings ネスト）
        status: "pending",
-       tableNumber,
-       customerNote,
+       orderId,
+       customerId,
        createdAt/updatedAt: serverTimestamp()
      })
+  → setDoc(items/{自動ID}) を行ごとに保存（フラット、setId で親子表現）
   → trackEvent("purchase", { table_number, items_count, total_amount })
   → clearCart() → 完了ダイアログ（3秒オートクローズ、画面遷移なし）
 ```
@@ -169,21 +178,20 @@ firestore-root
      → 未精算注文をまとめて伝票表示（税込逆算で消費税分離）
 
 管理側 /admin/register
-  ├── 本日の売上ドーナツ円グラフ（達成率%、目標は localStorage で編集可）
-  ├── 未精算タブ: テーブル別注文一覧 + 「精算完了」ボタン
-  └── 精算済タブ: 日付フィルタ付き
-     → 「精算完了」→ 全注文の status を "paid" に writeBatch で更新
+  └── 支払い履歴: 日付フィルタ付き
+
+客が /bill で支払い確定
+  → customers/{customerId}.isPaid = true
+  → customer セッションと localStorage をクリア
 ```
 
 ### 6. 売上分析
 ```
 /admin/sales （owner のみ）
-  ├── KPIカード: 合計売上 / 注文数 / 客単価 / 平均品数
-  ├── 期間切替 <select>: 日別(直近90日) / 週別(52週) / 月別(36ヶ月)
-  └── 分析切替 <select>:
-       ├── 売上推移: バー or 折れ線。バータップで期間詳細(注文数/客単価/メニュー別内訳)
-       ├── メニュー別売数: 折れ線（最大5メニュー重ね描き、同一スケール）
-       └── 価格変更前後比較: 価格帯別の売数推移を折れ線で比較
+  ├── 表示月を選択
+  ├── 月内の orders を collectionGroup で取得
+  ├── 対応する customer の isPaid === true のものだけ集計
+  └── KPIカード + 日別売上バーを表示
 ```
 
 ### 7. データの流れ
@@ -204,7 +212,7 @@ firestore-root
      │                         │                           │
      │ getDocs(orders) ───────►│                           │
      │◄── 未精算注文 ───────────┤                           │
-     │                         │◄── updateDoc("paid") ─────┤（レジ精算）
+     │                         │◄── updateDoc(isPaid=true) ┤（会計）
 ```
 
 ---
@@ -225,8 +233,9 @@ Firestore → BigQuery エクスポート拡張を前提。
 | コレクション | 読み | 書き |
 |---|---|---|
 | `categories` | 誰でも | owner のみ |
-| `menus` | 誰でも | create / delete: owner、update: owner、staff は `isAvailable` + `isSoldOut` + `updatedAt` のみ可 |
-| `orders` | 誰でも | 作成は誰でも（tableNumber 1-30 バリデーション）/ 更新・削除は staff 以上 |
+| `menus` | 誰でも | create / delete: owner、update: owner、staff は `status` + `updatedAt` のみ可 |
+| `customers` | 誰でも | create は誰でも、update は staff 以上。客側は `tableId` または `isPaid` と `updatedAt` のみ更新可 |
+| `orders` | 誰でも | create は誰でも、update / delete は staff 以上。客側は精算時に `updatedAt` のみ更新可 |
 | `admins` | 自分の uid のみ | — |
 | storage `menus/` | 誰でも | 認証済ユーザーのみ |
 
@@ -239,7 +248,10 @@ Firestore → BigQuery エクスポート拡張を前提。
 | キー | 内容 |
 |---|---|
 | `gonmura-table` | テーブル番号（/setup で設定、/menu の変更モーダルで更新可） |
-| `gonmura-table-pin` | テーブル変更用PIN（4桁、デフォルト "1234"） |
+| `gonmura-table-id` | `tables/{tableId}` のドキュメントID |
+| `gonmura-device-id` | タブレット固有ID（初回アクセス時に生成して保持） |
+| `gonmura-guest-count` | 人数（sessionStorage。精算後にクリア） |
+| `gonmura-customer-id` | `customers/{customerId}` のドキュメントID（精算後にクリア） |
 | `gonmura-cart-{N}` | テーブルNのカート（精算時にクリア、lineId 付きコンボ単位で保存） |
 | `gonmura-sales-goal` | 本日売上目標（管理画面で編集、default ¥100,000） |
 

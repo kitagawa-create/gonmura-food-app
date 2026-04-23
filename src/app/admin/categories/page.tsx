@@ -19,7 +19,6 @@ import {
   where,
   writeBatch,
 } from "firebase/firestore";
-import { Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
@@ -42,16 +41,6 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-
-const FIXED_SIDE_CATEGORY = {
-  categoryId: "__fixed_side__",
-  name: "サイド",
-  sortOrder: Number.MAX_SAFE_INTEGER - 1,
-  sortOrderFeatured: Number.MAX_SAFE_INTEGER - 1,
-  sortOrderSide: Number.MAX_SAFE_INTEGER - 1,
-  createdAt: Timestamp.fromMillis(0),
-  updatedAt: Timestamp.fromMillis(0),
-} as const;
 
 export default function AdminCategoriesPage() {
   const role = useAdminRole();
@@ -100,12 +89,13 @@ export default function AdminCategoriesPage() {
 
   // おすすめと通常カテゴリを分離
   const osusumeCategory = categories.find((c) => c.name === "おすすめ") ?? null;
-  const sideCategory = FIXED_SIDE_CATEGORY;
-  const otherCategories = categories.filter((c) => c.name !== "おすすめ");
+  const hiddenSideCategories = categories.filter((c) => c.name === "サイド");
+  const otherCategories = categories.filter((c) => c.name !== "おすすめ" && c.name !== "サイド");
 
   function findDuplicateName(name: string, excludeId?: string): string | null {
     const trimmed = name.trim();
     if (!trimmed) return null;
+    if (trimmed === "サイド") return "「サイド」は固定カテゴリのため追加できません";
     const hit = categories.find(
       (c) => c.categoryId !== excludeId && c.name.trim() === trimmed
     );
@@ -209,7 +199,11 @@ export default function AdminCategoriesPage() {
     const oldIdx = otherCategories.findIndex((c) => c.categoryId === active.id);
     const newIdx = otherCategories.findIndex((c) => c.categoryId === over.id);
     const next = arrayMove(otherCategories, oldIdx, newIdx);
-    setCategories([...(osusumeCategory ? [osusumeCategory] : []), ...next, sideCategory]);
+    setCategories([
+      ...(osusumeCategory ? [osusumeCategory] : []),
+      ...next,
+      ...hiddenSideCategories,
+    ]);
     persistOrder(next);
   }
 

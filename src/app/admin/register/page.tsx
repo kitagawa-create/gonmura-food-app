@@ -47,6 +47,12 @@ type TableBill = {
   firstOrderAt: Date | null;
 };
 
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
 function todayISO() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -127,22 +133,36 @@ export default function AdminRegisterPage() {
       async (snap) => {
         const current = ++gen;
         const customers = snap.docs;
-        const orderDocs = await Promise.all(
-          customers.map(async (customerSnap) => {
-            const ordersSnap = await getDocs(
-              query(
-                collectionGroup(db, "orders"),
-                where("customerId", "==", customerSnap.id)
-              )
-            );
-            return ordersSnap.docs
-              .filter((d) => d.ref.parent.parent !== null)
-              .map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
-          })
+        const customerIds = customers.map((customer) => customer.id);
+        const orderSnaps = await Promise.all(
+          chunk(customerIds, 30).map((ids) =>
+            getDocs(query(collectionGroup(db, "orders"), where("customerId", "in", ids)))
+          )
         );
-        const withItems = await Promise.all(orderDocs.flat().map(async (order) => {
-          const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.orderId)));
-          return { ...order, items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)) };
+        const orders = orderSnaps.flatMap((ordersSnap) =>
+          ordersSnap.docs
+            .filter((d) => d.ref.parent.parent !== null)
+            .map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id))
+        );
+        const itemsByOrderId = new Map<string, ReturnType<typeof normalizeOrderItem>[]>();
+        const itemSnaps = await Promise.all(
+          chunk(orders.map((order) => order.orderId), 30)
+            .filter((orderIds) => orderIds.length > 0)
+            .map((orderIds) =>
+              getDocs(query(collectionGroup(db, "items"), where("orderId", "in", orderIds)))
+            )
+        );
+        for (const itemsSnap of itemSnaps) {
+          for (const d of itemsSnap.docs) {
+            const item = normalizeOrderItem(d.id, d.data() as Record<string, unknown>);
+            const arr = itemsByOrderId.get(item.orderId) ?? [];
+            arr.push(item);
+            itemsByOrderId.set(item.orderId, arr);
+          }
+        }
+        const withItems = orders.map((order) => ({
+          ...order,
+          items: itemsByOrderId.get(order.orderId) ?? [],
         }));
         if (cancelled || current !== gen) return;
         const missingIds = [...new Set(withItems.map((o) => o.customerId))].filter((id) => !customerInfoMapRef.current.has(id));

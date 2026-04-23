@@ -55,9 +55,7 @@ service cloud.firestore {
       allow read: if true;
       allow create: if true;
       allow update: if isStaff()
-        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt"])
-            && request.resource.data.status == "paid"
-            && (resource.data.status == "pending" || resource.data.status == "completed"));
+        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(["updatedAt"]);
       allow delete: if isStaff();
     }
 
@@ -74,16 +72,15 @@ service cloud.firestore {
       allow read: if true;
       allow update: if (isStaff()
           && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['tableId']))
-        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(["tableId", "updatedAt"]);
+        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(["tableId", "updatedAt"])
+        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(["isPaid", "updatedAt"]);
       allow delete: if isStaff();
 
       match /orders/{orderId} {
         allow create: if true;
         allow read: if true;
         allow update: if isStaff()
-          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt"])
-              && request.resource.data.status == "paid"
-              && (resource.data.status == "pending" || resource.data.status == "completed"));
+          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(["updatedAt"]);
         allow delete: if isStaff();
 
         match /items/{itemId} {

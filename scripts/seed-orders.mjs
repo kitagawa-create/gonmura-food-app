@@ -198,8 +198,10 @@ for (let day = new Date(START); day < END; day.setDate(day.getDate() + 1)) {
     const customerRef = db.collection("customers").doc(customerId);
 
     await batchSet(customerRef, {
+      customerId,
       tableId,
       guestCount,
+      isPaid: true,
       createdAt: Timestamp.fromDate(sessionDate),
       updatedAt: Timestamp.fromDate(sessionDate),
     });
@@ -217,8 +219,9 @@ for (let day = new Date(START); day < END; day.setDate(day.getDate() + 1)) {
       const orderRef = customerRef.collection("orders").doc(orderId);
 
       await batchSet(orderRef, {
+        orderId,
         customerId,
-        status: "paid",
+        status: "completed",
         createdAt: Timestamp.fromDate(orderTs),
         updatedAt: Timestamp.fromDate(orderTs),
       });
@@ -234,19 +237,43 @@ for (let day = new Date(START); day < END; day.setDate(day.getDate() + 1)) {
       for (let r = 0; r < mainCount; r++) {
         const main = pick(mains);
         const note = Math.random() < 0.1 ? pick(NOTES) : "";
-        itemList.push({ menuId: main.id, name: main.name, price: main.price, quantity: 1, note, toppings: [], checked: true });
+        const mainItemId = randomUUID();
+        itemList.push({
+          itemId: mainItemId,
+          orderId,
+          customerId,
+          menuId: main.id,
+          name: main.name,
+          price: main.price,
+          quantity: 1,
+          setId: mainItemId,
+          note,
+          checked: true,
+        });
 
         // サイド（メインに付ける、50%）
         if (sides.length > 0 && Math.random() < 0.5) {
           const side = pick(sides);
-          itemList.push({ menuId: side.id, name: side.name, price: side.price, quantity: 1, note: "", toppings: [], checked: true });
+          itemList.push({
+            itemId: randomUUID(),
+            orderId,
+            customerId,
+            menuId: side.id,
+            name: side.name,
+            price: side.price,
+            quantity: 1,
+            setId: mainItemId,
+            note: "",
+            checked: true,
+          });
         }
       }
 
       // サラダ・スープ（35%）
       if (saladSoups.length > 0 && Math.random() < 0.35) {
         const item = pick(saladSoups);
-        itemList.push({ menuId: item.id, name: item.name, price: item.price, quantity: 1, note: "", toppings: [], checked: true });
+        const itemId = randomUUID();
+        itemList.push({ itemId, orderId, customerId, menuId: item.id, name: item.name, price: item.price, quantity: 1, setId: itemId, note: "", checked: true });
       }
 
       // ドリンク（ランチ25%、ウィークデーディナー55%、週末70%）
@@ -258,21 +285,22 @@ for (let day = new Date(START); day < END; day.setDate(day.getDate() + 1)) {
           { value: 2, weight: 35 },
           { value: 3, weight: 15 },
         ]));
-        itemList.push({ menuId: dr.id, name: dr.name, price: dr.price, quantity: qty, note: "", toppings: [], checked: true });
+        const itemId = randomUUID();
+        itemList.push({ itemId, orderId, customerId, menuId: dr.id, name: dr.name, price: dr.price, quantity: qty, setId: itemId, note: "", checked: true });
       }
 
       // デザート（最終注文で35%、それ以外10%）
       const dessertProb = oi === orderCount - 1 ? 0.35 : 0.1;
       if (desserts.length > 0 && Math.random() < dessertProb) {
         const des = pick(desserts);
-        itemList.push({ menuId: des.id, name: des.name, price: des.price, quantity: 1, note: "", toppings: [], checked: true });
+        const itemId = randomUUID();
+        itemList.push({ itemId, orderId, customerId, menuId: des.id, name: des.name, price: des.price, quantity: 1, setId: itemId, note: "", checked: true });
       }
 
       for (const item of itemList) {
-        const itemRef = orderRef.collection("items").doc();
+        const itemRef = orderRef.collection("items").doc(item.itemId);
         await batchSet(itemRef, {
           ...item,
-          orderId,
           createdAt: Timestamp.fromDate(orderTs),
           updatedAt: Timestamp.fromDate(orderTs),
         });

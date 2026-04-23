@@ -63,7 +63,7 @@ src/
 │   ├── cart-context.tsx          # CartProvider（localStorage永続化、テーブルごとカート分離、数量指定addItem、updateItem でin-place更新）
 │   ├── admin-auth.ts            # loginWithEmail, logout, getAdminRole, subscribeAuth
 │   ├── analytics.ts             # trackEvent（Firebase Analytics logEvent wrapper）
-│   └── order-utils.ts           # comboUnitPrice, comboLineTotal, orderGrandTotal, flattenForReceipt, comboLineHash（menuId+toppings+noteの3要素でハッシュ）, normalizeMenu, normalizeOrder, normalizeOrderItem, newLineId
+│   └── order-utils.ts           # comboUnitPrice, comboLineTotal, orderGrandTotal, flattenForReceipt, comboLineHash（menuId+sides+noteの3要素でハッシュ）, normalizeMenu, normalizeOrder, normalizeOrderItem, newLineId
 └── types/
     └── index.ts                 # Category, Menu, Order, OrderItem, OrderStatus, AdminRole, CartItem
 ```
@@ -71,41 +71,40 @@ src/
 ## 型定義 (src/types/index.ts)
 ```
 MenuStatus        "active" | "soldout" | "hidden" | "deleted"
-Category          { id, name, sortOrder: number, createdAt, updatedAt }
-Menu              { id, name, description, price: number, categoryIds: string[], imageUrl: string, status: MenuStatus, sortOrder: number, sortOrderFeatured: number, createdAt, updatedAt }
-OrderItemTopping  { menuId, name, price: number, quantity: number }  ← quantity は「1コンボあたり」
-OrderItem         { id, menuId, name, price: number, quantity: number, toppings: OrderItemTopping[], note: string, checked: boolean }  ← 注文時スナップショット。price は単品価格（サイドメニュー分は含まない）
-OrderStatus       "pending" | "completed" | "paid"
+Category          { categoryId, name, sortOrder: number, sortOrderFeatured: number, sortOrderSide: number, createdAt, updatedAt }
+Menu              { menuId, name, description, price: number, categoryIds: string[], imageUrl: string, status: MenuStatus, sortOrder: number, sortOrderFeatured: number, sortOrderSide: number, createdAt, updatedAt }
+OrderItem         { itemId, orderId, customerId, menuId, name, price: number, quantity: number, setId: string, note: string, checked: boolean }
+OrderStatus       "pending" | "completed"
 AdminRole         "owner" | "staff"
-Order             { id, status: OrderStatus, customerId: string, createdAt, updatedAt }  ← items はサブコレクション
+Customer          { customerId, tableId: string, guestCount: number, isPaid: boolean, createdAt, updatedAt }
+Order             { orderId, status: OrderStatus, customerId: string, createdAt, updatedAt }  ← items はサブコレクション
 OrderWithItems    Order & { items: OrderItem[] }  ← ランタイム結合型
-Table             { id, tableNumber: string, deviceId: string, pin: string, createdAt, updatedAt }
-CartItemTopping   { menuId, name, price: number, quantity: number }  ← quantity は「1コンボあたり」
-CartItem          { lineId, menuId, name, price: number, quantity: number, toppings: CartItemTopping[], note: string }  ← localStorage保存、Firestore不使用。lineId でコンボを識別（同 menuId でも構成が違えば別 line）
+Table             { tableId, tableNumber: string, deviceId: string, deleted: boolean, createdAt, updatedAt }
+CartItem          { lineId, setId, menuId, name, price: number, quantity: number, note: string }
 ```
 
 ## Firestore コレクション
-- `categories/{categoryId}` → Category型。name, sortOrder（長押し→タップ並替え対応）
-- `menus/{menuId}` → Menu型。price整数, categoryIds配列, status で公開/売切/非公開/削除を制御, sortOrder で並び替え, sortOrderFeatured はおすすめカテゴリ内での表示順（sortOrder と独立）
-- `customers/{customerId}` → 顧客セッション（id, tableId, guestCount, createdAt, updatedAt）
-- `customers/{customerId}/orders/{orderId}` → Order型。items はサブコレクション。status で遷移管理
-- `customers/{customerId}/orders/{orderId}/items/{itemId}` → OrderItem型。checked で調理チェック状態管理
-- `tables/{tableId}` → Table型。deviceId でタブレット紐付け、pin でテーブル変更認証
+- `categories/{categoryId}` → Category型。おすすめ/サイド用の sortOrderFeatured / sortOrderSide も保持
+- `menus/{menuId}` → Menu型。status で公開/売切/非公開/削除を制御、sortOrderFeatured / sortOrderSide も保持
+- `customers/{customerId}` → 顧客セッション。支払い済み判定は isPaid で管理
+- `customers/{customerId}/orders/{orderId}` → Order型。status は pending / completed のみ
+- `customers/{customerId}/orders/{orderId}/items/{itemId}` → OrderItem型。items はフラット保存、setId でメイン/サイドを関連付ける
+- `tables/{tableId}` → Table型。deviceId でタブレット紐付け
 - `admins/{uid}` → Admin型。Firebase Auth uid がドキュメントID
 
 ## ステータス遷移
 ```
-pending → completed → paid（正常フロー）
-注文管理画面で item.checked を1つずつトグル → 全チェック後「提供完了」ボタンで completed に遷移（5秒自動完了あり）
-取消は注文ドキュメント + items サブコレクションをすべて writeBatch で削除
-paid への変更はお客様の支払い完了ボタン（PinDialog認証後）から可能。writeBatchで一括更新後、セッション・localStorageをクリアし5秒後に/setupへリダイレクト
+pending → completed（注文進行）
+customers.isPaid: false → true（会計状態）
+注文管理画面で item.checked を1つずつトグル → 提供完了で completed に遷移
+会計時は customers.isPaid を true に更新し、セッション・localStorage をクリア
 ```
 
 ## Security Rules (firestore.rules)
 - categories: 誰でも読める、owner のみ書ける
 - menus: 誰でも読める / create・delete は owner / update は owner、staff は status + updatedAt のみ可
 - customers: 誰でも作成・読める / update・delete は staff 以上（tableId 変更は不可）
-- customers/orders: 誰でも作成・読める / update は staff 以上、または未認証でも「status + updatedAt のみ変更かつ pending/completed → paid」の場合のみ可 / delete は staff 以上
+- customers/orders: 誰でも作成・読める / update・delete は staff 以上。客側は精算時に `updatedAt` のみ更新可
 - customers/orders/items: 誰でも作成・読める / update・delete は staff 以上
 - tables: 誰でも読める / create は staff / update は staff または未割当タブレットの自己登録 / delete は owner
 - admins: 自分のuidのドキュメントのみ読める

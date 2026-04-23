@@ -11,10 +11,10 @@
  *   - 8%のメインディッシュ注文に備考メモ(アレルギー等)
  *
  * スキーマ:
- *   Customer:  { customerId, tableId, guestCount, createdAt, updatedAt }
- *   Order:     { orderId, customerId, status:"paid", createdAt, updatedAt }
- *   OrderItem: { itemId, menuId, name, price, quantity, toppings:[{menuId,name,price,quantity}],
- *                note, checked:true, customerId, orderId, createdAt, updatedAt }
+ *   Customer:  { customerId, tableId, guestCount, isPaid, createdAt, updatedAt }
+ *   Order:     { orderId, customerId, status:"completed", createdAt, updatedAt }
+ *   OrderItem: { itemId, orderId, customerId, menuId, name, price, quantity, setId,
+ *                note, checked, createdAt, updatedAt }
  */
 
 import { initializeApp } from "firebase-admin/app";
@@ -168,29 +168,34 @@ function genItems(guests, isDinner, customerId, orderId) {
   // 人数分のメインディッシュ (1人1品)
   for (let i = 0; i < guests; i++) {
     const main = rng.weighted(MAIN_DISHES);
-    const sides = [];
+    const mainItemId = newId();
 
     if (rng.next() < 0.45) {
       const s = rng.weighted(SIDES);
-      sides.push({ menuId: s.id, name: s.name, price: s.price, quantity: 1 });
+      items.push({
+        itemId: newId(), orderId, customerId,
+        menuId: s.id, name: s.name, price: s.price,
+        quantity: 1, setId: mainItemId, note: "", checked: true,
+      });
     }
 
     const note = rng.next() < 0.08 ? rng.pick(NOTES) : "";
 
     items.push({
-      itemId: newId(), menuId: main.id, name: main.name,
-      price: main.price, quantity: 1, toppings: sides, note,
-      checked: true, customerId, orderId,
+      itemId: mainItemId, orderId, customerId,
+      menuId: main.id, name: main.name, price: main.price,
+      quantity: 1, setId: mainItemId, note, checked: true,
     });
   }
 
   // デザート (35%)
   if (rng.next() < 0.35) {
     const d = rng.weighted(DESSERTS);
+    const itemId = newId();
     items.push({
-      itemId: newId(), menuId: d.id, name: d.name,
-      price: d.price, quantity: 1, toppings: [], note: "",
-      checked: true, customerId, orderId,
+      itemId, orderId, customerId,
+      menuId: d.id, name: d.name, price: d.price,
+      quantity: 1, setId: itemId, note: "", checked: true,
     });
   }
 
@@ -198,10 +203,11 @@ function genItems(guests, isDinner, customerId, orderId) {
   for (let i = 0; i < guests; i++) {
     if (rng.next() < 0.45) {
       const d = rng.weighted(DRINKS);
+      const itemId = newId();
       items.push({
-        itemId: newId(), menuId: d.id, name: d.name,
-        price: d.price, quantity: 1, toppings: [], note: "",
-        checked: true, customerId, orderId,
+        itemId, orderId, customerId,
+        menuId: d.id, name: d.name, price: d.price,
+        quantity: 1, setId: itemId, note: "", checked: true,
       });
     }
   }
@@ -262,6 +268,7 @@ async function seed() {
         customerId,
         tableId: table.tableId,
         guestCount,
+        isPaid: true,
         createdAt: ts,
         updatedAt: ts,
       });
@@ -270,7 +277,7 @@ async function seed() {
       batch.set(
         db.collection("customers").doc(customerId)
           .collection("orders").doc(orderId),
-        { orderId, customerId, status: "paid", createdAt: ts, updatedAt: ts }
+        { orderId, customerId, status: "completed", createdAt: ts, updatedAt: ts }
       );
 
       // Items
