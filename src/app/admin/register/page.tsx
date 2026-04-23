@@ -93,6 +93,14 @@ function mergeItems(orders: OrderWithItems[]) {
   return result;
 }
 
+function toDate(v: unknown): Date | null {
+  if (v && typeof v === "object" && typeof (v as { toDate?: unknown }).toDate === "function") {
+    return (v as { toDate: () => Date }).toDate();
+  }
+  if (v instanceof Date) return v;
+  return null;
+}
+
 export default function AdminRegisterPage() {
   const [paidOrders, setPaidOrders] = useState<OrderWithItems[]>([]);
   const [customerInfoMap, setCustomerInfoMap] = useState<Map<string, CustomerInfo>>(new Map());
@@ -119,16 +127,11 @@ export default function AdminRegisterPage() {
     const unsub = onSnapshot(
       query(
         collection(db, "customers"),
-        where("isPaid", "==", true),
-        where("updatedAt", ">=", Timestamp.fromDate(start)),
-        where("updatedAt", "<", Timestamp.fromDate(end)),
-        orderBy("updatedAt", "desc")
+        where("isPaid", "==", true)
       ),
       async (snap) => {
         const current = ++gen;
-        const customerIds = snap.docs.map((d) => d.id);
-        const customerSnaps = await Promise.all(customerIds.map((id) => getDoc(doc(db, "customers", id))));
-        const customers = customerSnaps.filter((s): s is typeof customerSnaps[number] & { data: () => Record<string, unknown> } => s.exists());
+        const customers = snap.docs;
         const orderDocs = await Promise.all(
           customers.map(async (customerSnap) => {
             const ordersSnap = await getDocs(
@@ -146,14 +149,26 @@ export default function AdminRegisterPage() {
           const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.orderId)));
           return { ...order, items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)) };
         }));
+        const filtered = withItems.filter((order) => {
+          const customer = customers.find((c) => c.id === order.customerId);
+          const customerData = customer?.data() as Record<string, unknown> | undefined;
+          const paidAt = toDate(customerData?.updatedAt)
+            ?? order.items
+              .map((item) => toDate((item as unknown as { updatedAt?: unknown }).updatedAt))
+              .filter((d): d is Date => d !== null)
+              .sort((a, b) => b.getTime() - a.getTime())[0]
+            ?? toDate((order as unknown as { updatedAt?: unknown }).updatedAt)
+            ?? toDate((order as unknown as { createdAt?: unknown }).createdAt);
+          return paidAt !== null && paidAt >= start && paidAt < end;
+        });
         if (cancelled || current !== gen) return;
-        const missingIds = [...new Set(withItems.map((o) => o.customerId))].filter((id) => !customerInfoMapRef.current.has(id));
+        const missingIds = [...new Set(filtered.map((o) => o.customerId))].filter((id) => !customerInfoMapRef.current.has(id));
         if (missingIds.length > 0) {
           const newData = await fetchCustomerInfo(missingIds);
           if (cancelled || current !== gen) return;
           customerInfoMapRef.current = new Map([...customerInfoMapRef.current, ...newData]);
         }
-        setPaidOrders(withItems);
+        setPaidOrders(filtered);
         setCustomerInfoMap(new Map(customerInfoMapRef.current));
         setOrdersLoaded(true);
       },

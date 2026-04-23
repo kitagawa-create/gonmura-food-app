@@ -44,6 +44,14 @@ function generateMonthOptions(): { value: string; label: string }[] {
   return options;
 }
 
+function toDate(v: unknown): Date | null {
+  if (v && typeof v === "object" && typeof (v as { toDate?: unknown }).toDate === "function") {
+    return (v as { toDate: () => Date }).toDate();
+  }
+  if (v instanceof Date) return v;
+  return null;
+}
+
 // ===== Bar Chart =====
 function BarChart({
   buckets,
@@ -234,13 +242,7 @@ export default function AdminSalesPage() {
         const [year, month] = selectedYearMonth.split("-").map(Number);
         const start = Timestamp.fromDate(new Date(year, month - 1, 1, 0, 0, 0));
         const end = Timestamp.fromDate(new Date(year, month, 0, 23, 59, 59, 999));
-        const customerSnapQuery = query(
-          collection(db, "customers"),
-          where("isPaid", "==", true),
-          where("updatedAt", ">=", start),
-          where("updatedAt", "<=", end),
-          orderBy("updatedAt", "desc")
-        );
+        const customerSnapQuery = query(collection(db, "customers"), where("isPaid", "==", true));
         const customerSnaps = await getDocs(customerSnapQuery);
         const guestMap = new Map<string, number>();
         const customerIds = customerSnaps.docs.map((snap) => {
@@ -272,9 +274,17 @@ export default function AdminSalesPage() {
             ),
           };
         }));
+        const customerMap = new Map(customerSnaps.docs.map((snap) => [snap.id, snap.data() as Record<string, unknown>]));
+        const filtered = withItems.filter((order) => {
+          const customerData = customerMap.get(order.customerId);
+          const paidAt = toDate(customerData?.updatedAt)
+            ?? toDate((order as unknown as { updatedAt?: unknown }).updatedAt)
+            ?? toDate((order as unknown as { createdAt?: unknown }).createdAt);
+          return paidAt !== null && paidAt >= start.toDate() && paidAt <= end.toDate();
+        });
         if (cancelled) return;
         setCustomerGuestMap(guestMap);
-        setOrders(withItems);
+        setOrders(filtered);
       } catch (e) {
         if (!cancelled) console.error("[sales] fetchData failed:", e);
       } finally {
