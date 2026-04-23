@@ -259,9 +259,6 @@ export default function AdminCategoriesPage() {
                 ))}
               </SortableContext>
             </DndContext>
-            <li className="rounded-xl border border-dashed border-[color:var(--color-border)] px-4 py-3 text-sm text-[color:var(--color-text-muted)]">
-              {sideCategory.name} は固定カテゴリです
-            </li>
           </ul>
         </>
       )}
