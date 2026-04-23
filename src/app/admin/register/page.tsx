@@ -223,11 +223,6 @@ export default function AdminRegisterPage() {
                     </div>
                     <div className="text-right">
                       <p className="text-xl font-bold text-[color:var(--color-accent-char)]">¥{totalIncluded.toLocaleString()}<span className="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">（税抜¥{subtotal.toLocaleString()}）</span></p>
-                      {table.guestCount > 0 && (
-                        <p className="text-xs text-[color:var(--color-text-muted)]">
-                          {table.guestCount}名 · 客単価 ¥{Math.floor(totalIncluded / table.guestCount).toLocaleString()}（税抜¥{Math.floor(subtotal / table.guestCount).toLocaleString()}）
-                        </p>
-                      )}
                     </div>
                   </div>
                   <ul className="mb-3 space-y-1 text-sm border-t border-[color:var(--color-border)] pt-3">
