@@ -228,7 +228,9 @@ export default function MenuPage() {
     : [];
 
   const categoriesWithMenus = useMemo(() => {
-    const filtered = categories.filter((cat) => menus.some((m) => m.categoryIds.includes(cat.categoryId)));
+    const filtered = categories.filter(
+      (cat) => cat.name !== "サイド" && menus.some((m) => m.categoryIds.includes(cat.categoryId))
+    );
     const osusume = filtered.find((c) => c.name === "おすすめ");
     return [
       ...(osusume ? [osusume] : []),
