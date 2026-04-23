@@ -75,10 +75,12 @@ function rehydrateItems(raw: unknown): CartItem[] {
     const item = x as Record<string, unknown>;
     const menuId = String(item.menuId ?? "");
     if (!menuId) continue;
+    const lineId = typeof item.lineId === "string" && item.lineId ? item.lineId : newLineId();
+    const rawSetId = typeof item.setId === "string" ? item.setId : "";
 
     result.push({
-      lineId: typeof item.lineId === "string" && item.lineId ? item.lineId : newLineId(),
-      setId: typeof item.setId === "string" ? item.setId : "",
+      lineId,
+      setId: rawSetId ? rawSetId : lineId,
       menuId,
       name: String(item.name ?? ""),
       price: Number(item.price ?? 0),
