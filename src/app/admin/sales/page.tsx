@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { PageLoader } from "@/components/ui/PageLoader";
 import {
   Timestamp,
-  collection,
   collectionGroup,
   doc,
   getDoc,
@@ -42,14 +41,6 @@ function generateMonthOptions(): { value: string; label: string }[] {
     options.push({ value, label });
   }
   return options;
-}
-
-function toDate(v: unknown): Date | null {
-  if (v && typeof v === "object" && typeof (v as { toDate?: unknown }).toDate === "function") {
-    return (v as { toDate: () => Date }).toDate();
-  }
-  if (v instanceof Date) return v;
-  return null;
 }
 
 // ===== Bar Chart =====
@@ -242,28 +233,34 @@ export default function AdminSalesPage() {
         const [year, month] = selectedYearMonth.split("-").map(Number);
         const start = Timestamp.fromDate(new Date(year, month - 1, 1, 0, 0, 0));
         const end = Timestamp.fromDate(new Date(year, month, 0, 23, 59, 59, 999));
-        const customerSnapQuery = query(collection(db, "customers"), where("isPaid", "==", true));
-        const customerSnaps = await getDocs(customerSnapQuery);
+        const ordersSnap = await getDocs(
+          query(
+            collectionGroup(db, "orders"),
+            where("createdAt", ">=", start),
+            where("createdAt", "<=", end),
+            orderBy("createdAt")
+          )
+        );
+        const orderDocs = ordersSnap.docs
+          .filter((d) => d.ref.parent.parent !== null)
+          .map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
+        const customerIds = [...new Set(orderDocs.map((order) => order.customerId))];
+        const customerSnaps = await Promise.all(customerIds.map((id) => getDoc(doc(db, "customers", id))));
+        const customerMap = new Map(customerSnaps.filter((snap) => snap.exists()).map((snap) => [snap.id, snap.data() as Record<string, unknown>]));
+        const paidCustomerIds = new Set(
+          customerMap.entries()
+            .filter(([, data]) => data.isPaid === true)
+            .map(([id]) => id)
+        );
         const guestMap = new Map<string, number>();
-        const customerIds = customerSnaps.docs.map((snap) => {
-          const data = snap.data();
+        for (const [customerId, data] of customerMap.entries()) {
           const gc = data.guestCount;
-          guestMap.set(snap.id, typeof gc === "number" && gc > 0 ? Math.trunc(gc) : 1);
-          return snap.id;
-        });
+          guestMap.set(customerId, typeof gc === "number" && gc > 0 ? Math.trunc(gc) : 1);
+        }
         if (cancelled) return;
-        const orderDocs = await Promise.all(customerIds.map(async (customerId) => {
-          const ordersSnap = await getDocs(
-            query(
-              collectionGroup(db, "orders"),
-              where("customerId", "==", customerId)
-            )
-          );
-          return ordersSnap.docs
-            .filter((d) => d.ref.parent.parent !== null)
-            .map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
-        }));
-        const withItems = await Promise.all(orderDocs.flat().map(async (order) => {
+        const withItems = await Promise.all(orderDocs
+          .filter((order) => paidCustomerIds.has(order.customerId))
+          .map(async (order) => {
           const itemsSnap = await getDocs(
             query(collectionGroup(db, "items"), where("orderId", "==", order.orderId))
           );
@@ -274,17 +271,9 @@ export default function AdminSalesPage() {
             ),
           };
         }));
-        const customerMap = new Map(customerSnaps.docs.map((snap) => [snap.id, snap.data() as Record<string, unknown>]));
-        const filtered = withItems.filter((order) => {
-          const customerData = customerMap.get(order.customerId);
-          const paidAt = toDate(customerData?.updatedAt)
-            ?? toDate((order as unknown as { updatedAt?: unknown }).updatedAt)
-            ?? toDate((order as unknown as { createdAt?: unknown }).createdAt);
-          return paidAt !== null && paidAt >= start.toDate() && paidAt <= end.toDate();
-        });
         if (cancelled) return;
         setCustomerGuestMap(guestMap);
-        setOrders(filtered);
+        setOrders(withItems);
       } catch (e) {
         if (!cancelled) console.error("[sales] fetchData failed:", e);
       } finally {
