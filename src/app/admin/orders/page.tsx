@@ -326,9 +326,9 @@ function NewOrdersView({
       const item = order.items.find((i) => i.itemId === itemId);
       if (!item) return;
 
-      // 新フォーマットのメインをキャンセルする場合、同一 setId のサイドも一括削除
-      const toDelete = (item.setId && item.isMain)
-        ? order.items.filter((i) => i.setId === item.setId)
+      // 新フォーマットのメインをキャンセルする場合、同一セットのサイドも一括削除
+      const toDelete = (item.setId === "")
+        ? order.items.filter((i) => i.setId === item.itemId)
         : [item];
       const isLast = order.items.length === toDelete.length;
 
@@ -501,9 +501,9 @@ function ActiveOrderCard({
   const cancelTarget = cancelItemId !== null
     ? order.items.find((i) => i.itemId === cancelItemId) ?? null
     : null;
-  // 新フォーマットのメインはセット全体がキャンセル対象になる
-  const cancelTargetSet = cancelTarget && cancelTarget.setId && cancelTarget.isMain
-    ? order.items.filter((i) => i.setId === cancelTarget.setId)
+  // メインは配下のサイドも含めてキャンセル対象になる
+  const cancelTargetSet = cancelTarget && cancelTarget.setId === ""
+    ? order.items.filter((i) => i.setId === cancelTarget.itemId)
     : cancelTarget ? [cancelTarget] : [];
   const isLastItem = order.items.length === cancelTargetSet.length;
 
@@ -559,22 +559,20 @@ function ActiveOrderCard({
       {/* 商品チェックリスト */}
       <ul className="mb-3 space-y-1">
         {(() => {
-          // setId でグループ化し、メイン→サイドの順で並べる（新フォーマット対応）
+          // setId でグループ化し、メイン→サイドの順で並べる
           const rendered: React.ReactNode[] = [];
           const added = new Set<string>();
           const sortedItems = [
-            ...order.items.filter((i) => !i.setId || i.isMain),
-            ...order.items.filter((i) => i.setId && !i.isMain),
+            ...order.items.filter((i) => i.setId === ""),
+            ...order.items.filter((i) => i.setId !== ""),
           ];
           for (const item of sortedItems) {
             if (added.has(item.itemId)) continue;
             added.add(item.itemId);
             // 新フォーマットのサイドはメインの直後に挿入済みなのでここでは skip
-            if (item.setId && !item.isMain) continue;
+            if (item.setId !== "") continue;
 
-            const sides = item.setId
-              ? order.items.filter((s) => !s.isMain && s.setId === item.setId)
-              : [];
+            const sides = order.items.filter((s) => s.setId === item.itemId);
             sides.forEach((s) => added.add(s.itemId));
 
             const renderRow = (rowItem: typeof item, isSide: boolean) => {
@@ -612,17 +610,6 @@ function ActiveOrderCard({
                         ×{rowItem.quantity}
                       </span>
                     </div>
-                    {/* 旧フォーマット: toppings 埋め込みをテキスト表示 */}
-                    {rowItem.toppings.length > 0 && (
-                      <ul className="mt-1 ml-10 space-y-0.5">
-                        {rowItem.toppings.map((t) => (
-                          <li key={t.menuId} className={`flex items-baseline justify-between text-base ${done ? "text-[color:var(--color-text-muted)] line-through" : "text-[color:var(--color-text-primary)]"}`}>
-                            <span><span className="mr-1 text-[color:var(--color-text-muted)]">＋</span>{t.name}</span>
-                            <span className="tabular-nums font-semibold">×{t.quantity * rowItem.quantity}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
                     {rowItem.note && (
                       <p className="mt-1 ml-10 text-xs text-[color:var(--color-accent-warn)]">※ {rowItem.note}</p>
                     )}
@@ -914,13 +901,11 @@ function HistoryOrderCard({
     const added = new Set<string>();
     for (const item of order.items) {
       if (added.has(item.itemId)) continue;
-      if (item.setId && !item.isMain) continue; // サイドは後でメインの直後に追加
+      if (item.setId !== "") continue; // サイドは後でメインの直後に追加
       added.add(item.itemId);
       result.push({ item, isSide: false });
-      if (item.setId) {
-        const sides = order.items.filter((s) => !s.isMain && s.setId === item.setId);
-        sides.forEach((s) => { added.add(s.itemId); result.push({ item: s, isSide: true }); });
-      }
+      const sides = order.items.filter((s) => s.setId === item.itemId);
+      sides.forEach((s) => { added.add(s.itemId); result.push({ item: s, isSide: true }); });
     }
     return result;
   })();
@@ -957,17 +942,6 @@ function HistoryOrderCard({
                 </span>
                 <span className="w-8 shrink-0 text-right text-[color:var(--color-text-muted)] tabular-nums">×{item.quantity}</span>
               </div>
-              {/* 旧フォーマット: toppings埋め込みを展開表示 */}
-              {expanded && item.toppings.length > 0 && (
-                <ul className="ml-3 mt-0.5 space-y-0">
-                  {item.toppings.map((t) => (
-                    <li key={t.menuId} className="flex items-baseline gap-2 text-xs text-[color:var(--color-text-muted)]">
-                      <span className="flex-1 truncate">＋{t.name}</span>
-                      <span className="w-8 shrink-0 text-right tabular-nums">×{t.quantity * item.quantity}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
               {expanded && item.note && (
                 <p className="ml-3 mt-0.5 text-xs text-[color:var(--color-accent-warn)]">※ {item.note}</p>
               )}

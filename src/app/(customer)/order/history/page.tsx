@@ -22,10 +22,6 @@ const STATUS_LABEL: Record<string, { label: string; className: string }> = {
     label: "提供済",
     className: "bg-[color:var(--color-bg-subtle)] text-[color:var(--color-text-muted)]",
   },
-  paid: {
-    label: "精算済",
-    className: "bg-[color:var(--color-bg-subtle)] text-[color:var(--color-text-muted)]",
-  },
 };
 
 const PREVIEW = 2;
@@ -41,13 +37,11 @@ function OrderCard({ order }: { order: OrderWithItems }) {
     const added = new Set<string>();
     for (const item of order.items) {
       if (added.has(item.itemId)) continue;
-      if (item.setId && !item.isMain) continue;
+      if (item.setId !== "") continue;
       added.add(item.itemId);
       result.push({ item, isSide: false });
-      if (item.setId) {
-        const sides = order.items.filter((s) => !s.isMain && s.setId === item.setId);
-        sides.forEach((s) => { added.add(s.itemId); result.push({ item: s, isSide: true }); });
-      }
+      const sides = order.items.filter((s) => s.setId === item.itemId);
+      sides.forEach((s) => { added.add(s.itemId); result.push({ item: s, isSide: true }); });
     }
     return result;
   })();
@@ -71,7 +65,7 @@ function OrderCard({ order }: { order: OrderWithItems }) {
       </div>
       <div className="shrink-0 text-xs w-16">
         <p className="font-medium text-[color:var(--color-text-primary)] tabular-nums">
-          {(order.status === "completed" || order.status === "paid") && updated ? timeStr(updated) : "−"}
+          {order.status === "completed" && updated ? timeStr(updated) : "−"}
         </p>
       </div>
 
@@ -86,16 +80,6 @@ function OrderCard({ order }: { order: OrderWithItems }) {
                 </span>
                 <span className="w-8 shrink-0 text-right text-[color:var(--color-text-muted)] tabular-nums">×{item.quantity}</span>
               </div>
-              {expanded && item.toppings.length > 0 && (
-                <ul className="ml-3 mt-0.5 space-y-0">
-                  {item.toppings.map((t) => (
-                    <li key={t.menuId} className="flex items-baseline gap-2 text-xs text-[color:var(--color-text-muted)]">
-                      <span className="flex-1 truncate">＋{t.name}</span>
-                      <span className="w-8 shrink-0 text-right tabular-nums">×{t.quantity * item.quantity}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
               {expanded && item.note && (
                 <p className="ml-3 mt-0.5 text-xs text-[color:var(--color-accent-warn)]">※ {item.note}</p>
               )}
@@ -133,7 +117,7 @@ export default function OrderHistoryPage() {
     const q = query(
       collectionGroup(db, "orders"),
       where("customerId", "==", customerId),
-      where("status", "in", ["pending", "completed", "paid"])
+      where("status", "in", ["pending", "completed"])
     );
     let cancelled = false;
     let gen = 0;

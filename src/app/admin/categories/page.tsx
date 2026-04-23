@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAdminRole } from "@/components/admin/AdminContext";
@@ -17,6 +19,7 @@ import {
   where,
   writeBatch,
 } from "firebase/firestore";
+import { Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
@@ -39,6 +42,16 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+
+const FIXED_SIDE_CATEGORY = {
+  categoryId: "__fixed_side__",
+  name: "サイド",
+  sortOrder: Number.MAX_SAFE_INTEGER - 1,
+  sortOrderFeatured: Number.MAX_SAFE_INTEGER - 1,
+  sortOrderSide: Number.MAX_SAFE_INTEGER - 1,
+  createdAt: Timestamp.fromMillis(0),
+  updatedAt: Timestamp.fromMillis(0),
+} as const;
 
 export default function AdminCategoriesPage() {
   const role = useAdminRole();
@@ -66,7 +79,19 @@ export default function AdminCategoriesPage() {
     const q = query(collection(db, "categories"), orderBy("sortOrder", "asc"));
     const unsub = onSnapshot(q, (snap) => {
       setCategories(
-        snap.docs.map((d) => ({ categoryId: d.id, ...(d.data() as Omit<Category, "categoryId">) }))
+        snap.docs.map((d) => {
+          const raw = d.data() as Partial<Omit<Category, "categoryId">>;
+          return {
+            categoryId: d.id,
+            name: typeof raw.name === "string" ? raw.name : "",
+            sortOrder: typeof raw.sortOrder === "number" ? raw.sortOrder : Number.MAX_SAFE_INTEGER,
+            sortOrderFeatured:
+              typeof raw.sortOrderFeatured === "number" ? raw.sortOrderFeatured : Number.MAX_SAFE_INTEGER,
+            sortOrderSide: typeof raw.sortOrderSide === "number" ? raw.sortOrderSide : Number.MAX_SAFE_INTEGER,
+            createdAt: raw.createdAt as Category["createdAt"],
+            updatedAt: raw.updatedAt as Category["updatedAt"],
+          };
+        })
       );
       setLoading(false);
     });
@@ -75,6 +100,7 @@ export default function AdminCategoriesPage() {
 
   // おすすめと通常カテゴリを分離
   const osusumeCategory = categories.find((c) => c.name === "おすすめ") ?? null;
+  const sideCategory = FIXED_SIDE_CATEGORY;
   const otherCategories = categories.filter((c) => c.name !== "おすすめ");
 
   function findDuplicateName(name: string, excludeId?: string): string | null {
@@ -183,7 +209,7 @@ export default function AdminCategoriesPage() {
     const oldIdx = otherCategories.findIndex((c) => c.categoryId === active.id);
     const newIdx = otherCategories.findIndex((c) => c.categoryId === over.id);
     const next = arrayMove(otherCategories, oldIdx, newIdx);
-    setCategories([...(osusumeCategory ? [osusumeCategory] : []), ...next]);
+    setCategories([...(osusumeCategory ? [osusumeCategory] : []), ...next, sideCategory]);
     persistOrder(next);
   }
 
@@ -233,6 +259,9 @@ export default function AdminCategoriesPage() {
                 ))}
               </SortableContext>
             </DndContext>
+            <li className="rounded-xl border border-dashed border-[color:var(--color-border)] px-4 py-3 text-sm text-[color:var(--color-text-muted)]">
+              {sideCategory.name} は固定カテゴリです
+            </li>
           </ul>
         </>
       )}
@@ -394,12 +423,6 @@ function CategoryRow({
     transform: CSS.Transform.toString(transform),
     transition,
   };
-
-  useEffect(() => {
-    setName(category.name);
-    setNameError(null);
-    setEditing(false);
-  }, [category]);
 
   const trimmed = name.trim();
   const dirty = trimmed !== category.name.trim();

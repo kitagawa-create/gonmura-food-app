@@ -29,8 +29,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: Arial, Helvetica, sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 
   /* 家系ラーメンテーマを Tailwind から bg-bg-base / text-text-primary 等で
      使えるよう alias 定義。直接 var() 参照も推奨 (THEME.md 参照)。 */

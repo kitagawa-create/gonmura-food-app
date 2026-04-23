@@ -48,8 +48,10 @@ export function DatePicker({ value, onChange, max, className = "" }: Props) {
   // value が変わったら表示月も追従
   useEffect(() => {
     const [y, m] = parseDate(value);
-    setViewY(y);
-    setViewM(m);
+    queueMicrotask(() => {
+      setViewY(y);
+      setViewM(m);
+    });
   }, [value]);
 
   const canPrev = viewY > 2020 || viewM > 0;

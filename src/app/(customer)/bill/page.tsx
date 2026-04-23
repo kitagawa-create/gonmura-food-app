@@ -60,7 +60,7 @@ export default function BillPage() {
     if (!customerId || paying) return;
     setPaying(true);
     try {
-      // 支払い確定時点で再クエリ（ページロード後に追加された注文も確実に paid にする）
+      // 支払い確定時点で再クエリ（ページロード後に追加された注文も確実に精算済みにする）
       const snap = await getDocs(query(
         collectionGroup(db, "orders"),
         where("customerId", "==", customerId),
@@ -69,10 +69,13 @@ export default function BillPage() {
       const batch = writeBatch(db);
       for (const d of snap.docs) {
         batch.update(doc(db, "customers", customerId, "orders", d.id), {
-          status: "paid",
           updatedAt: serverTimestamp(),
         });
       }
+      batch.update(doc(db, "customers", customerId), {
+        isPaid: true,
+        updatedAt: serverTimestamp(),
+      });
       await batch.commit();
       const tableId = localStorage.getItem(TABLE_ID_KEY);
       if (tableId) {
@@ -136,18 +139,14 @@ export default function BillPage() {
     );
   }
 
-  // 新フォーマット（setId あり）はセット単位で集計、旧フォーマット（toppings埋め込み）は従来通り
+  // 親子関係でセット単位集計、旧フォーマット（sides埋め込み）も互換表示
   type BillLine = { key: string; name: string; price: number; quantity: number; sides: { name: string; price: number; quantity: number }[] };
   const billLines: BillLine[] = [];
 
   for (const order of orders) {
-    // 新フォーマット: setId でグループ化
-    const newItems = order.items.filter((i) => i.setId);
-    const setIds = [...new Set(newItems.filter((i) => i.isMain).map((i) => i.setId))];
-    for (const setId of setIds) {
-      const main = newItems.find((i) => i.setId === setId && i.isMain);
-      if (!main) continue;
-      const sides = newItems.filter((i) => i.setId === setId && !i.isMain);
+    const mainItems = order.items.filter((i) => i.setId === "");
+    for (const main of mainItems) {
+      const sides = order.items.filter((i) => i.setId === main.itemId);
       const key = `${main.menuId}|${sides.map((s) => `${s.menuId}:${s.quantity}`).sort().join(",")}`;
       const existing = billLines.find((l) => l.key === key);
       if (existing) {
@@ -163,9 +162,9 @@ export default function BillPage() {
       }
     }
 
-    // 旧フォーマット: setId なし・toppings 埋め込み
-    for (const item of order.items.filter((i) => !i.setId)) {
-      const key = comboLineHash(item.menuId, item.toppings, "");
+    // 単品
+    for (const item of mainItems.filter((i) => !order.items.some((x) => x.setId === i.itemId))) {
+      const key = comboLineHash(item.menuId, [], "");
       const existing = billLines.find((l) => l.key === key);
       if (existing) {
         existing.quantity += item.quantity;
@@ -175,7 +174,7 @@ export default function BillPage() {
           name: item.name,
           price: item.price,
           quantity: item.quantity,
-          sides: item.toppings.map((t) => ({ name: t.name, price: t.price, quantity: t.quantity })),
+          sides: [],
         });
       }
     }

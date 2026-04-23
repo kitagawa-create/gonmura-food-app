@@ -118,27 +118,36 @@ export default function AdminRegisterPage() {
     let gen = 0;
     const unsub = onSnapshot(
       query(
-        collectionGroup(db, "orders"),
-        where("status", "==", "paid"),
-        where("createdAt", ">=", Timestamp.fromDate(start)),
-        where("createdAt", "<", Timestamp.fromDate(end)),
-        orderBy("createdAt", "desc")
+        collection(db, "customers"),
+        where("isPaid", "==", true),
+        where("updatedAt", ">=", Timestamp.fromDate(start)),
+        where("updatedAt", "<", Timestamp.fromDate(end)),
+        orderBy("updatedAt", "desc")
       ),
       async (snap) => {
         const current = ++gen;
-        const orderDocs = snap.docs
-          .filter((d) => d.ref.parent.parent !== null)
-          .map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
-        const withItems = await Promise.all(
-          orderDocs.map(async (order) => {
-            const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.orderId)));
-            return { ...order, items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)) };
+        const customerIds = snap.docs.map((d) => d.id);
+        const customerSnaps = await Promise.all(customerIds.map((id) => getDoc(doc(db, "customers", id))));
+        const customers = customerSnaps.filter((s): s is typeof customerSnaps[number] & { data: () => Record<string, unknown> } => s.exists());
+        const orderDocs = await Promise.all(
+          customers.map(async (customerSnap) => {
+            const ordersSnap = await getDocs(
+              query(
+                collectionGroup(db, "orders"),
+                where("customerId", "==", customerSnap.id)
+              )
+            );
+            return ordersSnap.docs
+              .filter((d) => d.ref.parent.parent !== null)
+              .map((d) => normalizeOrder(d.id, d.data() as Record<string, unknown>, d.ref.parent.parent!.id));
           })
         );
+        const withItems = await Promise.all(orderDocs.flat().map(async (order) => {
+          const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.orderId)));
+          return { ...order, items: itemsSnap.docs.map((d) => normalizeOrderItem(d.id, d.data() as Record<string, unknown>)) };
+        }));
         if (cancelled || current !== gen) return;
-        const missingIds = [...new Set(withItems.map((o) => o.customerId))].filter(
-          (id) => !customerInfoMapRef.current.has(id)
-        );
+        const missingIds = [...new Set(withItems.map((o) => o.customerId))].filter((id) => !customerInfoMapRef.current.has(id));
         if (missingIds.length > 0) {
           const newData = await fetchCustomerInfo(missingIds);
           if (cancelled || current !== gen) return;

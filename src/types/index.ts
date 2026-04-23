@@ -10,6 +10,10 @@ export type Category = {
   name: string;
   /** 整数 */
   sortOrder: number;
+  /** おすすめカテゴリ内での表示順。未設定時は末尾扱い */
+  sortOrderFeatured: number;
+  /** サイドカテゴリ内での表示順。未設定時は末尾扱い */
+  sortOrderSide: number;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 };
@@ -35,17 +39,10 @@ export type Menu = {
   sortOrder: number;
   /** おすすめカテゴリ内での表示順。sortOrder とは独立して管理 */
   sortOrderFeatured: number;
+  /** サイドカテゴリ内での表示順。sortOrder とは独立して管理 */
+  sortOrderSide: number;
   createdAt: Timestamp;
   updatedAt: Timestamp;
-};
-
-/** 旧データ互換用。新規 OrderItem では toppings は空配列。 */
-export type OrderItemTopping = {
-  menuId: string;
-  name: string;
-  price: number;
-  /** 「1アイテムあたり」の個数 */
-  quantity: number;
 };
 
 export type OrderItem = {
@@ -57,21 +54,26 @@ export type OrderItem = {
   /** 整数 */
   quantity: number;
   /**
-   * セット識別子。同一セットのメイン・サイドが同じ値を持つ。
-   * 旧データ（toppings 埋め込み形式）では空文字。
+   * セット識別子。メイン商品は自分の `itemId`、サイドは親メインの `itemId`。
+   * 単品なら空文字。
    */
   setId: string;
-  /** セットのメイン商品または単品なら true、サイドなら false。旧データでは true。 */
-  isMain: boolean;
-  /** 旧データ互換用。新規アイテムでは空配列。 */
-  toppings: OrderItemTopping[];
   /** 注文時スナップショット。備考なしは空文字 */
   note: string;
   /** チェック状態 */
   checked: boolean;
 };
 
-export type OrderStatus = "pending" | "completed" | "paid";
+export type OrderStatus = "pending" | "completed";
+
+export type Customer = {
+  customerId: string;
+  tableId: string;
+  guestCount: number;
+  isPaid: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+};
 
 export type AdminRole = "owner" | "staff";
 
@@ -99,13 +101,8 @@ export type Table = {
 export type CartItem = {
   /** ライン識別子 */
   lineId: string;
-  /**
-   * セット識別子。メインと対応するサイドが同じ値を持つ。
-   * 単品の場合は lineId と同じ値。
-   */
+  /** セット識別子。メインは自分の lineId、サイドは親メインの lineId。 */
   setId: string;
-  /** セットのメイン商品または単品なら true、サイドなら false */
-  isMain: boolean;
   menuId: string;
   /** 整数（円）。単品価格 */
   price: number;

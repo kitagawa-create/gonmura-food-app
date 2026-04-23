@@ -38,28 +38,42 @@ firestore-root
 │   ├── createdAt   : Timestamp
 │   └── updatedAt   : Timestamp
 │
-├── orders/{orderId}
-│   ├── items       : array[map]       // 注文時のスナップショット（コンボ単位）
-│   │   └── [0..n]
-│   │       ├── menuId   : string
-│   │       ├── name     : string      // menus.name 複製
-│   │       ├── price    : int         // menus.price 複製（単品価格、サイドメニュー分は含まない）
-│   │       ├── quantity : int         // コンボなら数量
-│   │       └── toppings?: array[map]  // メインディッシュのみ。{ menuId, name, price, quantity }
-│   │                                  //   quantity は「1個あたり」の個数
-│   ├── status       : string          // "pending" → "completed" → "paid"
-│   │                                  // 取消は deleteDoc でドキュメント削除
-│   ├── tableNumber  : int
-│   ├── customerNote : string
-│   ├── checkedItems?: array[int]      // チェック済み商品のインデックス（0-based）
-│   ├── createdAt    : Timestamp
-│   └── updatedAt    : Timestamp
+├── customers/{customerId}
+│   ├── tableId     : string
+│   ├── guestCount  : int
+│   ├── isPaid      : boolean
+│   ├── createdAt   : Timestamp
+│   ├── updatedAt   : Timestamp
+│   │
+│   └── orders/{orderId}
+│       ├── customerId : string        // customers/{customerId} の参照
+│       ├── status     : string        // "pending" → "completed"
+│       ├── createdAt  : Timestamp
+│       ├── updatedAt  : Timestamp
+│       │
+│       └── items/{itemId}
+│           ├── menuId    : string
+│           ├── name      : string     // menus.name 複製
+│           ├── price     : int        // menus.price 複製（単品価格）
+│           ├── quantity  : int
+│           ├── setId     : string
+│           ├── parentItemId : string
+│           ├── isMain    : boolean
+│           ├── note      : string
+│           └── checked   : boolean
 │
-└── admins/{uid}                       // Firebase Auth uid がドキュメントID
-    ├── email     : string
-    ├── role      : string             // "owner" | "staff"（未設定は staff 扱い）
-    ├── createdAt : Timestamp
-    └── updatedAt : Timestamp
+├── tables/{tableId}
+│   ├── tableNumber : string
+│   ├── deviceId    : string
+│   ├── deleted     : boolean
+│   ├── createdAt   : Timestamp
+│   └── updatedAt   : Timestamp
+│
+└── admins/{uid}                        // Firebase Auth uid がドキュメントID
+    ├── email      : string
+    ├── role       : string            // "owner" | "staff"（未設定は staff 扱い）
+    ├── createdAt  : Timestamp
+    └── updatedAt  : Timestamp
 ```
 
 ### 設計の要点

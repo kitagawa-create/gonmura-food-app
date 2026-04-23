@@ -30,9 +30,9 @@ type CartContextType = {
   items: CartItem[];
   /** 単品追加（サイドなし）。同一 menuId+note なら数量マージ。 */
   addItem: (item: CartItemInput, quantity?: number) => void;
-  /** メイン＋サイドをセットで追加。setId で紐づける。 */
+  /** メイン＋サイドをセットで追加。親子関係で紐づける。 */
   addSet: (main: CartItemInput, sides: SideInput[], note?: string) => void;
-  /** lineId のアイテムを削除。メインの場合は同一 setId のサイドも一括削除。 */
+  /** lineId のアイテムを削除。メインの場合は同一親のサイドも一括削除。 */
   removeItem: (lineId: string) => void;
   updateQuantity: (lineId: string, quantity: number) => void;
   updateItemNote: (lineId: string, note: string) => void;
@@ -64,10 +64,7 @@ function loadFromStorage<T>(key: string, fallback: T): T {
   }
 }
 
-/**
- * localStorage のカートを CartItem[] に復元。
- * 旧フォーマット（toppings 埋め込み）を新フォーマット（setId/isMain）に自動マイグレーション。
- */
+/** localStorage のカートを CartItem[] に復元。 */
 function rehydrateItems(raw: unknown): CartItem[] {
   if (!Array.isArray(raw)) return [];
 
@@ -79,50 +76,15 @@ function rehydrateItems(raw: unknown): CartItem[] {
     const menuId = String(item.menuId ?? "");
     if (!menuId) continue;
 
-    if (typeof item.setId === "string" && item.setId) {
-      // 新フォーマット: そのまま復元
-      result.push({
-        lineId: typeof item.lineId === "string" && item.lineId ? item.lineId : newLineId(),
-        setId: item.setId,
-        isMain: item.isMain === true,
-        menuId,
-        name: String(item.name ?? ""),
-        price: Number(item.price ?? 0),
-        quantity: Math.max(1, Math.trunc(Number(item.quantity ?? 1))),
-        note: typeof item.note === "string" ? item.note : "",
-      });
-    } else {
-      // 旧フォーマット（toppings 埋め込み）: メインとサイドに分割してマイグレーション
-      const lineId = typeof item.lineId === "string" && item.lineId ? item.lineId : newLineId();
-      const setId = lineId;
-      result.push({
-        lineId,
-        setId,
-        isMain: true,
-        menuId,
-        name: String(item.name ?? ""),
-        price: Number(item.price ?? 0),
-        quantity: Math.max(1, Math.trunc(Number(item.quantity ?? 1))),
-        note: typeof item.note === "string" ? item.note : "",
-      });
-      const toppings = Array.isArray(item.toppings) ? item.toppings : [];
-      for (const t of toppings) {
-        if (!t || typeof t !== "object") continue;
-        const tObj = t as Record<string, unknown>;
-        const tMenuId = String(tObj.menuId ?? "");
-        if (!tMenuId) continue;
-        result.push({
-          lineId: newLineId(),
-          setId,
-          isMain: false,
-          menuId: tMenuId,
-          name: String(tObj.name ?? ""),
-          price: Number(tObj.price ?? 0),
-          quantity: Math.max(1, Math.trunc(Number(tObj.quantity ?? 1))),
-          note: "",
-        });
-      }
-    }
+    result.push({
+      lineId: typeof item.lineId === "string" && item.lineId ? item.lineId : newLineId(),
+      setId: typeof item.setId === "string" ? item.setId : "",
+      menuId,
+      name: String(item.name ?? ""),
+      price: Number(item.price ?? 0),
+      quantity: Math.max(1, Math.trunc(Number(item.quantity ?? 1))),
+      note: typeof item.note === "string" ? item.note : "",
+    });
   }
 
   return result;
@@ -197,9 +159,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     const qty = Math.max(1, Math.trunc(quantity));
     const note = input.note ?? "";
     setItems((prev) => {
-      const existing = prev.find(
-        (i) => i.isMain && i.setId === i.lineId && i.menuId === input.menuId && i.note === note
-      );
+      const existing = prev.find((i) => i.setId === i.lineId && i.menuId === input.menuId && i.note === note);
       if (existing) {
         return prev.map((i) =>
           i.lineId === existing.lineId ? { ...i, quantity: i.quantity + qty } : i
@@ -208,7 +168,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const lineId = newLineId();
       return [
         ...prev,
-        { lineId, setId: lineId, isMain: true, menuId: input.menuId, name: input.name, price: input.price, quantity: qty, note },
+        { lineId, setId: lineId, menuId: input.menuId, name: input.name, price: input.price, quantity: qty, note },
       ];
     });
   }, []);
@@ -216,11 +176,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   /** メイン＋サイドをセット追加。setId で紐づける。 */
   const addSet = useCallback((main: CartItemInput, sides: SideInput[], note: string = "") => {
     setItems((prev) => {
-      const setId = newLineId();
+      const mainLineId = newLineId();
       const mainItem: CartItem = {
-        lineId: setId,
-        setId,
-        isMain: true,
+        lineId: mainLineId,
+        setId: mainLineId,
         menuId: main.menuId,
         name: main.name,
         price: main.price,
@@ -231,8 +190,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         .filter((s) => s.quantity > 0)
         .map((s) => ({
           lineId: newLineId(),
-          setId,
-          isMain: false,
+          setId: mainLineId,
           menuId: s.menuId,
           name: s.name,
           price: s.price,
@@ -248,7 +206,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems((prev) => {
       const item = prev.find((i) => i.lineId === lineId);
       if (!item) return prev.filter((i) => i.lineId !== lineId);
-      if (item.isMain) return prev.filter((i) => i.setId !== item.setId);
+      if (item.setId === item.lineId) return prev.filter((i) => i.setId !== item.lineId);
       return prev.filter((i) => i.lineId !== lineId);
     });
   }, []);
@@ -293,11 +251,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     (mainLineId: string, updates: { sides?: SideInput[]; note?: string }) => {
       setItems((prev) => {
         const main = prev.find((i) => i.lineId === mainLineId);
-        if (!main || !main.isMain) return prev;
-        const setId = main.setId;
-
-        // メイン以外の同一 setId を除去
-        let next = prev.filter((i) => i.lineId === mainLineId || i.setId !== setId);
+        if (!main || main.setId !== main.lineId) return prev;
+        // メイン以外の同一親を除去
+        let next = prev.filter((i) => i.lineId === mainLineId || i.setId !== mainLineId);
 
         // 備考更新
         if (updates.note !== undefined) {
@@ -310,8 +266,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             .filter((s) => s.quantity > 0)
             .map((s) => ({
               lineId: newLineId(),
-              setId,
-              isMain: false,
+              setId: mainLineId,
               menuId: s.menuId,
               name: s.name,
               price: s.price,

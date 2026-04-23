@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, collectionGroup, query, where, orderBy, onSnapshot, doc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { collection, query, where, orderBy, onSnapshot, doc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Menu, Category, CartItem } from "@/types";
 import { normalizeMenu, taxIncluded } from "@/lib/order-utils";
@@ -14,6 +14,13 @@ import Link from "next/link";
 
 const TABLE_KEY = "gonmura-table";
 const TABLE_ID_KEY = "gonmura-table-id";
+const FIXED_CATEGORY_SIDE = {
+  categoryId: "__fixed_side__",
+  name: "サイド",
+  sortOrder: Number.MAX_SAFE_INTEGER - 1,
+  sortOrderFeatured: Number.MAX_SAFE_INTEGER - 1,
+  sortOrderSide: Number.MAX_SAFE_INTEGER - 1,
+} as Category;
 
 function getDeviceId(): string {
   const KEY = "gonmura-device-id";
@@ -28,6 +35,12 @@ type SelectionLine = { menu: Menu; quantity: number };
 
 // カテゴリ名からメニューの役割を判定するヘルパー
 function menuBelongsToCategory(menu: Menu, categories: Category[], categoryName: string): boolean {
+  if (categoryName === "サイド") {
+    return menu.categoryIds.some((cid) => {
+      const cat = categories.find((c) => c.categoryId === cid);
+      return cid === FIXED_CATEGORY_SIDE.categoryId || cat?.name === "サイド";
+    });
+  }
   return menu.categoryIds.some((cid) => {
     const cat = categories.find((c) => c.categoryId === cid);
     return cat?.name === categoryName;
@@ -53,12 +66,12 @@ export default function MenuPage() {
   const [dialogTables, setDialogTables] = useState<{ tableId: string; tableNumber: string; deviceId: string }[]>([]);
   const [dialogTablesLoading, setDialogTablesLoading] = useState(false);
   const [selectedDialogTableId, setSelectedDialogTableId] = useState<string>("");
-  const { addItem, addSet, updateItem, updateSet, items: cartItems, totalItems, tableNumber, setTableNumber, clearCart, resetSession, guestCount, setGuestCount, customerId, setCustomerId } =
+  const { addItem, addSet, updateItem, updateSet, items: cartItems, tableNumber, setTableNumber, resetSession, guestCount, setGuestCount, customerId, setCustomerId } =
     useCart();
   const router = useRouter();
-  const prevHasUnpaidRef = useRef<boolean | undefined>(undefined);
+  const prevPaidRef = useRef<boolean | undefined>(undefined);
   const [hasUnpaidOrders, setHasUnpaidOrders] = useState(() => customerId !== null);
-  const [ordersLoaded, setOrdersLoaded] = useState(false);
+  const [ordersLoaded, setOrdersLoaded] = useState(() => customerId === null);
 
   useEffect(() => {
     if (tableNumber === null) {
@@ -85,35 +98,27 @@ export default function MenuPage() {
   }, [setTableNumber]);
 
   useEffect(() => {
-    setOrdersLoaded(false);
-    prevHasUnpaidRef.current = undefined;
+    prevPaidRef.current = undefined;
     if (tableNumber === null) {
-      setHasUnpaidOrders(false);
+      queueMicrotask(() => setHasUnpaidOrders(false));
       return;
     }
     if (customerId === null) {
-      setHasUnpaidOrders(false);
-      setOrdersLoaded(true);
+      queueMicrotask(() => setHasUnpaidOrders(false));
       return;
     }
-    const unsub = onSnapshot(
-      query(collectionGroup(db, "orders"), where("customerId", "==", customerId)),
-      (snap) => {
-        const statuses = snap.docs.map((d) => (d.data() as { status: string }).status);
-        const hasUnpaid = statuses.some((s) => s === "pending" || s === "completed");
-        const hasPaid = statuses.some((s) => s === "paid");
-        if ((prevHasUnpaidRef.current === undefined || prevHasUnpaidRef.current === true) && !hasUnpaid && hasPaid) {
-          resetSession();
-        }
-        prevHasUnpaidRef.current = hasUnpaid;
-        setHasUnpaidOrders(hasUnpaid);
-        setOrdersLoaded(true);
-      },
-      () => {
-        setHasUnpaidOrders(false);
-        setOrdersLoaded(true);
+    const unsub = onSnapshot(doc(db, "customers", customerId), (snap) => {
+      const isPaid = snap.exists() ? (snap.data() as { isPaid?: boolean }).isPaid === true : false;
+      if ((prevPaidRef.current === undefined || prevPaidRef.current === false) && isPaid) {
+        resetSession();
       }
-    );
+      prevPaidRef.current = isPaid;
+      setHasUnpaidOrders(!isPaid);
+      setOrdersLoaded(true);
+    }, () => {
+      setHasUnpaidOrders(false);
+      setOrdersLoaded(true);
+    });
     return unsub;
   }, [tableNumber, customerId, resetSession]);
 
@@ -135,7 +140,7 @@ export default function MenuPage() {
     if (!menusLoaded || imagesReady) return;
     const urls = menus.map((m) => m.imageUrl).filter((u): u is string => !!u);
     if (urls.length === 0) {
-      setImagesReady(true);
+      queueMicrotask(() => setImagesReady(true));
       return;
     }
     let cancelled = false;
@@ -161,9 +166,22 @@ export default function MenuPage() {
     return onSnapshot(
       query(collection(db, "categories"), orderBy("sortOrder", "asc")),
       (snap) => {
-        const data = snap.docs.map((d) => ({ categoryId: d.id, ...(d.data() as Omit<Category, "categoryId">) }));
-        setCategories(data);
-        if (data.length > 0) setActiveCategory((cur) => cur ?? data[0].categoryId);
+        const data = snap.docs.map((d) => {
+          const raw = d.data() as Partial<Omit<Category, "categoryId">>;
+          return {
+            categoryId: d.id,
+            name: typeof raw.name === "string" ? raw.name : "",
+            sortOrder: typeof raw.sortOrder === "number" ? raw.sortOrder : Number.MAX_SAFE_INTEGER,
+            sortOrderFeatured: typeof raw.sortOrderFeatured === "number" ? raw.sortOrderFeatured : Number.MAX_SAFE_INTEGER,
+            sortOrderSide: typeof raw.sortOrderSide === "number" ? raw.sortOrderSide : Number.MAX_SAFE_INTEGER,
+            createdAt: raw.createdAt as Category["createdAt"],
+            updatedAt: raw.updatedAt as Category["updatedAt"],
+          };
+        });
+        const hasSide = data.some((c) => c.name === "サイド");
+        const next: Category[] = hasSide ? data : [...data, FIXED_CATEGORY_SIDE];
+        setCategories(next);
+        if (next.length > 0) queueMicrotask(() => setActiveCategory((cur) => cur ?? next[0].categoryId));
         setLoading(false);
       },
       () => setLoading(false)
@@ -175,8 +193,10 @@ export default function MenuPage() {
     if (!selectedMenu) return;
     const stillThere = menus.find((m) => m.menuId === selectedMenu.menuId);
     if (!stillThere || stillThere.status === "soldout") {
-      setSelectedMenu(null);
-      setExtraQty({});
+      queueMicrotask(() => {
+        setSelectedMenu(null);
+        setExtraQty({});
+      });
     }
   }, [menus, selectedMenu]);
 
@@ -197,16 +217,16 @@ export default function MenuPage() {
     if (guestCount !== null) return;
     if (hasUnpaidOrders) return;
     if (showGuestCountDialog) return;
-    setShowTableSelectDialog(true);
+    queueMicrotask(() => setShowTableSelectDialog(true));
   }, [tableNumber, guestCount, ordersLoaded, hasUnpaidOrders, showGuestCountDialog]);
 
   // テーブル選択ダイアログが開いている間だけリアルタイム購読
   useEffect(() => {
     if (!showTableSelectDialog) {
-      setSelectedDialogTableId("");
+      queueMicrotask(() => setSelectedDialogTableId(""));
       return;
     }
-    setDialogTablesLoading(true);
+    queueMicrotask(() => setDialogTablesLoading(true));
     return onSnapshot(
       query(collection(db, "tables"), orderBy("tableNumber")),
       (snap) => {
@@ -224,8 +244,9 @@ export default function MenuPage() {
   const filteredMenus = activeCategory
     ? (() => {
         const isOsusume = categories.find((c) => c.categoryId === activeCategory)?.name === "おすすめ";
+        const isSide = activeCategory === FIXED_CATEGORY_SIDE.categoryId;
         return menus
-          .filter((menu) => menu.categoryIds.includes(activeCategory))
+          .filter((menu) => (isSide ? menuBelongsToCategory(menu, categories, "サイド") : menu.categoryIds.includes(activeCategory)))
           .sort((a, b) => {
             const aOrder = isOsusume ? a.sortOrderFeatured : a.sortOrder;
             const bOrder = isOsusume ? b.sortOrderFeatured : b.sortOrder;
@@ -235,27 +256,35 @@ export default function MenuPage() {
       })()
     : [];
 
-  const activeCategoryName = categories.find((c) => c.categoryId === activeCategory)?.name;
-
   const categoriesWithMenus = useMemo(() => {
-    const filtered = categories.filter((cat) => menus.some((m) => m.categoryIds.includes(cat.categoryId)));
+    const filtered = categories.filter((cat) => cat.name === "サイド" || menus.some((m) => m.categoryIds.includes(cat.categoryId)));
     const osusume = filtered.find((c) => c.name === "おすすめ");
+    const side = filtered.find((c) => c.name === "サイド");
     const rest = filtered.filter((c) => c.name !== "おすすめ");
-    return osusume ? [osusume, ...rest] : rest;
+    const withoutFixed = rest.filter((c) => c.name !== "サイド");
+    return [
+      ...(osusume ? [osusume] : []),
+      ...withoutFixed,
+      ...(side ? [side] : []),
+      ...(!side ? [FIXED_CATEGORY_SIDE] : []),
+    ];
   }, [categories, menus]);
 
   useEffect(() => {
     if (categoriesWithMenus.length === 0) return;
     if (!activeCategory || categoriesWithMenus.some((c) => c.categoryId === activeCategory)) return;
-    setActiveCategory(categoriesWithMenus[0].categoryId);
+    queueMicrotask(() => setActiveCategory(categoriesWithMenus[0].categoryId));
   }, [categoriesWithMenus, activeCategory]);
 
   // 「サイド」カテゴリの商品
-  const toppings = useMemo(
+  const sides = useMemo(
     () =>
       menus
         .filter((m) => menuBelongsToCategory(m, categories, "サイド") && m.status !== "soldout")
-        .sort((a, b) => a.sortOrder - b.sortOrder),
+        .sort((a, b) => {
+          if (a.sortOrderSide !== b.sortOrderSide) return a.sortOrderSide - b.sortOrderSide;
+          return a.name.localeCompare(b.name, "ja");
+        }),
     [menus, categories]
   );
 
@@ -295,10 +324,10 @@ export default function MenuPage() {
     setSelectedMenu(menu);
     setSelectedQuantity(item.quantity);
     setSelectedNote(item.note);
-    // setId に紐づくサイドを extraQty に復元
-    const sides = cartItems.filter((s) => !s.isMain && s.setId === item.setId);
+    // 親行に紐づくサイドを extraQty に復元
+    const selectedSides = cartItems.filter((s) => s.setId === item.lineId);
     const qty: Record<string, number> = {};
-    for (const s of sides) qty[s.menuId] = s.quantity;
+    for (const s of selectedSides) qty[s.menuId] = s.quantity;
     setExtraQty(qty);
   }
 
@@ -572,13 +601,13 @@ export default function MenuPage() {
                 )}
 
                 {/* メインディッシュ選択時のみ: サイド追加 */}
-                {isMainDishFlow && toppings.length > 0 && (
+                {isMainDishFlow && sides.length > 0 && (
                   <section>
                     <h3 className="text-sm font-bold text-[color:var(--color-text-primary)] mb-2">
                       サイドを追加
                     </h3>
                     <ul className="space-y-2">
-                      {toppings.map((t) => {
+                      {sides.map((t) => {
                         const q = extraQty[t.menuId] ?? 0;
                         return (
                           <li
@@ -818,6 +847,7 @@ export default function MenuPage() {
                     customerId: customerRef.id,
                     tableId,
                     guestCount: guestCountInput,
+                    isPaid: false,
                     createdAt: serverTimestamp(),
                     updatedAt: serverTimestamp(),
                   });

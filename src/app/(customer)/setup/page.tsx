@@ -84,6 +84,7 @@ export default function SetupPage() {
         customerId: customerRef.id,
         tableId: selectedTable.tableId,
         guestCount: guestCountInput,
+        isPaid: false,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });

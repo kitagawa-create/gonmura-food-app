@@ -10,15 +10,15 @@ type FadeImageProps = {
 
 export function FadeImage({ src, alt, className = "" }: FadeImageProps) {
   const imgRef = useRef<HTMLImageElement>(null);
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(() => false);
 
   useEffect(() => {
     // ブラウザキャッシュ済み (preload 済) の画像は onLoad が発火しないことがあるため、
     // マウント/src 変更時に complete をチェックして即 loaded にする。
     if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
-      setLoaded(true);
+      queueMicrotask(() => setLoaded(true));
     } else {
-      setLoaded(false);
+      queueMicrotask(() => setLoaded(false));
     }
   }, [src]);
 

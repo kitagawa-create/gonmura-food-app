@@ -48,6 +48,12 @@ type MenuFormData = {
   status: MenuStatus;
 };
 
+const FIXED_SIDE_CATEGORY = {
+  categoryId: "__fixed_side__",
+  name: "サイド",
+  sortOrder: Number.MAX_SAFE_INTEGER - 1,
+} as const;
+
 const EMPTY_FORM: MenuFormData = {
   name: "",
   description: "",
@@ -153,12 +159,14 @@ export default function AdminMenusPage() {
     () => categories.find((c) => c.name === "おすすめ")?.categoryId,
     [categories]
   );
+  const sideId = FIXED_SIDE_CATEGORY.categoryId;
 
   function sortByCategory(items: Menu[], categoryId: string | null): Menu[] {
     const isOsusume = categoryId !== null && categoryId === osusumeId;
+    const isSide = categoryId !== null && categoryId === sideId;
     return [...items].sort((a, b) => {
-      const aOrder = isOsusume ? a.sortOrderFeatured : a.sortOrder;
-      const bOrder = isOsusume ? b.sortOrderFeatured : b.sortOrder;
+      const aOrder = isOsusume ? a.sortOrderFeatured : isSide ? a.sortOrderSide : a.sortOrder;
+      const bOrder = isOsusume ? b.sortOrderFeatured : isSide ? b.sortOrderSide : b.sortOrder;
       if (aOrder !== bOrder) return aOrder - bOrder;
       return a.name.localeCompare(b.name, "ja");
     });
@@ -179,6 +187,11 @@ export default function AdminMenusPage() {
         arr.push(m);
         groups.set(cid, arr);
       }
+      if (m.categoryIds.some((cid) => categoryMap.get(cid)?.name === "サイド")) {
+        const arr = groups.get(sideId) ?? [];
+        arr.push(m);
+        groups.set(sideId, arr);
+      }
     }
     const sections: { category: Category | null; items: Menu[] }[] = [];
     for (const c of categories) {
@@ -187,13 +200,17 @@ export default function AdminMenusPage() {
         sections.push({ category: c, items: sortByCategory(items, c.categoryId) });
       }
     }
+    const sideItems = groups.get(sideId);
+    if (sideItems && sideItems.length > 0) {
+      sections.push({ category: FIXED_SIDE_CATEGORY as unknown as Category, items: sortByCategory(sideItems, sideId) });
+    }
     const uncategorized = groups.get(null);
     if (uncategorized && uncategorized.length > 0) {
       sections.push({ category: null, items: sortByCategory(uncategorized, null) });
     }
     return sections;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [menus, categories, categoryMap, osusumeId]);
+  }, [menus, categories, categoryMap, osusumeId, sideId]);
 
   function getStoragePath(url: string): string | null {
     try {
@@ -242,12 +259,17 @@ export default function AdminMenusPage() {
           (m, x) => x.sortOrderFeatured < Number.MAX_SAFE_INTEGER ? Math.max(m, x.sortOrderFeatured) : m,
           -1
         );
+        const maxSideOrder = menus.reduce(
+          (m, x) => x.sortOrderSide < Number.MAX_SAFE_INTEGER ? Math.max(m, x.sortOrderSide) : m,
+          -1
+        );
         const menuDocId = newDocId ?? doc(collection(db, "menus")).id;
         await setDoc(doc(db, "menus", menuDocId), {
           menuId: menuDocId,
           ...saveData,
           sortOrder: maxOrder + 1,
           sortOrderFeatured: maxFeaturedOrder + 1,
+          sortOrderSide: maxSideOrder + 1,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
@@ -262,7 +284,7 @@ export default function AdminMenusPage() {
   }
 
   const persistMenuOrder = useCallback(
-    async (orderedSectionItems: Menu[], fieldName: "sortOrder" | "sortOrderFeatured") => {
+    async (orderedSectionItems: Menu[], fieldName: "sortOrder" | "sortOrderFeatured" | "sortOrderSide") => {
       setSavingMenuOrder(true);
       setError(null);
       try {
@@ -353,14 +375,18 @@ export default function AdminMenusPage() {
     if (!effectiveTab) return null;
     const cat = categories.find((c) => c.categoryId === effectiveTab) ?? null;
     const items = sortByCategory(
-      visibleMenus.filter((m) => m.categoryIds.includes(effectiveTab)),
+      visibleMenus.filter((m) =>
+        effectiveTab === sideId
+          ? m.categoryIds.some((cid) => categoryMap.get(cid)?.name === "サイド")
+          : m.categoryIds.includes(effectiveTab)
+      ),
       effectiveTab
     );
-    const fieldName: "sortOrder" | "sortOrderFeatured" =
-      cat?.categoryId === osusumeId ? "sortOrderFeatured" : "sortOrder";
+    const fieldName: "sortOrder" | "sortOrderFeatured" | "sortOrderSide" =
+      cat?.categoryId === osusumeId ? "sortOrderFeatured" : cat?.categoryId === sideId ? "sortOrderSide" : "sortOrder";
     return { category: cat, items, fieldName };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveTab, categories, visibleMenus, osusumeId]);
+  }, [effectiveTab, categories, visibleMenus, osusumeId, sideId]);
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -568,7 +594,7 @@ function SortableMenuCard({
             : hidden
               ? "border-dashed border-[color:var(--color-border)] opacity-60"
               : "border-[color:var(--color-border)]"
-      }`}
+      } pb-12`}
     >
       {/* 画像領域: お客様画面と同じ 4:3 */}
       {menu.imageUrl ? (
@@ -592,9 +618,9 @@ function SortableMenuCard({
       )}
 
       {/* テキスト領域: お客様画面と完全同一 */}
-      <div className={`flex flex-col p-4 gap-3 ${sold ? "opacity-60" : ""}`}>
+      <div className={`flex flex-col p-4 pb-14 gap-3 ${sold ? "opacity-60" : ""}`}>
         <h3 className="text-base font-bold leading-6 line-clamp-2 text-[color:var(--color-text-primary)]">
-          <span className="mr-1 text-xs font-bold text-[color:var(--color-text-muted)]">{index + 1}.</span>
+          <span className="mr-1 text-base font-bold text-[color:var(--color-text-muted)]">{index + 1}.</span>
           {menu.name}
         </h3>
         <p className="text-sm leading-5 line-clamp-2 text-[color:var(--color-text-muted)]">
@@ -668,13 +694,14 @@ function MenuFormModal({
     () => categories.find((c) => c.name === "おすすめ"),
     [categories]
   );
+  const sideCategory = FIXED_SIDE_CATEGORY as unknown as Category;
   const mainCategories = useMemo(
-    () => categories.filter((c) => c.name !== "おすすめ"),
-    [categories]
+    () => [...categories.filter((c) => c.name !== "おすすめ"), sideCategory],
+    [categories, sideCategory]
   );
 
   const initPrimaryId = menu
-    ? (menu.categoryIds.find((id) => id !== osusumeCategory?.categoryId) ?? "")
+    ? (menu.categoryIds.find((id) => id !== osusumeCategory?.categoryId && id !== sideCategory.categoryId) ?? "")
     : "";
   const initIsOsusume = menu
     ? (osusumeCategory ? menu.categoryIds.includes(osusumeCategory.categoryId) : false)

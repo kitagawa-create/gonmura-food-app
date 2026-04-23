@@ -51,7 +51,7 @@ export function CartPanel({
 
   // メインアイテムの画像のみ取得
   useEffect(() => {
-    const ids = items.filter((i) => i.isMain).map((i) => i.menuId);
+    const ids = items.filter((i) => i.setId === "").map((i) => i.menuId);
     if (ids.length === 0) return;
     const missing = ids.filter((id) => !(id in imageMap));
     if (missing.length === 0) return;
@@ -74,13 +74,13 @@ export function CartPanel({
     return () => { cancelled = true; };
   }, [items, imageMap]);
 
-  // メインアイテム順に setId でグループ化
+  // メインアイテム順に親子関係でグループ化
   const orderedSets = useMemo(() => {
     return items
-      .filter((i) => i.isMain)
+      .filter((i) => i.setId === "")
       .map((main) => ({
         main,
-        sides: items.filter((s) => !s.isMain && s.setId === main.setId),
+        sides: items.filter((s) => s.setId === main.lineId),
       }));
   }, [items]);
 
@@ -111,19 +111,19 @@ export function CartPanel({
       // セット単位で在庫チェック：メインまたは任意のサイドが注文不可ならセット全体を除外
       const unavailableSets = new Set<string>();
       for (const { main, sides } of orderedSets) {
-        if (orderable.get(main.menuId) !== true) { unavailableSets.add(main.setId); continue; }
+        if (orderable.get(main.menuId) !== true) { unavailableSets.add(main.lineId); continue; }
         for (const s of sides) {
-          if (orderable.get(s.menuId) !== true) { unavailableSets.add(main.setId); break; }
+          if (orderable.get(s.menuId) !== true) { unavailableSets.add(main.lineId); break; }
         }
       }
 
       if (unavailableSets.size > 0) {
         const names = orderedSets
-          .filter(({ main }) => unavailableSets.has(main.setId))
+          .filter(({ main }) => unavailableSets.has(main.lineId))
           .map(({ main }) => main.name);
         setUnavailableNames(names);
         for (const { main } of orderedSets) {
-          if (unavailableSets.has(main.setId)) removeItem(main.lineId);
+          if (unavailableSets.has(main.lineId)) removeItem(main.lineId);
         }
         setSubmitting(false);
         return;
@@ -151,8 +151,6 @@ export function CartPanel({
           price: item.price,
           quantity: item.quantity,
           setId: item.setId,
-          isMain: item.isMain,
-          toppings: [],
           checked: false,
           note: item.note,
           customerId: cid,
