@@ -741,6 +741,7 @@ function MenuFormModal({
         }
       : EMPTY_FORM
   );
+  const [priceInput, setPriceInput] = useState(menu ? String(menu.price) : "");
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [croppedBlob, setCroppedBlob] = useState<Blob | null>(null);
   const [preview, setPreview] = useState<string | null>(menu?.imageUrl || null);
@@ -849,9 +850,10 @@ function MenuFormModal({
               type="text"
               inputMode="numeric"
               className="w-full bg-[color:var(--color-bg-base)] border border-[color:var(--color-border)] rounded-lg px-3 py-2 text-sm text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-accent-char)]"
-              value={form.price === 0 ? "" : String(form.price)}
+              value={priceInput}
               onChange={(e) => {
                 const v = e.target.value.replace(/\D/g, "");
+                setPriceInput(v);
                 setForm({ ...form, price: v === "" ? 0 : Math.trunc(Number(v)) });
               }}
               placeholder="0"
