@@ -179,11 +179,9 @@ export default function AdminTablesPage() {
                     </div>
                   )}
                 </div>
-                {isOccupied && (
-                  <p className="text-xs text-[color:var(--color-text-muted)]">
-                    {formatElapsed(table.updatedAt.toDate(), now)}
-                  </p>
-                )}
+                <p className={`text-xs text-[color:var(--color-text-muted)] ${!isOccupied ? "invisible" : ""}`}>
+                  {formatElapsed(table.updatedAt.toDate(), now)}
+                </p>
               </div>
             );
           })}
