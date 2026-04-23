@@ -510,13 +510,11 @@ function ActiveOrderCard({
             <span className="text-2xl font-bold text-[color:var(--color-text-primary)]">
               {tableNumber ?? "?"}
             </span>
-            <span
-              className={`inline-flex items-center rounded-lg text-lg font-bold leading-none ${
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                 isUrgent
-                  ? "px-3 py-2 bg-[color:var(--color-accent-warn)] text-white"
-                  : "px-2 py-1 text-[color:var(--color-text-primary)]"
-              }`}
-            >
+                  ? "bg-[color:var(--color-accent-warn)] text-white"
+                  : "bg-[color:var(--color-bg-subtle)] text-[color:var(--color-text-muted)]"
+              }`}>
               {elapsed}
             </span>
           </div>
