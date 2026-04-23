@@ -33,7 +33,7 @@ import {
 } from "@dnd-kit/core";
 import {
   SortableContext,
-  rectSortingStrategy,
+  verticalListSortingStrategy,
   useSortable,
   arrayMove,
 } from "@dnd-kit/sortable";
@@ -436,8 +436,8 @@ export default function AdminMenusPage() {
           const { items } = currentSection;
           return (
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={items.map((m) => m.menuId)} strategy={rectSortingStrategy}>
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+              <SortableContext items={items.map((m) => m.menuId)} strategy={verticalListSortingStrategy}>
+                <ul className="space-y-2">
                   {items.map((m, menuIdx) => (
                     <SortableMenuCard
                       key={m.menuId}
@@ -450,7 +450,7 @@ export default function AdminMenusPage() {
                       onEdit={() => { setEditing(m); setShowForm(true); }}
                     />
                   ))}
-                </div>
+                </ul>
               </SortableContext>
             </DndContext>
           );
@@ -552,92 +552,80 @@ function SortableMenuCard({
   const style = { transform: CSS.Transform.toString(transform), transition };
 
   return (
-    <div
+    <li
       ref={setNodeRef}
       style={style}
-      onClick={onSelect}
-      className={`relative rounded-xl border bg-[color:var(--color-bg-card)] p-4 pb-7 shadow-sm select-none cursor-pointer ${
-        menu.status === "hidden" ? "bg-[color:var(--color-bg-subtle)] opacity-60 border-dashed" : ""
+      className={`rounded-xl border bg-[color:var(--color-bg-card)] p-3 shadow-sm transition-shadow ${
+        isDragging ? "opacity-50 shadow-xl z-50" : ""
       } ${
         isSelected
           ? "border-[color:var(--color-accent-char)] ring-2 ring-[color:var(--color-accent-char)]/30"
           : menu.status === "soldout"
             ? "border-[color:var(--color-accent-warn)]"
-            : "border-[color:var(--color-border)]"
-      } ${isDragging ? "opacity-40" : ""}`}
+            : menu.status === "hidden"
+              ? "border-dashed border-[color:var(--color-border)] opacity-60"
+              : "border-[color:var(--color-border)]"
+      }`}
     >
-      {isOwner && (
-        <div
-          {...attributes}
-          {...listeners}
-          className="absolute left-2 top-2 z-10 h-5 w-5 flex items-center justify-center cursor-grab touch-none active:cursor-grabbing"
-        >
-          <svg className="w-5 h-5 text-[color:var(--color-text-muted)]/50" viewBox="0 0 16 16" fill="currentColor">
-            <circle cx="5" cy="4" r="1.5"/><circle cx="11" cy="4" r="1.5"/>
-            <circle cx="5" cy="8" r="1.5"/><circle cx="11" cy="8" r="1.5"/>
-            <circle cx="5" cy="12" r="1.5"/><circle cx="11" cy="12" r="1.5"/>
-          </svg>
-        </div>
-      )}
-
-      {isOwner && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onEdit(); }}
-          className="absolute right-2 top-2 rounded-lg border border-[color:var(--color-border)] p-1.5 text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
-          aria-label="編集"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-          </svg>
-        </button>
-      )}
-
-      <div className="flex gap-3 pl-6">
+      <div className="flex items-center gap-2">
+        {isOwner ? (
+          <span
+            {...attributes}
+            {...listeners}
+            className="cursor-grab touch-none px-2 text-xl text-[color:var(--color-text-muted)] active:cursor-grabbing"
+            title="ドラッグして並び替え"
+          >
+            ⠿
+          </span>
+        ) : (
+          <span className="px-2 text-xl opacity-0 pointer-events-none">⠿</span>
+        )}
+        <span className="w-8 shrink-0 text-right text-sm tabular-nums text-[color:var(--color-text-muted)]">
+          {index + 1}.
+        </span>
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={onSelect}
+          className="h-4 w-4 shrink-0 accent-[color:var(--color-accent-char)]"
+        />
         {menu.imageUrl && (
           <FadeImage
             src={menu.imageUrl}
             alt={menu.name}
-            className="h-20 w-20 shrink-0 rounded"
+            className="h-12 w-16 shrink-0 rounded-lg object-cover"
           />
         )}
         <div className="min-w-0 flex-1">
-          <h3 className="truncate font-semibold text-[color:var(--color-text-primary)] pr-8">{menu.name}</h3>
-          <p className="text-sm text-[color:var(--color-accent-char)]">
+          <p className="truncate text-sm font-semibold text-[color:var(--color-text-primary)]">{menu.name}</p>
+          <p className="text-xs text-[color:var(--color-accent-char)]">
             ¥{taxIncluded(menu.price).toLocaleString()}
-            <span className="ml-1 text-xs text-[color:var(--color-text-muted)]">（税抜¥{menu.price.toLocaleString()}）</span>
+            <span className="ml-1 text-[color:var(--color-text-muted)]">（税抜¥{menu.price.toLocaleString()}）</span>
           </p>
-          <p className="mt-1 text-xs text-[color:var(--color-text-muted)]">
-            {menu.categoryIds
-              .map((id) => categoryMap.get(id)?.name ?? "(不明)")
-              .join(", ") || "(カテゴリ未設定)"}
+          <p className="text-xs text-[color:var(--color-text-muted)] truncate">
+            {menu.categoryIds.map((id) => categoryMap.get(id)?.name ?? "(不明)").join(", ") || "(カテゴリ未設定)"}
           </p>
-          {menu.description && (
-            <p className="mt-1 line-clamp-2 text-xs text-[color:var(--color-text-muted)]">
-              {menu.description}
-            </p>
-          )}
           {(menu.status === "hidden" || menu.status === "soldout") && (
-            <div className="mt-1.5 flex flex-wrap gap-1">
+            <div className="mt-0.5 flex flex-wrap gap-1">
               {menu.status === "hidden" && (
-                <span className="rounded-full bg-[color:var(--color-text-muted)] px-2 py-0.5 text-[10px] font-bold text-white">
-                  非公開中
-                </span>
+                <span className="rounded-full bg-[color:var(--color-text-muted)] px-2 py-0.5 text-[10px] font-bold text-white">非公開中</span>
               )}
               {menu.status === "soldout" && (
-                <span className="rounded-full bg-[color:var(--color-accent-warn)] px-2 py-0.5 text-[10px] font-bold text-white">
-                  売り切れ中
-                </span>
+                <span className="rounded-full bg-[color:var(--color-accent-warn)] px-2 py-0.5 text-[10px] font-bold text-white">売り切れ中</span>
               )}
             </div>
           )}
         </div>
+        {isOwner && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onEdit(); }}
+            className="rounded-lg border border-[color:var(--color-border)] px-2 py-1 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
+          >
+            編集
+          </button>
+        )}
       </div>
-
-      <div className="absolute left-2 bottom-2 pointer-events-none">
-        <span className="text-[10px] text-[color:var(--color-text-muted)]/60">表示順{index + 1}</span>
-      </div>
-    </div>
+    </li>
   );
 }
 
