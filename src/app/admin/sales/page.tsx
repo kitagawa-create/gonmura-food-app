@@ -357,7 +357,10 @@ export default function AdminSalesPage() {
 
       {/* 日別売上棒グラフ */}
       <div className="bg-[color:var(--color-bg-card)] rounded-xl border border-[color:var(--color-border)] px-4 pt-4 pb-2 shadow-sm">
-        <h2 className="text-base font-bold text-[color:var(--color-text-primary)] mb-4">日別売上</h2>
+        <div className="flex items-center gap-2 mb-4">
+          <h2 className="text-base font-bold text-[color:var(--color-text-primary)]">日別売上</h2>
+          <span className="text-xs text-[color:var(--color-text-muted)] border border-[color:var(--color-border)] rounded px-1.5 py-0.5">税込</span>
+        </div>
 
         {orders.length === 0 ? (
           <p className="text-sm text-[color:var(--color-text-muted)] py-12 text-center">
