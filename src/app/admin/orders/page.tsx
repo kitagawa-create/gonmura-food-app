@@ -916,9 +916,6 @@ function HistoryOrderCard({
         <div className="inline-flex items-center justify-center rounded-xl bg-[color:var(--color-accent-char)] px-3 py-1.5 min-w-[52px]">
           <span className="text-2xl font-bold leading-none text-white">{tableNumber}</span>
         </div>
-        <span className="rounded-full px-2 py-0.5 text-[10px] font-bold whitespace-nowrap bg-[color:var(--color-bg-subtle)] text-[color:var(--color-text-muted)]">
-          提供済
-        </span>
       </div>
       <div className="shrink-0 text-xs w-16">
         <p className="font-medium text-[color:var(--color-text-primary)] tabular-nums">{created ? TIME_FORMATTER.format(created) : "−"}</p>
