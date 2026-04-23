@@ -323,7 +323,15 @@ function NewOrdersView({
   const cancelItem = useCallback(
     async (order: OrderWithItems, itemId: string) => {
       onError(null);
-      const isLast = order.items.length === 1;
+      const item = order.items.find((i) => i.itemId === itemId);
+      if (!item) return;
+
+      // 新フォーマットのメインをキャンセルする場合、同一 setId のサイドも一括削除
+      const toDelete = (item.setId && item.isMain)
+        ? order.items.filter((i) => i.setId === item.setId)
+        : [item];
+      const isLast = order.items.length === toDelete.length;
+
       try {
         if (isLast) {
           const itemsSnap = await getDocs(query(collectionGroup(db, "items"), where("orderId", "==", order.orderId)));
@@ -332,7 +340,11 @@ function NewOrdersView({
           batch.delete(doc(db, "customers", order.customerId, "orders", order.orderId));
           await batch.commit();
         } else {
-          await deleteDoc(doc(db, "customers", order.customerId, "orders", order.orderId, "items", itemId));
+          const batch = writeBatch(db);
+          for (const i of toDelete) {
+            batch.delete(doc(db, "customers", order.customerId, "orders", order.orderId, "items", i.itemId));
+          }
+          await batch.commit();
         }
       } catch (e) {
         onError(e instanceof Error ? e.message : "更新に失敗しました。");
@@ -489,7 +501,11 @@ function ActiveOrderCard({
   const cancelTarget = cancelItemId !== null
     ? order.items.find((i) => i.itemId === cancelItemId) ?? null
     : null;
-  const isLastItem = order.items.length === 1;
+  // 新フォーマットのメインはセット全体がキャンセル対象になる
+  const cancelTargetSet = cancelTarget && cancelTarget.setId && cancelTarget.isMain
+    ? order.items.filter((i) => i.setId === cancelTarget.setId)
+    : cancelTarget ? [cancelTarget] : [];
+  const isLastItem = order.items.length === cancelTargetSet.length;
 
   return (
     <div
@@ -891,9 +907,27 @@ function HistoryOrderCard({
   const total = order.items.reduce((s, i) => s + comboLineTotal(i), 0);
   const created = order.createdAt?.toDate?.();
   const updated = order.updatedAt?.toDate?.();
+
+  // 表示用リスト: メインを先頭にしてサイドをその直後に配置（新旧両フォーマット対応）
+  const orderedDisplayItems = (() => {
+    const result: { item: typeof order.items[number]; isSide: boolean }[] = [];
+    const added = new Set<string>();
+    for (const item of order.items) {
+      if (added.has(item.itemId)) continue;
+      if (item.setId && !item.isMain) continue; // サイドは後でメインの直後に追加
+      added.add(item.itemId);
+      result.push({ item, isSide: false });
+      if (item.setId) {
+        const sides = order.items.filter((s) => !s.isMain && s.setId === item.setId);
+        sides.forEach((s) => { added.add(s.itemId); result.push({ item: s, isSide: true }); });
+      }
+    }
+    return result;
+  })();
+
   const PREVIEW = 2;
-  const visibleItems = expanded ? order.items : order.items.slice(0, PREVIEW);
-  const hiddenCount = order.items.length - PREVIEW;
+  const visibleDisplay = expanded ? orderedDisplayItems : orderedDisplayItems.slice(0, PREVIEW);
+  const hiddenCount = orderedDisplayItems.length - PREVIEW;
 
   return (
     <div
@@ -915,12 +949,15 @@ function HistoryOrderCard({
       </div>
       <div className="flex-1 min-w-0">
         <ul className="text-sm space-y-2">
-          {visibleItems.map((item) => (
-            <li key={item.itemId}>
+          {visibleDisplay.map(({ item, isSide }) => (
+            <li key={item.itemId} className={isSide ? "ml-3" : ""}>
               <div className="flex items-baseline gap-2">
-                <span className="flex-1 text-[color:var(--color-text-primary)] truncate">{item.name}</span>
+                <span className={`flex-1 truncate ${isSide ? "text-[color:var(--color-text-muted)]" : "text-[color:var(--color-text-primary)]"}`}>
+                  {isSide && "＋"}{item.name}
+                </span>
                 <span className="w-8 shrink-0 text-right text-[color:var(--color-text-muted)] tabular-nums">×{item.quantity}</span>
               </div>
+              {/* 旧フォーマット: toppings埋め込みを展開表示 */}
               {expanded && item.toppings.length > 0 && (
                 <ul className="ml-3 mt-0.5 space-y-0">
                   {item.toppings.map((t) => (
@@ -937,7 +974,7 @@ function HistoryOrderCard({
             </li>
           ))}
         </ul>
-        {order.items.length > PREVIEW && (
+        {orderedDisplayItems.length > PREVIEW && (
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}

@@ -35,8 +35,24 @@ function OrderCard({ order }: { order: OrderWithItems }) {
   const total = order.items.reduce((s, i) => s + comboLineTotal(i), 0);
   const created = order.createdAt?.toDate?.();
   const updated = order.updatedAt?.toDate?.();
-  const visibleItems = expanded ? order.items : order.items.slice(0, PREVIEW);
-  const hiddenCount = order.items.length - PREVIEW;
+  // メインを先頭にしてサイドをその直後に配置（新旧両フォーマット対応）
+  const orderedDisplayItems = (() => {
+    const result: { item: typeof order.items[number]; isSide: boolean }[] = [];
+    const added = new Set<string>();
+    for (const item of order.items) {
+      if (added.has(item.itemId)) continue;
+      if (item.setId && !item.isMain) continue;
+      added.add(item.itemId);
+      result.push({ item, isSide: false });
+      if (item.setId) {
+        const sides = order.items.filter((s) => !s.isMain && s.setId === item.setId);
+        sides.forEach((s) => { added.add(s.itemId); result.push({ item: s, isSide: true }); });
+      }
+    }
+    return result;
+  })();
+  const visibleDisplay = expanded ? orderedDisplayItems : orderedDisplayItems.slice(0, PREVIEW);
+  const hiddenCount = orderedDisplayItems.length - PREVIEW;
   const statusInfo = STATUS_LABEL[order.status] ?? STATUS_LABEL.pending;
 
   return (
@@ -62,10 +78,12 @@ function OrderCard({ order }: { order: OrderWithItems }) {
       {/* 注文メニュー */}
       <div className="flex-1 min-w-0">
         <ul className="text-sm space-y-2">
-          {visibleItems.map((item) => (
-            <li key={item.itemId}>
+          {visibleDisplay.map(({ item, isSide }) => (
+            <li key={item.itemId} className={isSide ? "ml-3" : ""}>
               <div className="flex items-baseline gap-2">
-                <span className="flex-1 text-[color:var(--color-text-primary)] truncate">{item.name}</span>
+                <span className={`flex-1 truncate ${isSide ? "text-[color:var(--color-text-muted)]" : "text-[color:var(--color-text-primary)]"}`}>
+                  {isSide && "＋"}{item.name}
+                </span>
                 <span className="w-8 shrink-0 text-right text-[color:var(--color-text-muted)] tabular-nums">×{item.quantity}</span>
               </div>
               {expanded && item.toppings.length > 0 && (
@@ -84,7 +102,7 @@ function OrderCard({ order }: { order: OrderWithItems }) {
             </li>
           ))}
         </ul>
-        {order.items.length > PREVIEW && (
+        {orderedDisplayItems.length > PREVIEW && (
           <button
             type="button"
             onClick={() => setExpanded((e) => !e)}
