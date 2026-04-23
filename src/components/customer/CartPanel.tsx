@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   collection,
@@ -49,9 +49,9 @@ export function CartPanel({
     return () => clearTimeout(timer);
   }, [showComplete]);
 
-  // メインアイテムの画像のみ取得
+  // カート内アイテムの画像を取得
   useEffect(() => {
-    const ids = items.filter((i) => i.setId === i.lineId).map((i) => i.menuId);
+    const ids = items.map((i) => i.menuId);
     if (ids.length === 0) return;
     const missing = ids.filter((id) => !(id in imageMap));
     if (missing.length === 0) return;
@@ -73,16 +73,6 @@ export function CartPanel({
     })();
     return () => { cancelled = true; };
   }, [items, imageMap]);
-
-  // メインアイテム順に親子関係でグループ化
-  const orderedSets = useMemo(() => {
-    return items
-      .filter((i) => i.setId === i.lineId)
-      .map((main) => ({
-        main,
-        sides: items.filter((s) => s.setId === main.lineId),
-      }));
-  }, [items]);
 
   async function handleSubmit() {
     if (submitting || !tableNumber || items.length === 0) return;
@@ -108,22 +98,12 @@ export function CartPanel({
         orderable.set(d.id, data.status === "active");
       });
 
-      // セット単位で在庫チェック：メインまたは任意のサイドが注文不可ならセット全体を除外
-      const unavailableSets = new Set<string>();
-      for (const { main, sides } of orderedSets) {
-        if (orderable.get(main.menuId) !== true) { unavailableSets.add(main.lineId); continue; }
-        for (const s of sides) {
-          if (orderable.get(s.menuId) !== true) { unavailableSets.add(main.lineId); break; }
-        }
-      }
-
-      if (unavailableSets.size > 0) {
-        const names = orderedSets
-          .filter(({ main }) => unavailableSets.has(main.lineId))
-          .map(({ main }) => main.name);
+      const unavailableItems = items.filter((item) => orderable.get(item.menuId) !== true);
+      if (unavailableItems.length > 0) {
+        const names = unavailableItems.map((item) => item.name);
         setUnavailableNames(names);
-        for (const { main } of orderedSets) {
-          if (unavailableSets.has(main.lineId)) removeItem(main.lineId);
+        for (const item of unavailableItems) {
+          removeItem(item.lineId);
         }
         setSubmitting(false);
         return;
@@ -150,7 +130,6 @@ export function CartPanel({
           name: item.name,
           price: item.price,
           quantity: item.quantity,
-          setId: item.setId,
           checked: false,
           note: item.note,
           customerId: cid,
@@ -163,7 +142,7 @@ export function CartPanel({
 
       trackEvent("purchase", {
         table_number: tableNumber,
-        items_count: orderedSets.length,
+        items_count: items.length,
         total_amount: totalAmount,
       });
 
@@ -189,40 +168,38 @@ export function CartPanel({
 
         {/* ボディ */}
         <div className="flex-1 min-h-0 overflow-y-auto">
-          {orderedSets.length === 0 ? (
+          {items.length === 0 ? (
             <p className="px-3 py-6 text-center text-xs text-[color:var(--color-text-muted)]">
               カートは空です
             </p>
           ) : (
             <ul className="divide-y divide-[color:var(--color-border)] border-b border-[color:var(--color-border)]">
-              {orderedSets.map(({ main, sides }) => {
-                const img = imageMap[main.menuId];
-                const setTotal = main.price + sides.reduce((s, sd) => s + sd.price * sd.quantity, 0);
-                const isSet = sides.length > 0;
+              {items.map((item) => {
+                const img = imageMap[item.menuId];
                 return (
-                  <li key={main.lineId} className="px-3 py-2">
+                  <li key={item.lineId} className="px-3 py-2">
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => onEditItem?.(main)}
+                        onClick={() => onEditItem?.(item)}
                         disabled={!onEditItem}
-                        aria-label={`${main.name}を編集`}
+                        aria-label={`${item.name}を編集`}
                         className="flex min-w-0 flex-1 items-center gap-2 text-left disabled:pointer-events-none"
                       >
                         <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-[color:var(--color-bg-subtle)]">
                           {img ? (
-                            <FadeImage src={img} alt={main.name} className="h-full w-full" />
+                            <FadeImage src={img} alt={item.name} className="h-full w-full" />
                           ) : (
                             <div className="h-full w-full" aria-hidden />
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
                           <h3 className="truncate text-xs font-semibold text-[color:var(--color-text-primary)]">
-                            {main.name}
+                            {item.name}
                           </h3>
                           <p className="text-xs font-bold text-[color:var(--color-accent-char)] tabular-nums">
-                            ¥{taxIncluded(setTotal).toLocaleString()}
-                            <span className="ml-1 font-normal text-[color:var(--color-text-muted)]">（税抜¥{setTotal.toLocaleString()}）</span>
+                            ¥{taxIncluded(item.price).toLocaleString()}
+                            <span className="ml-1 font-normal text-[color:var(--color-text-muted)]">（税抜¥{item.price.toLocaleString()}）</span>
                           </p>
                         </div>
                         {onEditItem && (
@@ -232,39 +209,36 @@ export function CartPanel({
                         )}
                       </button>
 
-                      {/* 単品のみ数量変更可 */}
-                      {!isSet && (
-                        <div className="flex shrink-0 items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              main.quantity === 1
-                                ? setDeleteTarget({ lineId: main.lineId, name: main.name })
-                                : updateQuantity(main.lineId, main.quantity - 1)
-                            }
-                            aria-label="数量を減らす"
-                            className="flex h-6 w-6 items-center justify-center rounded-full border border-[color:var(--color-border)] text-sm text-[color:var(--color-text-primary)] hover:opacity-80 transition-opacity"
-                          >
-                            −
-                          </button>
-                          <span className="w-5 text-center text-xs font-bold tabular-nums text-[color:var(--color-text-primary)]">
-                            {main.quantity}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => updateQuantity(main.lineId, main.quantity + 1)}
-                            aria-label="数量を増やす"
-                            className="flex h-6 w-6 items-center justify-center rounded-full border border-[color:var(--color-border)] text-sm text-[color:var(--color-text-primary)] hover:opacity-80 transition-opacity"
-                          >
-                            +
-                          </button>
-                        </div>
-                      )}
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            item.quantity === 1
+                              ? setDeleteTarget({ lineId: item.lineId, name: item.name })
+                              : updateQuantity(item.lineId, item.quantity - 1)
+                          }
+                          aria-label="数量を減らす"
+                          className="flex h-6 w-6 items-center justify-center rounded-full border border-[color:var(--color-border)] text-sm text-[color:var(--color-text-primary)] hover:opacity-80 transition-opacity"
+                        >
+                          −
+                        </button>
+                        <span className="w-5 text-center text-xs font-bold tabular-nums text-[color:var(--color-text-primary)]">
+                          {item.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => updateQuantity(item.lineId, item.quantity + 1)}
+                          aria-label="数量を増やす"
+                          className="flex h-6 w-6 items-center justify-center rounded-full border border-[color:var(--color-border)] text-sm text-[color:var(--color-text-primary)] hover:opacity-80 transition-opacity"
+                        >
+                          +
+                        </button>
+                      </div>
 
                       <button
                         type="button"
-                        onClick={() => setDeleteTarget({ lineId: main.lineId, name: main.name })}
-                        aria-label={`${main.name}を削除`}
+                        onClick={() => setDeleteTarget({ lineId: item.lineId, name: item.name })}
+                        aria-label={`${item.name}を削除`}
                         className="shrink-0 p-1 text-[color:var(--color-text-muted)] hover:text-[color:var(--color-accent-warn)] transition-colors"
                       >
                         <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -273,34 +247,19 @@ export function CartPanel({
                       </button>
                     </div>
 
-                    {/* サイドメニュー（ネスト表示） */}
-                    {sides.length > 0 && (
-                      <ul className="mt-1 ml-14 space-y-0.5">
-                        {sides.map((s) => (
-                          <li
-                            key={s.lineId}
-                            className="flex items-baseline justify-between text-[11px] text-[color:var(--color-text-muted)]"
-                          >
-                            <span className="truncate">＋ {s.name}</span>
-                            <span className="shrink-0 tabular-nums">×{s.quantity}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-
                     {/* 備考 */}
                     <div className="mt-1.5 ml-14">
                       <input
                         type="text"
-                        value={main.note}
-                        onChange={(e) => updateItemNote(main.lineId, e.target.value)}
-                        placeholder={`「${main.name}」への備考（アレルギー等）`}
+                        value={item.note}
+                        onChange={(e) => updateItemNote(item.lineId, e.target.value)}
+                        placeholder={`「${item.name}」への備考（アレルギー等）`}
                         maxLength={100}
                         className="w-full rounded-md border border-[color:var(--color-border)] bg-[color:var(--color-bg-subtle)] px-2 py-1 text-[11px] text-[color:var(--color-text-primary)] placeholder-[color:var(--color-text-muted)] focus:outline-none focus:ring-1 focus:ring-[color:var(--color-accent-char)]"
                       />
-                      {main.note.length > 0 && (
-                        <p className={`mt-0.5 text-right text-[10px] ${main.note.length >= 90 ? "text-[color:var(--color-accent-warn)]" : "text-[color:var(--color-text-muted)]"}`}>
-                          {main.note.length}/100
+                      {item.note.length > 0 && (
+                        <p className={`mt-0.5 text-right text-[10px] ${item.note.length >= 90 ? "text-[color:var(--color-accent-warn)]" : "text-[color:var(--color-text-muted)]"}`}>
+                          {item.note.length}/100
                         </p>
                       )}
                     </div>
@@ -323,7 +282,7 @@ export function CartPanel({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={submitting || orderedSets.length === 0}
+            disabled={submitting || items.length === 0}
             className="w-full rounded-xl bg-[color:var(--color-accent-char)] py-2.5 text-sm font-bold text-white hover:opacity-90 transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
           >
             {submitting ? "送信中..." : "注文を確定する"}

@@ -147,7 +147,9 @@ export default function BillPage() {
     const displayItems = groupOrderItemsForDisplay(order.items);
     for (const { item: main, isSide } of displayItems) {
       if (isSide) continue;
-      const sides = order.items.filter((i) => i.setId === main.setId && i.itemId !== main.itemId);
+      const sides = main.setId
+        ? order.items.filter((i) => i.setId === main.setId && i.itemId !== main.itemId)
+        : [];
       if (sides.length === 0) {
         const key = comboLineHash(main.menuId, [], "");
         const existing = billLines.find((l) => l.key === key);

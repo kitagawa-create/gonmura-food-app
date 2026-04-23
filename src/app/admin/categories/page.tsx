@@ -87,15 +87,13 @@ export default function AdminCategoriesPage() {
     return unsub;
   }, []);
 
-  // おすすめと通常カテゴリを分離
+  // おすすめカテゴリだけ先頭固定、それ以外は通常カテゴリとして扱う
   const osusumeCategory = categories.find((c) => c.name === "おすすめ") ?? null;
-  const hiddenSideCategories = categories.filter((c) => c.name === "サイド");
-  const otherCategories = categories.filter((c) => c.name !== "おすすめ" && c.name !== "サイド");
+  const otherCategories = categories.filter((c) => c.name !== "おすすめ");
 
   function findDuplicateName(name: string, excludeId?: string): string | null {
     const trimmed = name.trim();
     if (!trimmed) return null;
-    if (trimmed === "サイド") return "「サイド」は固定カテゴリのため追加できません";
     const hit = categories.find(
       (c) => c.categoryId !== excludeId && c.name.trim() === trimmed
     );
@@ -202,7 +200,6 @@ export default function AdminCategoriesPage() {
     setCategories([
       ...(osusumeCategory ? [osusumeCategory] : []),
       ...next,
-      ...hiddenSideCategories,
     ]);
     persistOrder(next);
   }

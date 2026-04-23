@@ -84,7 +84,7 @@ export function normalizeOrderItem(id: string, data: Record<string, unknown>): O
     name: typeof data.name === "string" ? data.name : "",
     price: typeof data.price === "number" ? Math.trunc(data.price) : 0,
     quantity: typeof data.quantity === "number" ? Math.trunc(data.quantity) : 1,
-    setId: typeof data.setId === "string" ? data.setId : "",
+    setId: typeof data.setId === "string" && data.setId ? data.setId : undefined,
     note: typeof data.note === "string" ? data.note : "",
     checked: data.checked === true,
   };
@@ -101,7 +101,7 @@ export function normalizeOrder(id: string, data: Record<string, unknown>, custom
   };
 }
 
-export type OrderedDisplayItem<T extends { itemId: string; setId: string }> = {
+export type OrderedDisplayItem<T extends { itemId: string; setId?: string }> = {
   item: T;
   isSide: boolean;
 };
@@ -110,7 +110,7 @@ export type OrderedDisplayItem<T extends { itemId: string; setId: string }> = {
  * 注文明細を表示順に整形する。
  * main は `setId === itemId` を優先し、旧データや不整合データでは各 setId の先頭を main とみなす。
  */
-export function groupOrderItemsForDisplay<T extends { itemId: string; setId: string }>(
+export function groupOrderItemsForDisplay<T extends { itemId: string; setId?: string }>(
   items: T[]
 ): OrderedDisplayItem<T>[] {
   const groups = new Map<string, T[]>();

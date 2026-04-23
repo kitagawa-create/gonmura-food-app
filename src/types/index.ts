@@ -55,11 +55,8 @@ export type OrderItem = {
   price: number;
   /** 整数 */
   quantity: number;
-  /**
-   * セット識別子。メイン商品は自分の `itemId`、サイドは親メインの `itemId`。
-   * 単品なら空文字。
-   */
-  setId: string;
+  /** 旧セット注文データとの互換用。新規注文では保存しない。 */
+  setId?: string;
   /** 注文時スナップショット。備考なしは空文字 */
   note: string;
   /** チェック状態 */
@@ -103,8 +100,6 @@ export type Table = {
 export type CartItem = {
   /** ライン識別子 */
   lineId: string;
-  /** セット識別子。メインは自分の lineId、サイドは親メインの lineId。 */
-  setId: string;
   menuId: string;
   /** 整数（円）。単品価格 */
   price: number;

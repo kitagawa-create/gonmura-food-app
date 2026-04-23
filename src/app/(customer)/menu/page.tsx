@@ -6,7 +6,7 @@ import { collection, query, where, orderBy, onSnapshot, doc, serverTimestamp, se
 import { db } from "@/lib/firebase";
 import type { Menu, Category, CartItem } from "@/types";
 import { normalizeMenu, taxIncluded } from "@/lib/order-utils";
-import { useCart, type SideInput } from "@/lib/cart-context";
+import { useCart } from "@/lib/cart-context";
 import { FadeImage } from "@/components/ui/FadeImage";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import { CartPanel } from "@/components/customer/CartPanel";
@@ -14,13 +14,6 @@ import Link from "next/link";
 
 const TABLE_KEY = "gonmura-table";
 const TABLE_ID_KEY = "gonmura-table-id";
-const FIXED_CATEGORY_SIDE = {
-  categoryId: "__fixed_side__",
-  name: "サイド",
-  sortOrder: Number.MAX_SAFE_INTEGER - 1,
-  sortOrderFeatured: Number.MAX_SAFE_INTEGER - 1,
-  sortOrderSide: Number.MAX_SAFE_INTEGER - 1,
-} as Category;
 
 function getDeviceId(): string {
   const KEY = "gonmura-device-id";
@@ -29,22 +22,6 @@ function getDeviceId(): string {
   const id = crypto.randomUUID();
   localStorage.setItem(KEY, id);
   return id;
-}
-
-type SelectionLine = { menu: Menu; quantity: number };
-
-// カテゴリ名からメニューの役割を判定するヘルパー
-function menuBelongsToCategory(menu: Menu, categories: Category[], categoryName: string): boolean {
-  if (categoryName === "サイド") {
-    return menu.categoryIds.some((cid) => {
-      const cat = categories.find((c) => c.categoryId === cid);
-      return cid === FIXED_CATEGORY_SIDE.categoryId || cat?.name === "サイド";
-    });
-  }
-  return menu.categoryIds.some((cid) => {
-    const cat = categories.find((c) => c.categoryId === cid);
-    return cat?.name === categoryName;
-  });
 }
 
 export default function MenuPage() {
@@ -57,8 +34,6 @@ export default function MenuPage() {
   const [selectedMenu, setSelectedMenu] = useState<Menu | null>(null);
   const [selectedQuantity, setSelectedQuantity] = useState(1);
   const [selectedNote, setSelectedNote] = useState("");
-  // メインディッシュモーダルのサイド選択 (menuId → quantity)
-  const [extraQty, setExtraQty] = useState<Record<string, number>>({});
   const [editingLineId, setEditingLineId] = useState<string | null>(null);
   const [showGuestCountDialog, setShowGuestCountDialog] = useState(false);
   const [guestCountInput, setGuestCountInput] = useState<number>(1);
@@ -66,7 +41,7 @@ export default function MenuPage() {
   const [dialogTables, setDialogTables] = useState<{ tableId: string; tableNumber: string; deviceId: string }[]>([]);
   const [dialogTablesLoading, setDialogTablesLoading] = useState(false);
   const [selectedDialogTableId, setSelectedDialogTableId] = useState<string>("");
-  const { addItem, addSet, updateItem, updateSet, items: cartItems, tableNumber, setTableNumber, resetSession, guestCount, setGuestCount, customerId, setCustomerId } =
+  const { addItem, updateItem, tableNumber, setTableNumber, resetSession, guestCount, setGuestCount, customerId, setCustomerId } =
     useCart();
   const router = useRouter();
   const prevPaidRef = useRef<boolean | undefined>(undefined);
@@ -178,10 +153,8 @@ export default function MenuPage() {
             updatedAt: raw.updatedAt as Category["updatedAt"],
           };
         });
-        const hasSide = data.some((c) => c.name === "サイド");
-        const next: Category[] = hasSide ? data : [...data, FIXED_CATEGORY_SIDE];
-        setCategories(next);
-        if (next.length > 0) queueMicrotask(() => setActiveCategory((cur) => cur ?? next[0].categoryId));
+        setCategories(data);
+        if (data.length > 0) queueMicrotask(() => setActiveCategory((cur) => cur ?? data[0].categoryId));
         setLoading(false);
       },
       () => setLoading(false)
@@ -193,10 +166,7 @@ export default function MenuPage() {
     if (!selectedMenu) return;
     const stillThere = menus.find((m) => m.menuId === selectedMenu.menuId);
     if (!stillThere || stillThere.status === "soldout") {
-      queueMicrotask(() => {
-        setSelectedMenu(null);
-        setExtraQty({});
-      });
+      queueMicrotask(() => closeModal());
     }
   }, [menus, selectedMenu]);
 
@@ -243,13 +213,14 @@ export default function MenuPage() {
 
   const filteredMenus = activeCategory
     ? (() => {
-        const isOsusume = categories.find((c) => c.categoryId === activeCategory)?.name === "おすすめ";
-        const isSide = activeCategory === FIXED_CATEGORY_SIDE.categoryId;
+        const activeCategoryName = categories.find((c) => c.categoryId === activeCategory)?.name;
+        const isOsusume = activeCategoryName === "おすすめ";
+        const isSide = activeCategoryName === "サイド";
         return menus
-          .filter((menu) => (isSide ? menuBelongsToCategory(menu, categories, "サイド") : menu.categoryIds.includes(activeCategory)))
+          .filter((menu) => menu.categoryIds.includes(activeCategory))
           .sort((a, b) => {
-            const aOrder = isOsusume ? a.sortOrderFeatured : a.sortOrder;
-            const bOrder = isOsusume ? b.sortOrderFeatured : b.sortOrder;
+            const aOrder = isOsusume ? a.sortOrderFeatured : isSide ? a.sortOrderSide : a.sortOrder;
+            const bOrder = isOsusume ? b.sortOrderFeatured : isSide ? b.sortOrderSide : b.sortOrder;
             if (aOrder !== bOrder) return aOrder - bOrder;
             return a.name.localeCompare(b.name, "ja");
           });
@@ -257,16 +228,11 @@ export default function MenuPage() {
     : [];
 
   const categoriesWithMenus = useMemo(() => {
-    const filtered = categories.filter((cat) => cat.name === "サイド" || menus.some((m) => m.categoryIds.includes(cat.categoryId)));
+    const filtered = categories.filter((cat) => menus.some((m) => m.categoryIds.includes(cat.categoryId)));
     const osusume = filtered.find((c) => c.name === "おすすめ");
-    const side = filtered.find((c) => c.name === "サイド");
-    const rest = filtered.filter((c) => c.name !== "おすすめ");
-    const withoutFixed = rest.filter((c) => c.name !== "サイド");
     return [
       ...(osusume ? [osusume] : []),
-      ...withoutFixed,
-      ...(side ? [side] : []),
-      ...(!side ? [FIXED_CATEGORY_SIDE] : []),
+      ...filtered.filter((c) => c.name !== "おすすめ"),
     ];
   }, [categories, menus]);
 
@@ -276,43 +242,10 @@ export default function MenuPage() {
     queueMicrotask(() => setActiveCategory(categoriesWithMenus[0].categoryId));
   }, [categoriesWithMenus, activeCategory]);
 
-  // 「サイド」カテゴリの商品
-  const sides = useMemo(
-    () =>
-      menus
-        .filter((m) => menuBelongsToCategory(m, categories, "サイド") && m.status !== "soldout")
-        .sort((a, b) => {
-          if (a.sortOrderSide !== b.sortOrderSide) return a.sortOrderSide - b.sortOrderSide;
-          return a.name.localeCompare(b.name, "ja");
-        }),
-    [menus, categories]
-  );
-
-  // 選択中の商品がメインディッシュカテゴリ（サイド追加対象）かどうか
-  const MAIN_DISH_CATEGORIES = ["ハンバーグ", "パスタ", "ピザ"];
-  const isMainDishFlow = selectedMenu
-    ? MAIN_DISH_CATEGORIES.some((name) => menuBelongsToCategory(selectedMenu, categories, name))
-    : false;
-
-  const extraLines: SelectionLine[] = isMainDishFlow
-    ? Object.entries(extraQty)
-        .filter(([, q]) => q > 0)
-        .map(([id, q]) => {
-          const m = menus.find((x) => x.menuId === id);
-          return m ? { menu: m, quantity: q } : null;
-        })
-        .filter((x): x is SelectionLine => x !== null)
-    : [];
-
-  // メインディッシュは 1 品固定。サイド追加なし商品のみ selectedQuantity を使う。
-  const effectiveQty = isMainDishFlow ? 1 : selectedQuantity;
-  const baseSubtotal = selectedMenu ? taxIncluded(selectedMenu.price) * effectiveQty : 0;
-  const extrasSubtotal = extraLines.reduce((s, l) => s + taxIncluded(l.menu.price) * l.quantity, 0);
-  const modalTotal = baseSubtotal + extrasSubtotal;
+  const modalTotal = selectedMenu ? taxIncluded(selectedMenu.price) * selectedQuantity : 0;
 
   function closeModal() {
     setSelectedMenu(null);
-    setExtraQty({});
     setSelectedNote("");
     setEditingLineId(null);
   }
@@ -324,11 +257,6 @@ export default function MenuPage() {
     setSelectedMenu(menu);
     setSelectedQuantity(item.quantity);
     setSelectedNote(item.note);
-    // 親行に紐づくサイドを extraQty に復元
-    const selectedSides = cartItems.filter((s) => s.setId === item.lineId);
-    const qty: Record<string, number> = {};
-    for (const s of selectedSides) qty[s.menuId] = s.quantity;
-    setExtraQty(qty);
   }
 
   // --- スワイプ / マウスドラッグでカテゴリ切替 ---
@@ -459,7 +387,8 @@ export default function MenuPage() {
                     if (sold) return;
                     setSelectedMenu(menu);
                     setSelectedQuantity(1);
-                    setExtraQty({});
+                    setSelectedNote("");
+                    setEditingLineId(null);
                   }}
                   className={`relative flex w-full flex-col text-left rounded-xl overflow-hidden bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] transition-colors ${
                     sold
@@ -572,101 +501,30 @@ export default function MenuPage() {
                   </p>
                 </div>
 
-                {/* 数量ステッパー (メインディッシュは 1 品固定のため非メインのみ) */}
-                {!isMainDishFlow && (
-                  <div className="flex items-center justify-between rounded-xl bg-[color:var(--color-bg-subtle)] p-3">
-                    <span className="text-sm text-[color:var(--color-text-primary)]">数量</span>
-                    <div className="flex items-center gap-4">
-                      <button
-                        onClick={() => setSelectedQuantity((q) => Math.max(1, q - 1))}
-                        disabled={selectedQuantity <= 1}
-                        aria-label="数量を減らす"
-                        className="w-11 h-11 rounded-full bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] text-[color:var(--color-text-primary)] text-xl font-bold hover:opacity-80 disabled:opacity-30 disabled:cursor-not-allowed transition-opacity"
-                      >
-                        −
-                      </button>
-                      <span className="w-8 text-center text-xl font-bold text-[color:var(--color-text-primary)] tabular-nums">
-                        {selectedQuantity}
-                      </span>
-                      <button
-                        onClick={() => setSelectedQuantity((q) => Math.min(99, q + 1))}
-                        disabled={selectedQuantity >= 99}
-                        aria-label="数量を増やす"
-                        className="w-11 h-11 rounded-full bg-[color:var(--color-accent-char)] text-white text-xl font-bold hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-opacity"
-                      >
-                        +
-                      </button>
-                    </div>
+                <div className="flex items-center justify-between rounded-xl bg-[color:var(--color-bg-subtle)] p-3">
+                  <span className="text-sm text-[color:var(--color-text-primary)]">数量</span>
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={() => setSelectedQuantity((q) => Math.max(1, q - 1))}
+                      disabled={selectedQuantity <= 1}
+                      aria-label="数量を減らす"
+                      className="w-11 h-11 rounded-full bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] text-[color:var(--color-text-primary)] text-xl font-bold hover:opacity-80 disabled:opacity-30 disabled:cursor-not-allowed transition-opacity"
+                    >
+                      −
+                    </button>
+                    <span className="w-8 text-center text-xl font-bold text-[color:var(--color-text-primary)] tabular-nums">
+                      {selectedQuantity}
+                    </span>
+                    <button
+                      onClick={() => setSelectedQuantity((q) => Math.min(99, q + 1))}
+                      disabled={selectedQuantity >= 99}
+                      aria-label="数量を増やす"
+                      className="w-11 h-11 rounded-full bg-[color:var(--color-accent-char)] text-white text-xl font-bold hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-opacity"
+                    >
+                      +
+                    </button>
                   </div>
-                )}
-
-                {/* メインディッシュ選択時のみ: サイド追加 */}
-                {isMainDishFlow && sides.length > 0 && (
-                  <section>
-                    <h3 className="text-sm font-bold text-[color:var(--color-text-primary)] mb-2">
-                      サイドを追加
-                    </h3>
-                    <ul className="space-y-2">
-                      {sides.map((t) => {
-                        const q = extraQty[t.menuId] ?? 0;
-                        return (
-                          <li
-                            key={t.menuId}
-                            className="flex items-center gap-3 rounded-xl bg-[color:var(--color-bg-subtle)] px-3 py-2"
-                          >
-                            {t.imageUrl && (
-                              <FadeImage
-                                src={t.imageUrl}
-                                alt={t.name}
-                                className="w-12 h-12 rounded-lg shrink-0"
-                              />
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-[color:var(--color-text-primary)] truncate">
-                                {t.name}
-                              </p>
-                              <p className="text-xs text-[color:var(--color-accent-char)] font-bold">
-                                +{taxIncluded(t.price).toLocaleString()}円<span className="ml-1 font-normal text-[color:var(--color-text-muted)] whitespace-nowrap">（税抜{t.price.toLocaleString()}円）</span>
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setExtraQty((prev) => ({
-                                    ...prev,
-                                    [t.menuId]: Math.max(0, (prev[t.menuId] ?? 0) - 1),
-                                  }))
-                                }
-                                disabled={q <= 0}
-                                aria-label={`${t.name}を減らす`}
-                                className="w-9 h-9 rounded-full bg-[color:var(--color-bg-card)] border border-[color:var(--color-border)] text-[color:var(--color-text-primary)] font-bold disabled:opacity-30 disabled:cursor-not-allowed"
-                              >
-                                −
-                              </button>
-                              <span className="w-6 text-center text-sm font-bold text-[color:var(--color-text-primary)] tabular-nums">
-                                {q}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setExtraQty((prev) => ({
-                                    ...prev,
-                                    [t.menuId]: Math.min(20, (prev[t.menuId] ?? 0) + 1),
-                                  }))
-                                }
-                                aria-label={`${t.name}を追加`}
-                                className="w-9 h-9 rounded-full bg-[color:var(--color-accent-soy)] text-white font-bold hover:opacity-90"
-                              >
-                                +
-                              </button>
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </section>
-                )}
+                </div>
 
                 {/* 備考欄 */}
                 <div>
@@ -698,40 +556,18 @@ export default function MenuPage() {
                 <button
                   onClick={() => {
                     if (!selectedMenu) return;
-                    if (isMainDishFlow) {
-                      const sides: SideInput[] = extraLines.map((l) => ({
-                        menuId: l.menu.menuId,
-                        name: l.menu.name,
-                        price: l.menu.price,
-                        quantity: l.quantity,
-                      }));
-                      if (editingLineId) {
-                        updateSet(editingLineId, { sides, note: selectedNote.trim() });
-                      } else {
-                        addSet(
-                          {
-                            menuId: selectedMenu.menuId,
-                            name: selectedMenu.name,
-                            price: selectedMenu.price,
-                          },
-                          sides,
-                          selectedNote.trim()
-                        );
-                      }
+                    if (editingLineId) {
+                      updateItem(editingLineId, { quantity: selectedQuantity, note: selectedNote.trim() });
                     } else {
-                      if (editingLineId) {
-                        updateItem(editingLineId, { quantity: selectedQuantity, note: selectedNote.trim() });
-                      } else {
-                        addItem(
-                          {
-                            menuId: selectedMenu.menuId,
-                            name: selectedMenu.name,
-                            price: selectedMenu.price,
-                            ...(selectedNote.trim() ? { note: selectedNote.trim() } : {}),
-                          },
-                          selectedQuantity
-                        );
-                      }
+                      addItem(
+                        {
+                          menuId: selectedMenu.menuId,
+                          name: selectedMenu.name,
+                          price: selectedMenu.price,
+                          ...(selectedNote.trim() ? { note: selectedNote.trim() } : {}),
+                        },
+                        selectedQuantity
+                      );
                     }
                     closeModal();
                   }}

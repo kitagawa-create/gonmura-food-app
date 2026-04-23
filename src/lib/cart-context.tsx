@@ -19,27 +19,16 @@ type CartItemInput = {
   note?: string;
 };
 
-export type SideInput = {
-  menuId: string;
-  name: string;
-  price: number;
-  quantity: number;
-};
-
 type CartContextType = {
   items: CartItem[];
-  /** 単品追加（サイドなし）。同一 menuId+note なら数量マージ。 */
+  /** 単品追加。同一 menuId+note なら数量マージ。 */
   addItem: (item: CartItemInput, quantity?: number) => void;
-  /** メイン＋サイドをセットで追加。親子関係で紐づける。 */
-  addSet: (main: CartItemInput, sides: SideInput[], note?: string) => void;
-  /** lineId のアイテムを削除。メインの場合は同一親のサイドも一括削除。 */
+  /** lineId のアイテムを削除。 */
   removeItem: (lineId: string) => void;
   updateQuantity: (lineId: string, quantity: number) => void;
   updateItemNote: (lineId: string, note: string) => void;
   /** 単品の数量・備考を更新。 */
   updateItem: (lineId: string, updates: Partial<Pick<CartItem, "quantity" | "note">>) => void;
-  /** セットのサイド構成・備考を更新。mainLineId はメインアイテムの lineId。 */
-  updateSet: (mainLineId: string, updates: { sides?: SideInput[]; note?: string }) => void;
   clearCart: () => void;
   resetSession: () => void;
   totalAmount: number;
@@ -76,11 +65,9 @@ function rehydrateItems(raw: unknown): CartItem[] {
     const menuId = String(item.menuId ?? "");
     if (!menuId) continue;
     const lineId = typeof item.lineId === "string" && item.lineId ? item.lineId : newLineId();
-    const rawSetId = typeof item.setId === "string" ? item.setId : "";
 
     result.push({
       lineId,
-      setId: rawSetId ? rawSetId : lineId,
       menuId,
       name: String(item.name ?? ""),
       price: Number(item.price ?? 0),
@@ -161,7 +148,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     const qty = Math.max(1, Math.trunc(quantity));
     const note = input.note ?? "";
     setItems((prev) => {
-      const existing = prev.find((i) => i.setId === i.lineId && i.menuId === input.menuId && i.note === note);
+      const existing = prev.find((i) => i.menuId === input.menuId && i.note === note);
       if (existing) {
         return prev.map((i) =>
           i.lineId === existing.lineId ? { ...i, quantity: i.quantity + qty } : i
@@ -170,47 +157,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const lineId = newLineId();
       return [
         ...prev,
-        { lineId, setId: lineId, menuId: input.menuId, name: input.name, price: input.price, quantity: qty, note },
+        { lineId, menuId: input.menuId, name: input.name, price: input.price, quantity: qty, note },
       ];
     });
   }, []);
 
-  /** メイン＋サイドをセット追加。setId で紐づける。 */
-  const addSet = useCallback((main: CartItemInput, sides: SideInput[], note: string = "") => {
-    setItems((prev) => {
-      const mainLineId = newLineId();
-      const mainItem: CartItem = {
-        lineId: mainLineId,
-        setId: mainLineId,
-        menuId: main.menuId,
-        name: main.name,
-        price: main.price,
-        quantity: 1,
-        note,
-      };
-      const sideItems: CartItem[] = sides
-        .filter((s) => s.quantity > 0)
-        .map((s) => ({
-          lineId: newLineId(),
-          setId: mainLineId,
-          menuId: s.menuId,
-          name: s.name,
-          price: s.price,
-          quantity: s.quantity,
-          note: "",
-        }));
-      return [...prev, mainItem, ...sideItems];
-    });
-  }, []);
-
-  /** lineId のアイテムを削除。メインなら同一 setId のサイドも一括削除。 */
+  /** lineId のアイテムを削除。 */
   const removeItem = useCallback((lineId: string) => {
-    setItems((prev) => {
-      const item = prev.find((i) => i.lineId === lineId);
-      if (!item) return prev.filter((i) => i.lineId !== lineId);
-      if (item.setId === item.lineId) return prev.filter((i) => i.setId !== item.lineId);
-      return prev.filter((i) => i.lineId !== lineId);
-    });
+    setItems((prev) => prev.filter((i) => i.lineId !== lineId));
   }, []);
 
   const updateQuantity = useCallback((lineId: string, quantity: number) => {
@@ -248,43 +202,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
-  /** セットのサイド構成・備考を更新。既存サイドを入れ替え。 */
-  const updateSet = useCallback(
-    (mainLineId: string, updates: { sides?: SideInput[]; note?: string }) => {
-      setItems((prev) => {
-        const main = prev.find((i) => i.lineId === mainLineId);
-        if (!main || main.setId !== main.lineId) return prev;
-        // メイン以外の同一親を除去
-        let next = prev.filter((i) => i.lineId === mainLineId || i.setId !== mainLineId);
-
-        // 備考更新
-        if (updates.note !== undefined) {
-          next = next.map((i) => (i.lineId === mainLineId ? { ...i, note: updates.note! } : i));
-        }
-
-        // サイド再構成
-        if (updates.sides !== undefined) {
-          const newSides: CartItem[] = updates.sides
-            .filter((s) => s.quantity > 0)
-            .map((s) => ({
-              lineId: newLineId(),
-              setId: mainLineId,
-              menuId: s.menuId,
-              name: s.name,
-              price: s.price,
-              quantity: s.quantity,
-              note: "",
-            }));
-          const mainIdx = next.findIndex((i) => i.lineId === mainLineId);
-          next = [...next.slice(0, mainIdx + 1), ...newSides, ...next.slice(mainIdx + 1)];
-        }
-
-        return next;
-      });
-    },
-    []
-  );
-
   const clearCart = useCallback(() => setItems([]), []);
 
   const resetSession = useCallback(() => {
@@ -303,7 +220,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     [items]
   );
 
-  // 総点数 = 全アイテムの quantity 総和（メイン・サイド問わず）
+  // 総点数 = 全アイテムの quantity 総和
   const totalItems = useMemo(
     () => items.reduce((sum, i) => sum + i.quantity, 0),
     [items]
@@ -314,12 +231,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       value={{
         items,
         addItem,
-        addSet,
         removeItem,
         updateQuantity,
         updateItemNote,
         updateItem,
-        updateSet,
         clearCart,
         resetSession,
         totalAmount,

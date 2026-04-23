@@ -326,10 +326,10 @@ function NewOrdersView({
       const item = order.items.find((i) => i.itemId === itemId);
       if (!item) return;
 
-      // 新フォーマットのメインをキャンセルする場合、同一セットのサイドも一括削除
-      const toDelete = (item.setId === item.itemId)
+      const relatedLegacySides = item.setId && item.setId === item.itemId
         ? order.items.filter((i) => i.setId === item.itemId && i.itemId !== item.itemId)
-        : [item];
+        : [];
+      const toDelete = [item, ...relatedLegacySides];
       const isLast = order.items.length === toDelete.length;
 
       try {
@@ -501,17 +501,17 @@ function ActiveOrderCard({
   const cancelTarget = cancelItemId !== null
     ? order.items.find((i) => i.itemId === cancelItemId) ?? null
     : null;
-  // メインは配下のサイドも含めてキャンセル対象になる
   const orderedDisplayItems = groupOrderItemsForDisplay(order.items);
   const cancelTargetSet = cancelTarget
     ? (() => {
+        if (!cancelTarget.setId) return [];
         const main = cancelTarget.itemId === cancelTarget.setId
           ? cancelTarget
           : order.items.find((i) => i.itemId === cancelTarget.setId) ?? cancelTarget;
         return order.items.filter((i) => i.setId === main.setId && i.itemId !== cancelTarget.itemId);
       })()
     : [];
-  const isLastItem = order.items.length === cancelTargetSet.length;
+  const isLastItem = cancelTarget ? order.items.length === cancelTargetSet.length + 1 : false;
 
   return (
     <div
@@ -878,20 +878,7 @@ function HistoryOrderCard({
   const created = order.createdAt?.toDate?.();
   const updated = order.updatedAt?.toDate?.();
 
-  // 表示用リスト: メインを先頭にしてサイドをその直後に配置（新旧両フォーマット対応）
-  const orderedDisplayItems = (() => {
-    const result: { item: typeof order.items[number]; isSide: boolean }[] = [];
-    const added = new Set<string>();
-    for (const item of order.items) {
-      if (added.has(item.itemId)) continue;
-      if (item.setId !== item.itemId) continue; // サイドは後でメインの直後に追加
-      added.add(item.itemId);
-      result.push({ item, isSide: false });
-      const sides = order.items.filter((s) => s.setId === item.itemId && s.itemId !== item.itemId);
-      sides.forEach((s) => { added.add(s.itemId); result.push({ item: s, isSide: true }); });
-    }
-    return result;
-  })();
+  const orderedDisplayItems = groupOrderItemsForDisplay(order.items);
 
   const PREVIEW = 2;
   const visibleDisplay = expanded ? orderedDisplayItems : orderedDisplayItems.slice(0, PREVIEW);

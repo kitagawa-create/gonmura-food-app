@@ -48,12 +48,6 @@ type MenuFormData = {
   status: MenuStatus;
 };
 
-const FIXED_SIDE_CATEGORY = {
-  categoryId: "__fixed_side__",
-  name: "サイド",
-  sortOrder: Number.MAX_SAFE_INTEGER - 1,
-} as const;
-
 const EMPTY_FORM: MenuFormData = {
   name: "",
   description: "",
@@ -152,10 +146,7 @@ export default function AdminMenusPage() {
     for (const c of categories) m.set(c.categoryId, c);
     return m;
   }, [categories]);
-  const displayCategories = useMemo(
-    () => [...categories.filter((c) => c.name !== "サイド"), FIXED_SIDE_CATEGORY as unknown as Category],
-    [categories]
-  );
+  const displayCategories = useMemo(() => categories, [categories]);
 
   const visibleMenus = useMemo(() => menus.filter((m) => m.status !== "deleted"), [menus]);
 
@@ -163,11 +154,9 @@ export default function AdminMenusPage() {
     () => categories.find((c) => c.name === "おすすめ")?.categoryId,
     [categories]
   );
-  const sideId = FIXED_SIDE_CATEGORY.categoryId;
-  const hasSideCategory = useCallback(
-    (menu: Menu) =>
-      menu.categoryIds.some((cid) => cid === sideId || categoryMap.get(cid)?.name === "サイド"),
-    [categoryMap, sideId]
+  const sideId = useMemo(
+    () => categories.find((c) => c.name === "サイド")?.categoryId,
+    [categories]
   );
 
   function sortByCategory(items: Menu[], categoryId: string | null): Menu[] {
@@ -196,22 +185,13 @@ export default function AdminMenusPage() {
         arr.push(m);
         groups.set(cid, arr);
       }
-      if (hasSideCategory(m)) {
-        const arr = groups.get(sideId) ?? [];
-        arr.push(m);
-        groups.set(sideId, arr);
-      }
     }
     const sections: { category: Category | null; items: Menu[] }[] = [];
-    for (const c of displayCategories.filter((x) => x.categoryId !== sideId)) {
+    for (const c of displayCategories) {
       const items = groups.get(c.categoryId);
       if (items && items.length > 0) {
         sections.push({ category: c, items: sortByCategory(items, c.categoryId) });
       }
-    }
-    const sideItems = groups.get(sideId);
-    if (sideItems && sideItems.length > 0) {
-      sections.push({ category: FIXED_SIDE_CATEGORY as unknown as Category, items: sortByCategory(sideItems, sideId) });
     }
     const uncategorized = groups.get(null);
     if (uncategorized && uncategorized.length > 0) {
@@ -219,7 +199,7 @@ export default function AdminMenusPage() {
     }
     return sections;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [menus, displayCategories, hasSideCategory, osusumeId, sideId]);
+  }, [menus, displayCategories, osusumeId, sideId, categoryMap, visibleMenus]);
 
   function getStoragePath(url: string): string | null {
     try {
@@ -382,22 +362,16 @@ export default function AdminMenusPage() {
 
   const currentSection = useMemo(() => {
     if (!effectiveTab) return null;
-    const cat = effectiveTab === sideId
-      ? (FIXED_SIDE_CATEGORY as unknown as Category)
-      : displayCategories.find((c) => c.categoryId === effectiveTab) ?? null;
+    const cat = displayCategories.find((c) => c.categoryId === effectiveTab) ?? null;
     const items = sortByCategory(
-      visibleMenus.filter((m) =>
-        effectiveTab === sideId
-          ? hasSideCategory(m)
-          : m.categoryIds.includes(effectiveTab)
-      ),
+      visibleMenus.filter((m) => m.categoryIds.includes(effectiveTab)),
       effectiveTab
     );
     const fieldName: "sortOrder" | "sortOrderFeatured" | "sortOrderSide" =
       cat?.categoryId === osusumeId ? "sortOrderFeatured" : cat?.categoryId === sideId ? "sortOrderSide" : "sortOrder";
     return { category: cat, items, fieldName };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveTab, displayCategories, visibleMenus, osusumeId, sideId, hasSideCategory]);
+  }, [effectiveTab, displayCategories, visibleMenus, osusumeId, sideId]);
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -433,9 +407,7 @@ export default function AdminMenusPage() {
           <div className="flex gap-1 overflow-x-auto no-scrollbar">
             {displayCategories.map((cat) => {
               const isActive = effectiveTab === cat.categoryId;
-              const count = visibleMenus.filter((m) =>
-                cat.categoryId === sideId ? hasSideCategory(m) : m.categoryIds.includes(cat.categoryId)
-              ).length;
+              const count = visibleMenus.filter((m) => m.categoryIds.includes(cat.categoryId)).length;
               return (
                 <button
                   key={cat.categoryId}
@@ -665,7 +637,7 @@ function SortableMenuCard({
         <div
           {...attributes}
           {...listeners}
-          className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/80 shadow-sm cursor-grab touch-none text-[color:var(--color-text-muted)] active:cursor-grabbing"
+          className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 flex items-center justify-center cursor-grab touch-none text-[color:var(--color-text-muted)] active:cursor-grabbing"
           title="ドラッグして並び替え"
         >
           ⠿
@@ -707,20 +679,14 @@ function MenuFormModal({
     () => categories.find((c) => c.name === "おすすめ"),
     [categories]
   );
-  const sideCategory = FIXED_SIDE_CATEGORY as unknown as Category;
   const mainCategories = useMemo(
-    () => [...categories.filter((c) => c.name !== "おすすめ" && c.name !== "サイド"), sideCategory],
-    [categories, sideCategory]
+    () => categories.filter((c) => c.name !== "おすすめ"),
+    [categories]
   );
 
   const initPrimaryId = menu
     ? (
-        menu.categoryIds.some((id) => id === sideCategory.categoryId || categories.find((c) => c.categoryId === id)?.name === "サイド")
-          ? sideCategory.categoryId
-          : menu.categoryIds.find((id) => {
-              const cat = categories.find((c) => c.categoryId === id);
-              return id !== osusumeCategory?.categoryId && cat?.name !== "サイド";
-            }) ?? ""
+        menu.categoryIds.find((id) => id !== osusumeCategory?.categoryId && categories.some((c) => c.categoryId === id)) ?? ""
       )
     : "";
   const initIsOsusume = menu

@@ -307,14 +307,13 @@ export default function AdminSalesPage() {
 
   const kpi = useMemo(() => {
     const revenue = orders.reduce((s, o) => s + orderTotal(o), 0);
-    const count = orders.length;
     const [year, month] = selectedYearMonth.split("-").map(Number);
     const daysInMonth = new Date(year, month, 0).getDate();
     const dailyAvgRevenue = daysInMonth > 0 ? Math.round(revenue / daysInMonth) : 0;
     const uniqueCustomers = [...new Set(orders.map((o) => o.customerId))];
     const totalGuests = uniqueCustomers.reduce((s, id) => s + (customerGuestMap.get(id) ?? 1), 0);
     const guestUnitPrice = totalGuests > 0 ? Math.round(revenue / totalGuests) : null;
-    return { revenue, count, dailyAvgRevenue, guestUnitPrice, totalGuests };
+    return { revenue, dailyAvgRevenue, guestUnitPrice, totalGuests };
   }, [orders, selectedYearMonth, customerGuestMap]);
 
   if (role !== "owner") return null;
@@ -341,16 +340,12 @@ export default function AdminSalesPage() {
       </div>
 
       {/* KPI */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <KpiCard
           label="月間売上"
           value={yen(taxIncluded(kpi.revenue))}
           sub={`税抜 ${yen(kpi.revenue)}`}
           sub2={`1日平均 ${yen(taxIncluded(kpi.dailyAvgRevenue))}`}
-        />
-        <KpiCard
-          label="注文数"
-          value={`${kpi.count.toLocaleString()}件`}
         />
         <KpiCard
           label="客単価"
