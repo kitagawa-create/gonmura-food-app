@@ -843,7 +843,6 @@ function HistoryView({ onError }: { onError: (msg: string | null) => void }) {
       </StickyFilterBar>
 
       <div className="shrink-0 flex items-center gap-5 sm:gap-7 px-4 py-2 border-b border-[color:var(--color-border)] bg-[color:var(--color-bg-subtle)] text-xs font-semibold text-[color:var(--color-text-muted)]">
-        <div className="w-4 shrink-0" />
         <div className="w-14 shrink-0 text-center">テーブル</div>
         <div className="w-16 shrink-0">注文</div>
         <div className="w-16 shrink-0">提供</div>
@@ -907,18 +906,12 @@ function HistoryOrderCard({
   const hiddenCount = order.items.length - PREVIEW;
 
   return (
-    <div className={`flex items-start gap-5 sm:gap-7 rounded-xl border bg-[color:var(--color-bg-card)] p-4 shadow-sm transition-colors ${
-      selected ? "border-[color:var(--color-accent-char)] ring-2 ring-[color:var(--color-accent-char)]/20" : "border-[color:var(--color-border)]"
-    }`}>
-      <div className="shrink-0 pt-1">
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={() => onSelect(order.orderId)}
-          className="h-4 w-4 rounded cursor-pointer"
-          style={{ accentColor: "var(--color-accent-char)" }}
-        />
-      </div>
+    <div
+      onClick={() => onSelect(order.orderId)}
+      className={`flex items-start gap-5 sm:gap-7 rounded-xl border bg-[color:var(--color-bg-card)] p-4 shadow-sm transition-colors cursor-pointer ${
+        selected ? "border-[color:var(--color-accent-char)] ring-2 ring-[color:var(--color-accent-char)]/20" : "border-[color:var(--color-border)]"
+      }`}
+    >
       <div className="shrink-0 flex flex-col items-center gap-1 w-14">
         <span className="text-2xl font-bold text-[color:var(--color-text-primary)]">
           {tableNumber}
@@ -960,7 +953,7 @@ function HistoryOrderCard({
         {order.items.length > PREVIEW && (
           <button
             type="button"
-            onClick={() => setExpanded((e) => !e)}
+            onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
             className="mt-1 text-xs text-[color:var(--color-accent-char)] hover:underline"
           >
             {expanded ? "▲ 閉じる" : `▼ 他${hiddenCount}品を見る`}
