@@ -600,7 +600,7 @@ function SortableMenuCard({
           {menu.description || " "}
         </p>
         <p className="text-lg font-bold leading-7 text-[color:var(--color-accent-char)]">
-          {taxIncluded(menu.price).toLocaleString()}円<span className="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">（税抜{menu.price.toLocaleString()}円）</span>
+          {taxIncluded(menu.price).toLocaleString()}円<span className="ml-1 text-xs font-normal text-[color:var(--color-text-muted)] whitespace-nowrap">（税抜{menu.price.toLocaleString()}円）</span>
         </p>
       </div>
 

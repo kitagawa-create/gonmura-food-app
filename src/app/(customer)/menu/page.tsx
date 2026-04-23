@@ -477,7 +477,7 @@ export default function MenuPage() {
                       {menu.description || " "}
                     </p>
                     <p className="text-lg font-bold leading-7 text-[color:var(--color-accent-char)]">
-                      {taxIncluded(menu.price).toLocaleString()}円<span className="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">（税抜{menu.price.toLocaleString()}円）</span>
+                      {taxIncluded(menu.price).toLocaleString()}円<span className="ml-1 text-xs font-normal text-[color:var(--color-text-muted)] whitespace-nowrap">（税抜{menu.price.toLocaleString()}円）</span>
                     </p>
                   </div>
                   {sold && (
@@ -537,7 +537,7 @@ export default function MenuPage() {
                     </p>
                   )}
                   <p className="text-2xl font-bold text-[color:var(--color-accent-char)] mt-3">
-                    {taxIncluded(selectedMenu.price).toLocaleString()}円<span className="ml-1 text-sm font-normal text-[color:var(--color-text-muted)]">（税抜{selectedMenu.price.toLocaleString()}円）</span>
+                    {taxIncluded(selectedMenu.price).toLocaleString()}円<span className="ml-1 text-sm font-normal text-[color:var(--color-text-muted)] whitespace-nowrap">（税抜{selectedMenu.price.toLocaleString()}円）</span>
                   </p>
                 </div>
 
@@ -595,7 +595,7 @@ export default function MenuPage() {
                                 {t.name}
                               </p>
                               <p className="text-xs text-[color:var(--color-accent-char)] font-bold">
-                                +{taxIncluded(t.price).toLocaleString()}円<span className="ml-1 font-normal text-[color:var(--color-text-muted)]">（税抜{t.price.toLocaleString()}円）</span>
+                                +{taxIncluded(t.price).toLocaleString()}円<span className="ml-1 font-normal text-[color:var(--color-text-muted)] whitespace-nowrap">（税抜{t.price.toLocaleString()}円）</span>
                               </p>
                             </div>
                             <div className="flex items-center gap-2">
