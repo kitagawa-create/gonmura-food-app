@@ -594,6 +594,7 @@ function SortableMenuCard({
       {/* テキスト領域: お客様画面と完全同一 */}
       <div className={`flex flex-col p-4 gap-3 ${sold ? "opacity-60" : ""}`}>
         <h3 className="text-base font-bold leading-6 line-clamp-2 text-[color:var(--color-text-primary)]">
+          <span className="mr-1 text-xs font-bold text-[color:var(--color-text-muted)]">{index + 1}.</span>
           {menu.name}
         </h3>
         <p className="text-sm leading-5 line-clamp-2 text-[color:var(--color-text-muted)]">
@@ -620,17 +621,12 @@ function SortableMenuCard({
         </div>
       )}
 
-      {/* 順番バッジ（ドラッグハンドル下） */}
-      <div className="absolute left-2 top-10 z-10 flex h-7 min-w-[28px] items-center justify-center rounded-full bg-black/40 px-1.5 text-[11px] font-bold text-white">
-        {index + 1}
-      </div>
-
-      {/* ドラッグハンドル（左上・owner のみ） */}
+      {/* ドラッグハンドル（下部中央・owner のみ） */}
       {isOwner && (
         <div
           {...attributes}
           {...listeners}
-          className="absolute left-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/80 shadow-sm cursor-grab touch-none text-[color:var(--color-text-muted)] active:cursor-grabbing"
+          className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/80 shadow-sm cursor-grab touch-none text-[color:var(--color-text-muted)] active:cursor-grabbing"
           title="ドラッグして並び替え"
         >
           ⠿
