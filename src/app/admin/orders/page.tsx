@@ -507,9 +507,9 @@ function ActiveOrderCard({
       <div className="mb-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="text-2xl font-bold text-[color:var(--color-text-primary)]">
-              {tableNumber ?? "?"}
-            </span>
+            <div className="inline-flex items-center justify-center rounded-xl bg-[color:var(--color-accent-char)] px-3 py-1.5 min-w-[52px]">
+              <span className="text-2xl font-bold leading-none text-white">{tableNumber ?? "?"}</span>
+            </div>
             <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                 isUrgent
                   ? "bg-[color:var(--color-accent-warn)] text-white"
@@ -913,9 +913,9 @@ function HistoryOrderCard({
       }`}
     >
       <div className="shrink-0 flex flex-col items-center gap-1 w-14">
-        <span className="text-2xl font-bold text-[color:var(--color-text-primary)]">
-          {tableNumber}
-        </span>
+        <div className="inline-flex items-center justify-center rounded-xl bg-[color:var(--color-accent-char)] px-3 py-1.5 min-w-[52px]">
+          <span className="text-2xl font-bold leading-none text-white">{tableNumber}</span>
+        </div>
         <span className="rounded-full px-2 py-0.5 text-[10px] font-bold whitespace-nowrap bg-[color:var(--color-bg-subtle)] text-[color:var(--color-text-muted)]">
           提供済
         </span>

@@ -142,9 +142,9 @@ export default function AdminTablesPage() {
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-2xl font-bold text-[color:var(--color-text-primary)]">
-                      {table.tableNumber}
-                    </span>
+                    <div className="inline-flex items-center justify-center rounded-xl bg-[color:var(--color-accent-char)] px-3 py-1.5 min-w-[52px]">
+                      <span className="text-2xl font-bold leading-none text-white">{table.tableNumber}</span>
+                    </div>
                     <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                       isOccupied
                         ? "bg-[color:var(--color-accent-negi)]/15 text-[color:var(--color-accent-negi)]"
