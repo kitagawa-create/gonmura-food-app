@@ -533,7 +533,7 @@ export default function AdminMenusPage() {
 
 function SortableMenuCard({
   menu,
-  index: _index,
+  index,
   isOwner,
   categoryMap: _categoryMap,
   isSelected,
@@ -619,6 +619,11 @@ function SortableMenuCard({
           </span>
         </div>
       )}
+
+      {/* 順番バッジ（左下） */}
+      <div className="absolute left-2 bottom-2 z-10 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-black/40 px-1.5 text-[10px] font-bold text-white">
+        {index + 1}
+      </div>
 
       {/* ドラッグハンドル（左上・owner のみ） */}
       {isOwner && (
