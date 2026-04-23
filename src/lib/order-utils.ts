@@ -101,6 +101,43 @@ export function normalizeOrder(id: string, data: Record<string, unknown>, custom
   };
 }
 
+export type OrderedDisplayItem<T extends { itemId: string; setId: string }> = {
+  item: T;
+  isSide: boolean;
+};
+
+/**
+ * 注文明細を表示順に整形する。
+ * main は `setId === itemId` を優先し、旧データや不整合データでは各 setId の先頭を main とみなす。
+ */
+export function groupOrderItemsForDisplay<T extends { itemId: string; setId: string }>(
+  items: T[]
+): OrderedDisplayItem<T>[] {
+  const groups = new Map<string, T[]>();
+  const orderedKeys: string[] = [];
+
+  for (const item of items) {
+    const key = item.setId || item.itemId;
+    if (!groups.has(key)) orderedKeys.push(key);
+    const list = groups.get(key) ?? [];
+    list.push(item);
+    groups.set(key, list);
+  }
+
+  const result: OrderedDisplayItem<T>[] = [];
+  for (const key of orderedKeys) {
+    const group = groups.get(key) ?? [];
+    if (group.length === 0) continue;
+    const main = group.find((item) => item.itemId === item.setId) ?? group[0];
+    result.push({ item: main, isSide: false });
+    for (const item of group) {
+      if (item.itemId === main.itemId) continue;
+      result.push({ item, isSide: true });
+    }
+  }
+  return result;
+}
+
 /** 新規 lineId を採番。 */
 export function newLineId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {

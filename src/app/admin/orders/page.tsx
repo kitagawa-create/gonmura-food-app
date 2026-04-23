@@ -21,7 +21,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { Order, OrderItem, OrderWithItems } from "@/types";
-import { normalizeOrder, normalizeOrderItem, comboLineTotal, taxIncluded } from "@/lib/order-utils";
+import { groupOrderItemsForDisplay, normalizeOrder, normalizeOrderItem, comboLineTotal, taxIncluded } from "@/lib/order-utils";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { DatePicker } from "@/components/admin/DatePicker";
 import { StickyFilterBar } from "@/components/admin/StickyFilterBar";
@@ -502,9 +502,15 @@ function ActiveOrderCard({
     ? order.items.find((i) => i.itemId === cancelItemId) ?? null
     : null;
   // メインは配下のサイドも含めてキャンセル対象になる
-  const cancelTargetSet = cancelTarget && cancelTarget.setId === cancelTarget.itemId
-    ? order.items.filter((i) => i.setId === cancelTarget.itemId && i.itemId !== cancelTarget.itemId)
-    : cancelTarget ? [cancelTarget] : [];
+  const orderedDisplayItems = groupOrderItemsForDisplay(order.items);
+  const cancelTargetSet = cancelTarget
+    ? (() => {
+        const main = cancelTarget.itemId === cancelTarget.setId
+          ? cancelTarget
+          : order.items.find((i) => i.itemId === cancelTarget.setId) ?? cancelTarget;
+        return order.items.filter((i) => i.setId === main.setId && i.itemId !== cancelTarget.itemId);
+      })()
+    : [];
   const isLastItem = order.items.length === cancelTargetSet.length;
 
   return (
@@ -558,81 +564,58 @@ function ActiveOrderCard({
 
       {/* 商品チェックリスト */}
       <ul className="mb-3 space-y-1">
-        {(() => {
-          // setId でグループ化し、メイン→サイドの順で並べる
-          const rendered: React.ReactNode[] = [];
-          const added = new Set<string>();
-          const sortedItems = [
-            ...order.items.filter((i) => i.setId === i.itemId),
-            ...order.items.filter((i) => i.setId !== i.itemId),
-          ];
-          for (const item of sortedItems) {
-            if (added.has(item.itemId)) continue;
-            added.add(item.itemId);
-            // 新フォーマットのサイドはメインの直後に挿入済みなのでここでは skip
-            if (item.setId !== item.itemId) continue;
-
-            const sides = order.items.filter((s) => s.setId === item.itemId && s.itemId !== item.itemId);
-            sides.forEach((s) => added.add(s.itemId));
-
-            const renderRow = (rowItem: typeof item, isSide: boolean) => {
-              const done = rowItem.checked;
-              return (
-                <li key={rowItem.itemId} className={`flex items-stretch gap-1 ${isSide ? "ml-4" : ""}`}>
-                  <button
-                    type="button"
-                    onClick={() => onToggle(order, rowItem.itemId)}
-                    className={`flex-1 rounded-lg px-3 py-2.5 text-left transition-colors ${
+        {orderedDisplayItems.map(({ item, isSide }) => {
+          const done = item.checked;
+          return (
+            <li key={item.itemId} className={`flex items-stretch gap-1 ${isSide ? "ml-4" : ""}`}>
+              <button
+                type="button"
+                onClick={() => onToggle(order, item.itemId)}
+                className={`flex-1 rounded-lg px-3 py-2.5 text-left transition-colors ${
+                  done
+                    ? "bg-[color:var(--color-accent-negi)]/10"
+                    : "bg-[color:var(--color-bg-subtle)] hover:bg-[color:var(--color-bg-subtle)]/80"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-2 transition-colors ${
                       done
-                        ? "bg-[color:var(--color-accent-negi)]/10"
-                        : "bg-[color:var(--color-bg-subtle)] hover:bg-[color:var(--color-bg-subtle)]/80"
+                        ? "border-[color:var(--color-accent-negi)] bg-[color:var(--color-accent-negi)]"
+                        : "border-[color:var(--color-border-strong)]"
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-2 transition-colors ${
-                          done
-                            ? "border-[color:var(--color-accent-negi)] bg-[color:var(--color-accent-negi)]"
-                            : "border-[color:var(--color-border-strong)]"
-                        }`}
-                      >
-                        {done && (
-                          <svg className="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </span>
-                      <span className={`flex-1 text-lg leading-tight ${done ? "line-through text-[color:var(--color-text-muted)]" : "text-[color:var(--color-text-primary)]"}`}>
-                        {isSide && <span className="mr-1 text-sm text-[color:var(--color-text-muted)]">＋</span>}
-                        {rowItem.name}
-                      </span>
-                      <span className={`whitespace-nowrap text-xl font-bold ${done ? "text-[color:var(--color-text-muted)]" : "text-[color:var(--color-accent-char)]"}`}>
-                        ×{rowItem.quantity}
-                      </span>
-                    </div>
-                    {rowItem.note && (
-                      <p className="mt-1 ml-10 text-xs text-[color:var(--color-accent-warn)]">※ {rowItem.note}</p>
+                    {done && (
+                      <svg className="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
                     )}
-                  </button>
-                  {editMode && (
-                    <button
-                      type="button"
-                      onClick={() => setCancelItemId(rowItem.itemId)}
-                      aria-label={`${rowItem.name} をキャンセル`}
-                      className="shrink-0 w-9 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] text-lg text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-accent-warn)]/10 hover:text-[color:var(--color-accent-warn)] transition-colors"
-                    >
-                      ×
-                    </button>
-                  )}
-                </li>
-              );
-            };
-
-            rendered.push(renderRow(item, false));
-            sides.forEach((s) => rendered.push(renderRow(s, true)));
-          }
-          return rendered;
-        })()}
+                  </span>
+                  <span className={`flex-1 text-lg leading-tight ${done ? "line-through text-[color:var(--color-text-muted)]" : "text-[color:var(--color-text-primary)]"}`}>
+                    {isSide && <span className="mr-1 text-sm text-[color:var(--color-text-muted)]">＋</span>}
+                    {item.name}
+                  </span>
+                  <span className={`whitespace-nowrap text-xl font-bold ${done ? "text-[color:var(--color-text-muted)]" : "text-[color:var(--color-accent-char)]"}`}>
+                    ×{item.quantity}
+                  </span>
+                </div>
+                {item.note && (
+                  <p className="mt-1 ml-10 text-xs text-[color:var(--color-accent-warn)]">※ {item.note}</p>
+                )}
+              </button>
+              {editMode && (
+                <button
+                  type="button"
+                  onClick={() => setCancelItemId(item.itemId)}
+                  aria-label={`${item.name} をキャンセル`}
+                  className="shrink-0 w-9 rounded-lg border border-[color:var(--color-border)] bg-[color:var(--color-bg-card)] text-lg text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-accent-warn)]/10 hover:text-[color:var(--color-accent-warn)] transition-colors"
+                >
+                  ×
+                </button>
+              )}
+            </li>
+          );
+        })}
       </ul>
 
       {/* 完了ボタン (全チェック時) or 取消 + 合計 */}

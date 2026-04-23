@@ -143,7 +143,7 @@ export function CartPanel({
       });
 
       for (const item of items) {
-        const itemId = crypto.randomUUID();
+        const itemId = item.lineId;
         batch.set(doc(db, "customers", cid, "orders", orderRef.id, "items", itemId), {
           itemId,
           menuId: item.menuId,

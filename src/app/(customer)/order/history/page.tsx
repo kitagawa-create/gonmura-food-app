@@ -7,7 +7,7 @@ import { useCart } from "@/lib/cart-context";
 import type { OrderWithItems } from "@/types";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import { CustomerPageHeader } from "@/components/customer/CustomerPageHeader";
-import { comboLineTotal, normalizeOrder, normalizeOrderItem, taxIncluded } from "@/lib/order-utils";
+import { comboLineTotal, groupOrderItemsForDisplay, normalizeOrder, normalizeOrderItem, taxIncluded } from "@/lib/order-utils";
 
 function timeStr(d: Date) {
   return d.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
@@ -32,19 +32,7 @@ function OrderCard({ order }: { order: OrderWithItems }) {
   const created = order.createdAt?.toDate?.();
   const updated = order.updatedAt?.toDate?.();
   // メインを先頭にしてサイドをその直後に配置（新旧両フォーマット対応）
-  const orderedDisplayItems = (() => {
-    const result: { item: typeof order.items[number]; isSide: boolean }[] = [];
-    const added = new Set<string>();
-    for (const item of order.items) {
-      if (added.has(item.itemId)) continue;
-      if (item.setId !== item.itemId) continue;
-      added.add(item.itemId);
-      result.push({ item, isSide: false });
-      const sides = order.items.filter((s) => s.setId === item.itemId && s.itemId !== item.itemId);
-      sides.forEach((s) => { added.add(s.itemId); result.push({ item: s, isSide: true }); });
-    }
-    return result;
-  })();
+  const orderedDisplayItems = groupOrderItemsForDisplay(order.items);
   const visibleDisplay = expanded ? orderedDisplayItems : orderedDisplayItems.slice(0, PREVIEW);
   const hiddenCount = orderedDisplayItems.length - PREVIEW;
   const statusInfo = STATUS_LABEL[order.status] ?? STATUS_LABEL.pending;

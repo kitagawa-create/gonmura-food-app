@@ -8,7 +8,7 @@ import { useCart } from "@/lib/cart-context";
 import type { OrderWithItems } from "@/types";
 import { FullScreenLoader } from "@/components/ui/FullScreenLoader";
 import { CustomerPageHeader } from "@/components/customer/CustomerPageHeader";
-import { normalizeOrder, normalizeOrderItem, comboLineHash } from "@/lib/order-utils";
+import { groupOrderItemsForDisplay, normalizeOrder, normalizeOrderItem, comboLineHash } from "@/lib/order-utils";
 import Link from "next/link";
 
 const TABLE_ID_KEY = "gonmura-table-id";
@@ -139,43 +139,43 @@ export default function BillPage() {
     );
   }
 
-  // 親子関係でセット単位集計、旧フォーマット（sides埋め込み）も互換表示
+  // 親子関係でセット単位集計、旧フォーマットにも互換表示
   type BillLine = { key: string; name: string; price: number; quantity: number; sides: { name: string; price: number; quantity: number }[] };
   const billLines: BillLine[] = [];
 
   for (const order of orders) {
-    const mainItems = order.items.filter((i) => i.setId === i.itemId);
-    for (const main of mainItems) {
-      const sides = order.items.filter((i) => i.setId === main.itemId);
-      const key = `${main.menuId}|${sides.map((s) => `${s.menuId}:${s.quantity}`).sort().join(",")}`;
-      const existing = billLines.find((l) => l.key === key);
-      if (existing) {
-        existing.quantity += 1;
+    const displayItems = groupOrderItemsForDisplay(order.items);
+    for (const { item: main, isSide } of displayItems) {
+      if (isSide) continue;
+      const sides = order.items.filter((i) => i.setId === main.setId && i.itemId !== main.itemId);
+      if (sides.length === 0) {
+        const key = comboLineHash(main.menuId, [], "");
+        const existing = billLines.find((l) => l.key === key);
+        if (existing) {
+          existing.quantity += main.quantity;
+        } else {
+          billLines.push({
+            key,
+            name: main.name,
+            price: main.price,
+            quantity: main.quantity,
+            sides: [],
+          });
+        }
       } else {
-        billLines.push({
-          key,
-          name: main.name,
-          price: main.price,
-          quantity: 1,
-          sides: sides.map((s) => ({ name: s.name, price: s.price, quantity: s.quantity })),
-        });
-      }
-    }
-
-    // 単品
-    for (const item of mainItems.filter((i) => !order.items.some((x) => x.setId === i.itemId && x.itemId !== i.itemId))) {
-      const key = comboLineHash(item.menuId, [], "");
-      const existing = billLines.find((l) => l.key === key);
-      if (existing) {
-        existing.quantity += item.quantity;
-      } else {
-        billLines.push({
-          key,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-          sides: [],
-        });
+        const key = `${main.menuId}|${sides.map((s) => `${s.menuId}:${s.quantity}`).sort().join(",")}`;
+        const existing = billLines.find((l) => l.key === key);
+        if (existing) {
+          existing.quantity += 1;
+        } else {
+          billLines.push({
+            key,
+            name: main.name,
+            price: main.price,
+            quantity: 1,
+            sides: sides.map((s) => ({ name: s.name, price: s.price, quantity: s.quantity })),
+          });
+        }
       }
     }
   }
