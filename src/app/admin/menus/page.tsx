@@ -33,7 +33,7 @@ import {
 } from "@dnd-kit/core";
 import {
   SortableContext,
-  verticalListSortingStrategy,
+  rectSortingStrategy,
   useSortable,
   arrayMove,
 } from "@dnd-kit/sortable";
@@ -436,8 +436,8 @@ export default function AdminMenusPage() {
           const { items } = currentSection;
           return (
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={items.map((m) => m.menuId)} strategy={verticalListSortingStrategy}>
-                <ul className="space-y-2">
+              <SortableContext items={items.map((m) => m.menuId)} strategy={rectSortingStrategy}>
+                <div className="grid w-full gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                   {items.map((m, menuIdx) => (
                     <SortableMenuCard
                       key={m.menuId}
@@ -450,7 +450,7 @@ export default function AdminMenusPage() {
                       onEdit={() => { setEditing(m); setShowForm(true); }}
                     />
                   ))}
-                </ul>
+                </div>
               </SortableContext>
             </DndContext>
           );
@@ -533,9 +533,9 @@ export default function AdminMenusPage() {
 
 function SortableMenuCard({
   menu,
-  index,
+  index: _index,
   isOwner,
-  categoryMap,
+  categoryMap: _categoryMap,
   isSelected,
   onSelect,
   onEdit,
@@ -550,82 +550,111 @@ function SortableMenuCard({
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: menu.menuId });
   const style = { transform: CSS.Transform.toString(transform), transition };
+  const sold = menu.status === "soldout";
+  const hidden = menu.status === "hidden";
 
   return (
-    <li
+    <div
       ref={setNodeRef}
       style={style}
-      className={`rounded-xl border bg-[color:var(--color-bg-card)] p-3 shadow-sm transition-shadow ${
+      className={`relative flex w-full flex-col rounded-xl overflow-hidden bg-[color:var(--color-bg-card)] border transition-shadow ${
         isDragging ? "opacity-50 shadow-xl z-50" : ""
       } ${
         isSelected
           ? "border-[color:var(--color-accent-char)] ring-2 ring-[color:var(--color-accent-char)]/30"
-          : menu.status === "soldout"
+          : sold
             ? "border-[color:var(--color-accent-warn)]"
-            : menu.status === "hidden"
+            : hidden
               ? "border-dashed border-[color:var(--color-border)] opacity-60"
               : "border-[color:var(--color-border)]"
       }`}
     >
-      <div className="flex items-center gap-2">
-        {isOwner ? (
-          <span
-            {...attributes}
-            {...listeners}
-            className="cursor-grab touch-none px-2 text-xl text-[color:var(--color-text-muted)] active:cursor-grabbing"
-            title="ドラッグして並び替え"
-          >
-            ⠿
+      {/* 画像領域: お客様画面と同じ 4:3 */}
+      {menu.imageUrl ? (
+        <div
+          className={`relative w-full shrink-0 overflow-hidden rounded-t-xl ${sold ? "opacity-40 grayscale" : ""}`}
+          style={{ paddingTop: "75%" }}
+        >
+          <div className="absolute inset-0">
+            <FadeImage src={menu.imageUrl} alt={menu.name} className="w-full h-full" />
+          </div>
+        </div>
+      ) : (
+        <div
+          className={`relative w-full shrink-0 overflow-hidden bg-[color:var(--color-bg-subtle)] ${sold ? "opacity-40 grayscale" : ""}`}
+          style={{ paddingTop: "75%" }}
+        >
+          <div className="absolute inset-0 flex items-center justify-center text-xs text-[color:var(--color-text-muted)]">
+            画像なし
+          </div>
+        </div>
+      )}
+
+      {/* テキスト領域: お客様画面と完全同一 */}
+      <div className={`flex flex-col p-4 gap-3 ${sold ? "opacity-60" : ""}`}>
+        <h3 className="text-base font-bold leading-6 line-clamp-2 text-[color:var(--color-text-primary)]">
+          {menu.name}
+        </h3>
+        <p className="text-sm leading-5 line-clamp-2 text-[color:var(--color-text-muted)]">
+          {menu.description || " "}
+        </p>
+        <p className="text-lg font-bold leading-7 text-[color:var(--color-accent-char)]">
+          {taxIncluded(menu.price).toLocaleString()}円<span className="ml-1 text-xs font-normal text-[color:var(--color-text-muted)]">（税抜{menu.price.toLocaleString()}円）</span>
+        </p>
+      </div>
+
+      {/* 売り切れオーバーレイ: お客様画面と同一 */}
+      {sold && (
+        <div className="pointer-events-none absolute inset-0 flex items-start justify-center pt-[22%]">
+          <span className="rounded-full bg-[color:var(--color-accent-warn)]/90 px-5 py-2 text-base font-bold text-white shadow-md">
+            売り切れ
           </span>
-        ) : (
-          <span className="px-2 text-xl opacity-0 pointer-events-none">⠿</span>
-        )}
-        <span className="w-8 shrink-0 text-right text-sm tabular-nums text-[color:var(--color-text-muted)]">
-          {index + 1}.
-        </span>
+        </div>
+      )}
+      {hidden && (
+        <div className="pointer-events-none absolute inset-0 flex items-start justify-center pt-[22%]">
+          <span className="rounded-full bg-[color:var(--color-text-muted)]/90 px-5 py-2 text-base font-bold text-white shadow-md">
+            非公開
+          </span>
+        </div>
+      )}
+
+      {/* ドラッグハンドル（左上・owner のみ） */}
+      {isOwner && (
+        <div
+          {...attributes}
+          {...listeners}
+          className="absolute left-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/80 shadow-sm cursor-grab touch-none text-[color:var(--color-text-muted)] active:cursor-grabbing"
+          title="ドラッグして並び替え"
+        >
+          ⠿
+        </div>
+      )}
+
+      {/* 編集ボタン（右上・owner のみ） */}
+      {isOwner && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onEdit(); }}
+          className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/80 border border-[color:var(--color-border)] text-[color:var(--color-text-muted)] hover:bg-white transition-colors shadow-sm"
+          aria-label="編集"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+        </button>
+      )}
+
+      {/* 選択チェックボックス（左下） */}
+      <div className="absolute left-2 bottom-2 z-10">
         <input
           type="checkbox"
           checked={isSelected}
           onChange={onSelect}
-          className="h-4 w-4 shrink-0 accent-[color:var(--color-accent-char)]"
+          className="h-4 w-4 accent-[color:var(--color-accent-char)] cursor-pointer"
         />
-        {menu.imageUrl && (
-          <FadeImage
-            src={menu.imageUrl}
-            alt={menu.name}
-            className="h-12 w-16 shrink-0 rounded-lg object-cover"
-          />
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-[color:var(--color-text-primary)]">{menu.name}</p>
-          <p className="text-xs text-[color:var(--color-accent-char)]">
-            ¥{taxIncluded(menu.price).toLocaleString()}
-            <span className="ml-1 text-[color:var(--color-text-muted)]">（税抜¥{menu.price.toLocaleString()}）</span>
-          </p>
-          <p className="text-xs text-[color:var(--color-text-muted)] truncate">
-            {menu.categoryIds.map((id) => categoryMap.get(id)?.name ?? "(不明)").join(", ") || "(カテゴリ未設定)"}
-          </p>
-          {(menu.status === "hidden" || menu.status === "soldout") && (
-            <div className="mt-0.5 flex flex-wrap gap-1">
-              {menu.status === "hidden" && (
-                <span className="rounded-full bg-[color:var(--color-text-muted)] px-2 py-0.5 text-[10px] font-bold text-white">非公開中</span>
-              )}
-              {menu.status === "soldout" && (
-                <span className="rounded-full bg-[color:var(--color-accent-warn)] px-2 py-0.5 text-[10px] font-bold text-white">売り切れ中</span>
-              )}
-            </div>
-          )}
-        </div>
-        {isOwner && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onEdit(); }}
-            className="rounded-lg border border-[color:var(--color-border)] px-2 py-1 text-xs text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-bg-subtle)] transition-colors"
-          >
-            編集
-          </button>
-        )}
       </div>
-    </li>
+    </div>
   );
 }
 
